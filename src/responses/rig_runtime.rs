@@ -210,6 +210,9 @@ pub(super) async fn run(
         .next()
         .unwrap_or(&prompt)
         .replace("coa.search_document", "search_document");
+    let instructions = format!(
+        "{instructions}\n\nFor the web demo's answer.text only: Lead with the specific activities and practical details the person asked for. Use short, natural sentences, as a helpful colleague would. Write plain text or a short '-' list. Do not use Markdown tables, pipe-delimited tables, Markdown headings or emphasis. Keep relevant uncertainty honest and brief in ordinary words; do not add a generic verdict or jargon about criteria, coverage or proof. Do not invent facts or hide relevant missing information. Keep the existing language, JSON schema, separate citations, source/date bindings, unknowns and search rules unchanged."
+    );
     let schema = crate::codex::output_schema()
         .try_into()
         .map_err(|_| "output: Ongeldig antwoordschema.")?;

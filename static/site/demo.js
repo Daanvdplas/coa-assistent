@@ -85,20 +85,17 @@
     el("answer").textContent = run.status === "failed" ? t(failureKey(run.error)) : run.result?.answer?.text || t("pendingAnswer");
     el("answer").lang = run.result?.answer?.text ? run.context?.answer_language || "nl" : language();
     el("answer").classList.toggle("error", run.status === "failed");
-    const method = run.result?.retrieval_method;
-    const methodKey = { dense: "methodDense", bm25: "methodBm25" }[method];
-    el("run-method").hidden = !methodKey;
-    el("run-method").textContent = methodKey ? t("runMethod", { method: t(methodKey) }) : "";
     const citations = run.result?.answer?.citations || [];
     el("tools").replaceChildren();
-    (run.result?.tool_calls || []).forEach((call, index) => {
-      const item = node("article", undefined, "search-action");
-      item.append(node("h3", t("searchAction", { number: index + 1 }), "search-action-heading"),
-        node("p", call.query, "search-query"));
+    (run.result?.tool_calls || []).forEach(call => {
+      const item = node("li", undefined, "search-action");
+      item.append(node("h3", call.query, "search-query"));
       (call.result?.hits || []).forEach(hit => {
-        const evidence = node("section", undefined, "retrieved");
+        const evidence = node("details", undefined, "retrieved");
+        evidence.dataset.source = hit.section.source_id;
+        evidence.dataset.section = hit.section.id;
         evidence.append(
-          node("h4", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
+          node("summary", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
           quotedPassage(hit.section.text, citations.filter(c => c.source_id === hit.section.source_id && c.source_date === hit.section.source_date && c.section_id === hit.section.id).map(c => c.quote)),
           node("small", t("published", { date: hit.section.source_date })),
         );
@@ -162,7 +159,7 @@
     const version = ++pollVersion;
     setBusy(true);
     showRun(run);
-    message("searching");
+    message(null);
     try {
       while (run.status === "pending") {
         await new Promise(resolve => setTimeout(resolve, 750));
