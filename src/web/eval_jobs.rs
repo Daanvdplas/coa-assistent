@@ -662,9 +662,12 @@ mod tests {
         ));
         std::fs::create_dir(&directory).unwrap();
         let pidfile = directory.join("child.pid");
-        let script = "import subprocess,sys,time,pathlib\nchild=subprocess.Popen([sys.executable,'-c','import signal,time;signal.signal(signal.SIGINT,signal.SIG_IGN);time.sleep(60)'],start_new_session=True)\npathlib.Path(sys.argv[1]).write_text(str(child.pid))\ntime.sleep(60)";
-        let mut child = Command::new("python3")
-            .args(["-c", script])
+        let script = r#"const {spawn}=require('node:child_process');
+const fs=require('node:fs');
+const child=spawn(process.execPath,['-e',"process.on('SIGINT',()=>{});setInterval(()=>{},1000)"],{detached:true,stdio:'ignore'});
+fs.writeFileSync(process.argv[1],String(child.pid));setInterval(()=>{},1000);"#;
+        let mut child = Command::new("node")
+            .args(["-e", script])
             .arg(&pidfile)
             .stdout(Stdio::null())
             .stderr(Stdio::null())

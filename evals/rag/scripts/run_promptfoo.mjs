@@ -75,10 +75,10 @@ for (const selected of suites) {
   delete env.COA_PROMPTFOO_PREPARED;
   const inputs=join(runDir,selected+'-inputs.json');
   writeFileSync(inputs,JSON.stringify({schema_version:1,execution_id:env.COA_PROMPTFOO_EXECUTION_ID,tests:tests.map(vars=>({vars}))}),{mode:0o600});
-  const prepare=join(root,'evals/rag/promptfoo/prepare.py');
+  const prepare=join(root,'evals/rag/promptfoo/prepare.ts');
   if (existsSync(prepare) && ['retrieval','quality','browser'].includes(selected)) {
     env.COA_PROMPTFOO_PREPARED=join(runDir,selected+'-prepared.json');
-    const result=await execute('python3',[prepare,'--input',inputs,'--output',env.COA_PROMPTFOO_PREPARED]);
+    const result=await execute(process.execPath,[prepare,'--input',inputs,'--output',env.COA_PROMPTFOO_PREPARED]);
     if (result.code!==0) throw new Error('Verse lokale retrievalvoorbereiding is mislukt.');
     delete env.COA_PROMPTFOO_EMBEDDING_MANIFEST;
     delete env.COA_PROMPTFOO_EMBEDDING_MANIFEST_SHA256;

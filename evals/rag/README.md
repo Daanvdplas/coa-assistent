@@ -88,4 +88,4 @@ node evals/rag/scripts/regrade_promptfoo_results.mjs evals/rag/results/local/<ru
 Dat maakt een nieuwe promptfoo-grading-ID met de oorspronkelijke uitvoerings-ID, datum en rawhash. Codex-bewijs wordt opnieuw aan de oorspronkelijke native records en bytegebonden audit gekoppeld. De pagina noemt dit expliciet herbeoordeling; het is geen nieuwe retrieval- of modelmeting.
 
 
-De bestanden `src/`, `datasets/`, `fixtures/` en de oudere handleidingen blijven de onderliggende uitvoerders, bronverwachtingen en historische meetdefinities documenteren. Het oude `scripts/model_trials.py run` is uitgeschakeld; nieuwe RAG-modelproeven lopen via promptfoo. De native volledige-assistentbenchmark onder [coa-assistent](../coa-assistent/README.md) verandert niet.
+De bestanden `src/`, `datasets/`, `fixtures/` en de oudere handleidingen blijven de onderliggende uitvoerders, bronverwachtingen en historische meetdefinities documenteren. Het oude `scripts/model_trials.ts run` is uitgeschakeld; nieuwe RAG-modelproeven lopen via promptfoo. De native volledige-assistentbenchmark onder [coa-assistent](../coa-assistent/README.md) verandert niet.

@@ -22,7 +22,7 @@ export function buildRegradeConfig(raw, rawSha256) {
         vars:{...Object.fromEntries(runtimeVariables.filter(key=>key in vars).map(key=>[key,vars[key]])),recorded_output:typeof output==='string'?output:JSON.stringify(output)},
         metadata:{suite:row.testCase?.metadata?.suite || 'rag',native_record_sha256:row.response?.metadata?.native_record_sha256,execution_origin:'recorded_execution_regrading',original_evaluation_id:raw.evalId,original_result_id:row.id,original_timestamp:raw.results.timestamp,original_raw_sha256:rawSha256,answer_quality:'not_assessed'},
         options:{repeat:1,disableVarExpansion:true},
-        assert:[{type:'python',value:'file://'+join(root,'evals/rag/promptfoo/assertions.py')+':get_assert'}]
+        assert:[{type:'javascript',value:'file://'+join(root,'evals/rag/promptfoo/assertions.ts')+':getAssert'}]
       };
     }),
     evaluateOptions:{maxConcurrency:1,maxRetries:0,cache:false}
@@ -44,7 +44,7 @@ if (process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)
   });
   if (hasCodex) {
     const enriched=join(runDir,'enriched-records.json');
-    const projection=spawnSync('python3',[join(root,'evals/rag/promptfoo/regrade_inputs.py'),'--input',resolve(input),'--output',enriched],{cwd:root,stdio:'inherit'});
+    const projection=spawnSync(process.execPath,[join(root,'evals/rag/promptfoo/regrade_inputs.ts'),'--input',resolve(input),'--output',enriched],{cwd:root,stdio:'inherit'});
     if (projection.status!==0) throw new Error('Oorspronkelijke native/auditbinding kon niet worden bevestigd.');
     recorded=JSON.parse(readFileSync(enriched));
   }

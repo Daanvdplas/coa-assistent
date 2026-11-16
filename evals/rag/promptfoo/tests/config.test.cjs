@@ -73,7 +73,10 @@ test('explicit model smoke override selects Sol and Luna exactly once while defa
 
 test('model phases keep the exact historical interleaving and four-pilot boundary', () => {
   const { execFileSync } = require('node:child_process');
-  const expected = JSON.parse(execFileSync('python3', ['-c', "import importlib.util,json;from pathlib import Path;p=Path('evals/rag/scripts/model_trials.py');s=importlib.util.spec_from_file_location('oracle',p);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);print(json.dumps(m.schedule([f'RAG26-{i:02}' for i in range(1,11)])))"], { cwd: require(configPath).ROOT, encoding: 'utf8' }));
+  const expected = [];
+  const pairs = [[1,'RAG26-01'],[1,'RAG26-02']];
+  for (let trial=1;trial<=3;trial++) for(let number=1;number<=10;number++) if(trial!==1||number>2) pairs.push([trial,'RAG26-'+String(number).padStart(2,'0')]);
+  pairs.forEach(([trial,case_id],index)=>{for(const model of index%2?['gpt-6-luna','gpt-6.1-sol']:['gpt-6.1-sol','gpt-6-luna']) expected.push({slot:expected.length+1,model,case_id,trial});});
   const actual = build('models').tests.map(row => ({ slot: row.vars.slot, model: row.vars.model, case_id: row.vars.case_id, trial: row.vars.trial }));
   assert.deepEqual(actual, expected);
   const directory=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'coa-model-schedule-'));
@@ -100,4 +103,8 @@ test('browser test selection reuses exactly one existing question with the chose
   }
   assert.throws(()=>build('browser',{COA_PROMPTFOO_EVAL_ID:'invented'}),/existing|unknown|browser/i);
   assert.throws(()=>build('browser',{COA_PROMPTFOO_EVAL_ID:'garden-time-location',COA_PROMPTFOO_EMBEDDING_MODEL:'fake'}),/embedding|model/i);
+});
+test('Promptfoo uses native TypeScript providers and JavaScript assertions without a Python runner',()=>{
+ const config=build('retrieval',{COA_PROMPTFOO_CASES:'P01',COA_PROMPTFOO_METHODS:'bm25',COA_PROMPTFOO_PROFILES:'documents_sections'});
+ assert.equal(config.providers[0].id,'file://provider.ts');assert.equal(config.defaultTest.assert[0].type,'javascript');assert.equal(config.defaultTest.assert[0].value,'file://assertions.ts:getAssert');
 });

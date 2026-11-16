@@ -10,7 +10,7 @@ Alle evaluatiecode, vraagsets, handleidingen en bewaarde resultaten staan hier. 
 
 De modeluitvoeringen en afzonderlijke AI-beoordelingen blijven via **Codex CLI** lopen. Een lokale retrievaltest of het opnieuw beoordelen van opgeslagen zoektraces heeft geen antwoordmodel nodig. De webdemo gebruikt apart de Responses API.
 
-Productcode en de fictieve activiteitdocumenten blijven in `src/` en `fixtures/`. Gewone softwaretests blijven in `tests/`; evaluatiespecifieke Python-/rapportchecks staan bij hun evaluatie. De bestaande CLI-opdrachten `eval`, `experiment` en `lab` zijn behouden.
+Productcode en de fictieve activiteitdocumenten blijven in `src/` en `fixtures/`. Gewone softwaretests blijven in `tests/`; evaluatiespecifieke TypeScript-/rapportchecks staan bij hun evaluatie. De bestaande CLI-opdrachten `eval`, `experiment` en `lab` zijn behouden.
 
 ## Bewaarde geschiedenis
 
