@@ -23,30 +23,39 @@ pub struct ExpectationsContext {
 impl ExpectationsContext {
     pub fn load(id: &str) -> Result<Self, String> {
         let dataset = dataset::load(id)?;
-        let (questions, labels): (Vec<&str>, Vec<&str>) = if id == "legacy" {
-            (
-                dataset::QUESTION_INPUTS.to_vec(),
-                vec![
-                    include_str!("../../shared/datasets/legacy/expectations.json"),
-                    include_str!("../../shared/datasets/legacy/heldout-expectations.json"),
-                ],
-            )
-        } else if id == dataset::EXPANDED_ID {
-            (
-                vec![dataset::EXPANDED_QUESTIONS],
-                vec![dataset::EXPANDED_EXPECTATIONS],
-            )
-        } else if id == dataset::STRENGTHENED_ID {
-            (
-                vec![dataset::STRENGTHENED_QUESTIONS],
-                vec![dataset::STRENGTHENED_EXPECTATIONS],
-            )
-        } else {
-            (
-                vec![dataset::INDEPENDENT_QUESTIONS],
-                vec![dataset::INDEPENDENT_EXPECTATIONS],
-            )
-        };
+        let (questions, labels): (Vec<&str>, Vec<&str>) =
+            if id == "legacy" || id == dataset::LEGACY_V1_ID {
+                (
+                    if id == dataset::LEGACY_V1_ID {
+                        vec![dataset::LEGACY_V1_QUESTIONS, dataset::QUESTION_INPUTS[1]]
+                    } else {
+                        dataset::QUESTION_INPUTS.to_vec()
+                    },
+                    vec![
+                        if id == dataset::LEGACY_V1_ID {
+                            dataset::LEGACY_V1_EXPECTATIONS
+                        } else {
+                            include_str!("../../shared/datasets/legacy/expectations.json")
+                        },
+                        include_str!("../../shared/datasets/legacy/heldout-expectations.json"),
+                    ],
+                )
+            } else if id == dataset::EXPANDED_ID {
+                (
+                    vec![dataset::EXPANDED_QUESTIONS],
+                    vec![dataset::EXPANDED_EXPECTATIONS],
+                )
+            } else if id == dataset::STRENGTHENED_ID {
+                (
+                    vec![dataset::STRENGTHENED_QUESTIONS],
+                    vec![dataset::STRENGTHENED_EXPECTATIONS],
+                )
+            } else {
+                (
+                    vec![dataset::INDEPENDENT_QUESTIONS],
+                    vec![dataset::INDEPENDENT_EXPECTATIONS],
+                )
+            };
         let mut criteria = BTreeMap::new();
         for (questions, labels) in questions.iter().zip(&labels) {
             let (_, parsed) =
@@ -58,7 +67,7 @@ impl ExpectationsContext {
             }
         }
         let mut metadata = BTreeMap::new();
-        if id != "legacy" {
+        if id != "legacy" && id != dataset::LEGACY_V1_ID {
             let details = if id == dataset::EXPANDED_ID {
                 dataset::EXPANDED_DETAILS
             } else if id == dataset::STRENGTHENED_ID {
