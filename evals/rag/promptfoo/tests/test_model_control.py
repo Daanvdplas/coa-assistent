@@ -5,12 +5,16 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from test_environment import isolate_runtime_environment
 
 HERE=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('model_control',HERE/'model_control.py')
 control=importlib.util.module_from_spec(spec);spec.loader.exec_module(control)
 
 class ModelProtocolTests(unittest.TestCase):
+    def setUp(self):
+        isolate_runtime_environment(self)
+
     def test_complete_schedule_is_exactly_the_historical_balanced_order(self):
         rows=control.ordered_schedule()
         expected=control.legacy.schedule(control.case_ids())

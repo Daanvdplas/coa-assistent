@@ -9,9 +9,11 @@ import unittest
 from unittest.mock import patch
 from test_assertions import HERE, local_record, load_assertions
 from test_provider import load_provider
+from test_environment import isolate_runtime_environment
 
 class BrowserAssertionsTest(unittest.TestCase):
     def setUp(self):
+        isolate_runtime_environment(self)
         self.assertions=load_assertions()
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name)

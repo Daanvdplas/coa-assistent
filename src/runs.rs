@@ -453,25 +453,66 @@ mod tests {
         assert!(store.summary(&active).is_err());
     }
     #[test]
-    fn global_history_and_result_payloads_remain_bounded() {
+    fn session_and_run_limits_preserve_active_work_when_each_limit_is_reached() {
         let mut store = RunStore::new();
-        for n in 0..300 {
+        let active = store.session(&[]).unwrap();
+        let pending = store
+            .begin(&active, "Active question", 3, json!({}), None)
+            .unwrap();
+        // Make the active run the oldest eviction candidate without sleeping.
+        store.mutable(&active, &pending.id).unwrap().created_at_ms = 0;
+        store.sessions.get_mut(&active).unwrap().last_active =
+            Instant::now() - Duration::from_secs(1);
+
+        // Eleven sessions and thirty runs per completed session stay below
+        // those individual caps, so only the global run cap can enforce 256.
+        for visitor in 0..10 {
             let session = store.session(&[]).unwrap();
-            let run = store
-                .begin(&session, &format!("Question {n}"), 3, json!({}), None)
-                .unwrap();
-            let result = store
-                .complete(
-                    &session,
-                    &run.id,
-                    Ok(json!({"oversized":"x".repeat(MAX_RUN_BYTES)})),
-                )
-                .unwrap();
-            assert_eq!(result.status, "failed");
-            assert!(result.result.is_none());
+            for question in 0..30 {
+                let run = store
+                    .begin(
+                        &session,
+                        &format!("Visitor {visitor}, question {question}"),
+                        3,
+                        json!({}),
+                        None,
+                    )
+                    .unwrap();
+                store.complete(&session, &run.id, Ok(json!({}))).unwrap();
+            }
         }
-        assert!(store.sessions.len() <= MAX_SESSIONS);
-        assert!(store.sessions.values().map(|s| s.runs.len()).sum::<usize>() <= MAX_RUNS);
+        assert_eq!(store.sessions.len(), 11);
+        assert_eq!(
+            store.sessions.values().map(|s| s.runs.len()).sum::<usize>(),
+            256
+        );
+        assert_eq!(store.get(&active, &pending.id).unwrap().status, "pending");
+
+        for _ in 0..300 {
+            store.session(&[]).unwrap();
+        }
+        assert_eq!(store.sessions.len(), 256);
+        assert_eq!(store.get(&active, &pending.id).unwrap().status, "pending");
+    }
+    #[test]
+    fn oversized_results_are_replaced_by_a_bounded_stored_failure() {
+        let mut store = RunStore::new();
+        let session = store.session(&[]).unwrap();
+        let run = store
+            .begin(&session, "A question", 3, json!({}), None)
+            .unwrap();
+        store
+            .complete(
+                &session,
+                &run.id,
+                Ok(json!({"oversized":"x".repeat(MAX_RUN_BYTES)})),
+            )
+            .unwrap();
+        let stored = store.get(&session, &run.id).unwrap();
+        assert_eq!(stored.status, "failed");
+        assert!(stored.result.is_none());
+        assert!(stored.error.as_deref().unwrap().starts_with("output:"));
+        assert!(serde_json::to_vec(&stored).unwrap().len() <= MAX_RUN_BYTES);
     }
     #[test]
     fn different_visitors_can_start_ten_independent_runs() {

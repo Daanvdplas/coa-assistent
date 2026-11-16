@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from test_assertions import HERE, local_record
+from test_environment import isolate_runtime_environment
 
 
 def load_provider():
@@ -21,6 +22,7 @@ def load_provider():
 
 class ProviderTest(unittest.TestCase):
     def setUp(self):
+        isolate_runtime_environment(self)
         self.provider=load_provider()
         self.assertIsNotNone(self.provider,'Promptfoo provider is not implemented')
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)

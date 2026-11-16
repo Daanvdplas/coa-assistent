@@ -7,9 +7,11 @@ import unittest
 from unittest.mock import patch
 from test_assertions import HERE,load_assertions
 from test_provider import load_provider
+from test_environment import isolate_runtime_environment
 
 class ModelProviderBoundaryTest(unittest.TestCase):
     def setUp(self):
+        isolate_runtime_environment(self)
         self.provider=load_provider();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         binary=self.root/'runtime';binary.write_text('#!fake');binary.chmod(0o700)
         self.ledger=self.root/'ledger.json'

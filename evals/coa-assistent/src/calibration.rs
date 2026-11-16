@@ -441,6 +441,52 @@ mod tests {
                 .all(|c| c.judgement.execution_status == ExecutionStatus::Failed
                     && c.judgement.assessment.is_none())
         );
+        for agreement in &report.agreement {
+            assert_eq!(agreement.cases, 4);
+            assert_eq!(agreement.completed, 0);
+            assert_eq!(agreement.execution_failures, 4);
+            assert_eq!(agreement.agreement_fraction, Some(0.0));
+        }
+
+        // Summary inputs only: reuse the process-boundary results without creating artifacts.
+        let mut cases = report.cases[..6].to_vec();
+        for (case, (subset, reference, verdict)) in cases.iter_mut().zip([
+            ("development", Verdict::Good, Some(Verdict::Good)),
+            ("development", Verdict::Good, None),
+            ("development", Verdict::Bad, Some(Verdict::Good)),
+            ("development", Verdict::Bad, Some(Verdict::ReviewNeeded)),
+            ("development", Verdict::Good, Some(Verdict::Bad)),
+            ("validation", Verdict::Bad, Some(Verdict::Bad)),
+        ]) {
+            case.subset = subset.into();
+            case.reference_label = reference;
+            case.judgement.execution_status = if verdict.is_some() {
+                ExecutionStatus::Completed
+            } else {
+                ExecutionStatus::TimedOut
+            };
+            case.judgement.assessment = verdict.map(|overall| judge::Assessment {
+                overall,
+                criteria: vec![],
+            });
+        }
+        assert_eq!(
+            summarize(&cases[..2], "development").agreement_fraction,
+            Some(0.5)
+        );
+        let agreement = summarize(&cases, "development");
+        assert_eq!(agreement.cases, 5);
+        assert_eq!(agreement.completed, 4);
+        assert_eq!(agreement.exact_agreements, 1);
+        assert_eq!(agreement.agreement_fraction, Some(1.0 / 5.0));
+        assert_eq!(agreement.reference_good, 3);
+        assert_eq!(agreement.reference_bad, 2);
+        assert_eq!(agreement.false_accepts, 1);
+        assert_eq!(agreement.false_accept_fraction, Some(1.0 / 2.0));
+        assert_eq!(agreement.false_rejects, 1);
+        assert_eq!(agreement.false_reject_fraction, Some(1.0 / 3.0));
+        assert_eq!(agreement.grader_abstentions, 1);
+        assert_eq!(agreement.execution_failures, 1);
         std::fs::remove_dir_all(directory).unwrap();
     }
 

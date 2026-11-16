@@ -481,6 +481,38 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
     use meedoen_retrieval::AS_OF;
+
+    fn test_state(corpus: meedoen_retrieval::corpus::CorpusId) -> WebState {
+        WebState {
+            corpus,
+            store: Mutex::new(RunStore::new()),
+            limits: Mutex::new(DemoLimits::default()),
+            trusted_proxy: None,
+            capacity: Arc::new(Semaphore::new(10)),
+            runner: None,
+            runner_error: None,
+            manifest: json!({}),
+            sources: json!([]),
+            configuration: json!({}),
+        }
+    }
+
+    async fn wait_for_unavailable_runtime(app: &App, session: &str, id: &str) {
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                let run = locked(app).unwrap().get(session, id).unwrap();
+                if run.status != "pending" {
+                    assert_eq!(run.status, "failed");
+                    assert!(run.error.as_deref().unwrap().starts_with("runtime:"));
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the unavailable runtime must record its failure");
+    }
+
     async fn request_json(
         app: App,
         method: &str,
@@ -537,18 +569,7 @@ mod tests {
 
     #[tokio::test]
     async fn promptfoo_results_are_available_without_starting_a_model() {
-        let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::DemoTwelve,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
-            sources: json!([]),
-            configuration: json!({}),
-        });
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve));
         use tower::ServiceExt;
         let response = router(app)
             .oneshot(
@@ -570,18 +591,7 @@ mod tests {
 
     #[tokio::test]
     async fn session_creation_spam_is_rejected_without_creating_more_sessions() {
-        let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
-            sources: json!([]),
-            configuration: json!({}),
-        });
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
         for _ in 0..30 {
             let (status, _) =
                 request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
@@ -593,50 +603,25 @@ mod tests {
     }
     #[test]
     fn duplicate_proxy_headers_are_rejected_and_untrusted_headers_are_ignored() {
-        let mut state = WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
+        let state = WebState {
             trusted_proxy: Some("127.0.0.1".parse().unwrap()),
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
-            sources: json!([]),
-            configuration: json!({}),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen)
         };
         let mut headers = HeaderMap::new();
         headers.append("x-real-ip", "203.0.113.1".parse().unwrap());
         headers.append("x-real-ip", "203.0.113.2".parse().unwrap());
         let app = Arc::new(state);
         assert!(visitor_ip(&app, &headers, "127.0.0.1:1234".parse().unwrap()).is_err());
-        state = Arc::try_unwrap(app).ok().unwrap();
-        state.trusted_proxy = None;
+        let untrusted = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
         assert_eq!(
-            visitor_ip(
-                &Arc::new(state),
-                &headers,
-                "127.0.0.1:1234".parse().unwrap()
-            )
-            .unwrap(),
+            visitor_ip(&untrusted, &headers, "127.0.0.1:1234".parse().unwrap()).unwrap(),
             "127.0.0.1".parse::<IpAddr>().unwrap()
         );
     }
     #[tokio::test]
     async fn api_responses_and_session_errors_must_not_be_cached() {
         use tower::ServiceExt;
-        let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
-            sources: json!([]),
-            configuration: json!({}),
-        });
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
         for path in [
             "/api/source",
             "/api/session",
@@ -668,9 +653,10 @@ mod tests {
     async fn ten_provider_requests_overlap_with_isolated_answers_and_eleventh_gets_429() {
         use meedoen_retrieval::responses::ResponsesRunner;
         use std::sync::atomic::{AtomicUsize, Ordering};
-        use tokio::sync::{Barrier, Notify, Semaphore};
+        use tokio::sync::{Barrier, Semaphore};
         let reached = Arc::new(Barrier::new(11));
-        let release = Arc::new(Notify::new());
+        // Permits survive even if released before every barrier waiter resumes.
+        let release = Arc::new(Semaphore::new(0));
         let active = Arc::new(AtomicUsize::new(0));
         let maximum = Arc::new(AtomicUsize::new(0));
         let requests = Arc::new(AtomicUsize::new(0));
@@ -696,7 +682,7 @@ mod tests {
                         let n=active.fetch_add(1,Ordering::SeqCst)+1;
                         maximum.fetch_max(n,Ordering::SeqCst);
                         reached.wait().await;
-                        release.notified().await;
+                        release.acquire().await.unwrap().forget();
                         active.fetch_sub(1,Ordering::SeqCst);
                         json!([{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":question,"top_k":3}).to_string()}])
                     };
@@ -707,19 +693,13 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let provider = tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
-        let runner =
-            ResponsesRunner::new("coa-local-test-key".into(), &endpoint, callback).unwrap();
+        let api_key = "coa-local-test-key";
+        let runner = ResponsesRunner::new(api_key.into(), &endpoint, callback).unwrap();
         let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
             configuration: runner.configuration(),
             runner: Some(runner),
-            runner_error: None,
             manifest,
-            sources: json!([]),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen)
         });
         let mut visitors = Vec::new();
         for i in 0..11 {
@@ -730,7 +710,7 @@ mod tests {
             let (status,run)=request_json(app.clone(),"POST","/api/runs",&session,json!({"question":format!("Visitor {i}"),"answer_language":if i%2==0{"nl"}else{"en"},"retrieval_method":if i%2==0{"dense"}else{"bm25"}})).await;
             if i == 10 {
                 assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-                assert!(!run.to_string().contains("synthetic-api-key"));
+                assert!(!run.to_string().contains(api_key));
             } else {
                 assert_eq!(status, StatusCode::OK);
                 visitors.push((session, run["id"].as_str().unwrap().to_owned()));
@@ -749,7 +729,7 @@ mod tests {
         )
         .await;
         assert!(status == StatusCode::CONFLICT || status == StatusCode::TOO_MANY_REQUESTS);
-        release.notify_waiters();
+        release.add_permits(10);
         tokio::time::timeout(std::time::Duration::from_secs(3), async {
             loop {
                 if app.capacity.available_permits() == 10 {
@@ -771,6 +751,7 @@ mod tests {
             .await;
             assert_eq!(status, StatusCode::OK);
             assert_eq!(run["status"], "completed", "{run}");
+            assert!(!run.to_string().contains(api_key));
             assert_eq!(run["result"]["answer"]["text"], format!("Visitor {i}"));
             assert_eq!(
                 run["result"]["tool_calls"][0]["query"],
@@ -839,18 +820,7 @@ mod tests {
     async fn learning_site_routes_share_navigation_and_only_expose_curated_assets() {
         use tower::ServiceExt;
         let corpus = meedoen_retrieval::corpus::CorpusId::ExpandedTen;
-        let app = Arc::new(WebState {
-            corpus,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
-            sources: json!([]),
-            configuration: json!({}),
-        });
+        let app = Arc::new(test_state(corpus));
         for path in [
             "/",
             "/resultaten/",
@@ -938,16 +908,9 @@ mod tests {
         use tower::ServiceExt;
         let corpus = meedoen_retrieval::corpus::CorpusId::ExpandedTen;
         let app = Arc::new(WebState {
-            corpus,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
             manifest: json!({"as_of": corpus.as_of(), "source_sha256": corpus.sha256()}),
             sources: serde_json::to_value(corpus.sources().unwrap()).unwrap(),
-            configuration: json!({}),
+            ..test_state(corpus)
         });
         let response = router(app)
             .oneshot(
@@ -985,16 +948,8 @@ mod tests {
         let sources =
             meedoen_retrieval::source::parse_sources(meedoen_retrieval::DOCUMENTS).unwrap();
         let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::BaselineFive,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
-            manifest: json!({}),
             sources: serde_json::to_value(sources).unwrap(),
-            configuration: json!({}),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::BaselineFive)
         });
         let response = router(app)
             .oneshot(
@@ -1023,16 +978,9 @@ mod tests {
         use meedoen_retrieval::codex::CodexRun;
         use tower::ServiceExt;
         let app = Arc::new(WebState {
-            corpus: meedoen_retrieval::corpus::CorpusId::BaselineFive,
-            store: Mutex::new(RunStore::new()),
-            limits: Mutex::new(DemoLimits::default()),
-            trusted_proxy: None,
-            capacity: Arc::new(Semaphore::new(10)),
-            runner: None,
-            runner_error: None,
             manifest: json!({"source_sha256":"synthetic-source-hash","sources":[]}),
-            sources: json!([]),
             configuration: json!({"model":"test-model","binaries":{"codex":"synthetic-fingerprint"}}),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::BaselineFive)
         });
         let (session, ids) = {
             let mut store = app.store.lock().unwrap();
@@ -1115,16 +1063,9 @@ mod tests {
             (Some("fr"), AnswerLanguage::Nl),
         ] {
             let app = Arc::new(WebState {
-                corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-                store: Mutex::new(RunStore::new()),
-                limits: Mutex::new(DemoLimits::default()),
-                trusted_proxy: None,
-                capacity: Arc::new(Semaphore::new(10)),
-                runner: None,
-                runner_error: None,
                 manifest: json!({"sources":[],"as_of":"2026-11-05"}),
-                sources: json!([]),
                 configuration: json!({"prompt_version":"ten-activity-grounding-v1"}),
+                ..test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen)
             });
             let session = locked(&app).unwrap().session(&[]).unwrap();
             let mut body = json!({"question":"When can I join?"});
@@ -1168,11 +1109,9 @@ mod tests {
                     "responses-activity-v1"
                 );
             }
-            let mut store = locked(&app).unwrap();
             let id = run["id"].as_str().unwrap();
-            store
-                .complete(&session, id, Err("runtime: test".into()))
-                .unwrap();
+            wait_for_unavailable_runtime(&app, &session, id).await;
+            let store = locked(&app).unwrap();
             assert!(
                 store
                     .replay(
@@ -1257,16 +1196,9 @@ mod tests {
         use tower::ServiceExt;
         for requested in [None, Some("dense"), Some("bm25"), Some("hybrid_rrf")] {
             let app = Arc::new(WebState {
-                corpus: meedoen_retrieval::corpus::CorpusId::ExpandedTen,
-                store: Mutex::new(RunStore::new()),
-                limits: Mutex::new(DemoLimits::default()),
-                trusted_proxy: None,
-                capacity: Arc::new(Semaphore::new(10)),
-                runner: None,
-                runner_error: None,
                 manifest: json!({"sources":[],"as_of":"2026-11-05"}),
-                sources: json!([]),
                 configuration: json!({"prompt_version":"ten-activity-grounding-v1"}),
+                ..test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen)
             });
             let session = locked(&app).unwrap().session(&[]).unwrap();
             let mut body = json!({"question":"Wanneer tuinieren?","top_k":6});
@@ -1308,11 +1240,9 @@ mod tests {
                 requested.unwrap_or("dense")
             );
             assert_eq!(run["context"]["top_k"], 6);
-            let mut store = locked(&app).unwrap();
             let id = run["id"].as_str().unwrap();
-            store
-                .complete(&session, id, Err("runtime: test".into()))
-                .unwrap();
+            wait_for_unavailable_runtime(&app, &session, id).await;
+            let store = locked(&app).unwrap();
             let frozen = run["context"].clone();
             assert!(store.replay(&session, id, &frozen).is_ok());
             let mut changed = frozen;

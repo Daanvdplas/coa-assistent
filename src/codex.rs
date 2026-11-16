@@ -2509,8 +2509,12 @@ mod tests {
         shell
             .arg("-c")
             .arg(format!("sleep 30 & echo $! > {}; wait", pid_path.display()));
-        let task =
-            tokio::spawn(async move { execute(shell, b"", Duration::from_millis(200)).await });
+        let run_timeout = if cancel {
+            Duration::from_secs(30)
+        } else {
+            Duration::from_millis(200)
+        };
+        let task = tokio::spawn(async move { execute(shell, b"", run_timeout).await });
         for _ in 0..100 {
             if std::fs::read_to_string(&pid_path)
                 .ok()
@@ -2527,9 +2531,15 @@ mod tests {
             .parse()
             .unwrap();
         if cancel {
+            assert!(!task.is_finished(), "Fixture ended before cancellation");
             task.abort();
         }
-        let _ = task.await;
+        let outcome = task.await;
+        if cancel {
+            assert!(outcome.unwrap_err().is_cancelled());
+        } else {
+            assert!(outcome.unwrap().unwrap_err().contains("timed out"));
+        }
         tokio::time::sleep(Duration::from_millis(40)).await;
         let state = std::process::Command::new("/bin/ps")
             .args(["-o", "stat=", "-p", &pid.to_string()])

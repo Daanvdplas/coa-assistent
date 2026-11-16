@@ -380,27 +380,50 @@ fn typed_filters_check_requirements_and_report_unknown_fields_separately() {
 #[test]
 fn time_filter_requires_the_whole_activity_to_fit() {
     let corpus = PreparedCorpus::new(fixture_sections(), None, None).unwrap();
-    let request = RetrievalRequest {
-        query: "dinsdag".into(),
-        filters: QueryFilters {
-            time: Some(TimeWindow {
-                start_minutes: 14 * 60 + 30,
-                end_minutes: 16 * 60 + 30,
-            }),
-            ..Default::default()
-        },
-    };
     let config = RetrievalConfig {
         method: SearchMethod::Bm25,
         apply_filters: true,
         ..Default::default()
     };
-    assert!(
-        retrieve(&corpus, &request, &config, None)
-            .unwrap()
-            .hits
-            .is_empty()
-    );
+    for (label, start_minutes, end_minutes, expected_sources) in [
+        (
+            "exact activity window",
+            14 * 60,
+            16 * 60,
+            vec!["ACT-FIETS-002"],
+        ),
+        ("start is too late", 14 * 60 + 30, 16 * 60 + 30, vec![]),
+        ("end is too early", 13 * 60 + 30, 15 * 60 + 30, vec![]),
+    ] {
+        let request = RetrievalRequest {
+            query: "dinsdag".into(),
+            filters: QueryFilters {
+                weekdays: vec![Weekday::Tuesday],
+                time: Some(TimeWindow {
+                    start_minutes,
+                    end_minutes,
+                }),
+                ..Default::default()
+            },
+        };
+        let result = retrieve(&corpus, &request, &config, None).unwrap();
+        assert_eq!(
+            result.filters.matched_activity_ids, expected_sources,
+            "{label}"
+        );
+        assert_eq!(
+            result.hits.is_empty(),
+            expected_sources.is_empty(),
+            "{label}"
+        );
+        assert!(
+            result
+                .hits
+                .iter()
+                .all(|hit| expected_sources.contains(&hit.section.source_id.as_str())),
+            "{label} returned evidence from an excluded activity"
+        );
+    }
 }
 
 #[test]
