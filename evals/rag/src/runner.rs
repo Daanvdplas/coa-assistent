@@ -49,7 +49,11 @@ pub fn run(plan: &ExperimentPlan, options: &RunOptions) -> Result<RunSummary, St
         if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::ExpandedTen.sha256() {
             &[super::dataset::EXPANDED_ID, super::dataset::STRENGTHENED_ID]
         } else {
-            &["legacy", "independent-20261103"]
+            &[
+                "legacy",
+                super::dataset::LEGACY_V1_ID,
+                "independent-20261103",
+            ]
         };
     let dataset = dataset_ids
         .iter()

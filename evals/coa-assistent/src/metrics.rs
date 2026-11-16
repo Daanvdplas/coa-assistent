@@ -582,7 +582,7 @@ mod tests {
 
     #[test]
     fn incomplete_labels_disable_precision_and_ranking() {
-        let (item, gold) = record("P06", vec![section("ACT-WANDEL-005", "S1")]);
+        let (item, gold) = record("P06", vec![section("ACT-WANDEL-005", "S3")]);
         let report = evaluate(&item, &gold).unwrap();
         assert_eq!(metric(&report, "all_hop_precision").value, None);
         assert_eq!(

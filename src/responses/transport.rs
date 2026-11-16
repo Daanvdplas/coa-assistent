@@ -3,7 +3,7 @@
 //! No provider/model loop lives here. Rig creates each request and owns history;
 //! this transport preserves our endpoint, byte budgets and safe error boundary.
 use super::{
-    MAX_HISTORY_BYTES, MAX_RESPONSE_BYTES,
+    MAX_HISTORY_BYTES, MAX_PROVIDER_REQUESTS, MAX_RESPONSE_BYTES,
     rig_runtime::{BoundaryError, RunState, check_response},
 };
 use rig::http_client::{
@@ -38,7 +38,7 @@ impl BoundedTransport {
                 Error::instance(BoundaryError("runtime: De uitvoering is niet beschikbaar."))
             })?;
             // Counts physical HTTP attempts, independently of Rig's turn budget.
-            if state.requests >= 5 || state.error.is_some() {
+            if state.requests >= MAX_PROVIDER_REQUESTS || state.error.is_some() {
                 drop(state);
                 return Err(self.failure("tool: Het maximum aantal modelverzoeken is bereikt."));
             }

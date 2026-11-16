@@ -241,11 +241,18 @@ mod tests {
             record: record.clone(),
             record_sha256: crate::manifest::hash(raw.trim_end().as_bytes()),
         };
-        let assessment = assess(&[stored], &[AssessmentKind::Deterministic])
-            .unwrap()
-            .remove(0)
-            .deterministic
-            .unwrap();
+        // The saved trace binds the original v1 question catalog, not current P06.
+        let context =
+            crate::retrieval_lab::reference::ExpectationsContext::load("legacy-v1").unwrap();
+        let assessment = crate::retrieval_lab::assessment::assess_with_context(
+            &[stored],
+            &[AssessmentKind::Deterministic],
+            &context,
+        )
+        .unwrap()
+        .remove(0)
+        .deterministic
+        .unwrap();
         assert!(assessment.hard_checks_passed);
         let metrics = derive(&record, &assessment);
         assert_eq!(metrics.complete_goal_set, Some(false));
