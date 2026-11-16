@@ -7,9 +7,6 @@
     if (className) element.className = className;
     return element;
   }
-  function date(value) {
-    return new Intl.DateTimeFormat('nl-NL', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'}).format(new Date(value + 'T12:00:00Z'));
-  }
   try {
     const response = await fetch('/assets/results.json', {cache: 'no-store'});
     if (!response.ok) throw new Error('De opgeslagen resultaten konden niet worden geladen.');
@@ -20,7 +17,6 @@
       if (!source) throw new Error('Een bronstukje ontbreekt.');
       const piece = el('article', null, className);
       piece.append(el('p', (rank ? rank + '. ' : '') + source.source_title + ' · ' + source.heading, 'source-title'));
-      piece.append(el('p', 'Brondatum ' + date(source.source_date), 'source-date'));
       piece.append(el('p', source.text, 'source-text'));
       return piece;
     }
@@ -34,7 +30,6 @@
       const details = el('details', null, 'activity'); details.name = 'activities';
       details.append(el('summary', document.title));
       const body = el('div', null, 'activity-body');
-      body.append(el('p', 'Brondatum ' + date(document.date), 'source-date'));
       body.append(el('p', document.preamble));
       document.sections.forEach(key => {
         const source = data.sources[key];
