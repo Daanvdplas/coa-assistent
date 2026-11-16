@@ -1,7 +1,7 @@
 (() => {
   const el = (id) => document.getElementById(id);
   const { t, current: language, activity, heading } = window.CoaLanguage;
-  let session = "", source = { sources: [] }, currentRun = null, busy = false, pollVersion = 0, status = null;
+  let session = "", source = { sources: [] }, currentRun = null, busy = false, pollVersion = 0, status = null, selectedSource = null;
   const errorKeys = {
     "Testsessie bestaat niet meer; start een nieuwe sessie.": "sessionExpired",
     "Testsessie bestaat niet meer.": "sessionExpired",
@@ -110,16 +110,44 @@
     });
     el("tool-details").hidden = !run.result?.tool_calls?.length;
   }
+  function closeSourceDocument() {
+    const trigger = document.querySelector('.source-document[aria-expanded="true"]');
+    selectedSource = null;
+    renderSourceLabels();
+    trigger?.focus();
+  }
+  function renderSourceDocument() {
+    const reader = el("activity-document");
+    const doc = source.sources.find(doc => doc.id === selectedSource);
+    reader.hidden = !doc;
+    reader.replaceChildren();
+    if (!doc) return;
+    const header = node("header", undefined, "activity-document-header");
+    const description = node("div");
+    const title = node("h3", sourceTitle(doc.id), "activity-document-title");
+    title.id = "activity-document-title";
+    description.append(title, node("small", sourceDate(doc.date)));
+    const close = node("button", t("closeDocument"), "source-close");
+    close.type = "button";
+    close.addEventListener("click", closeSourceDocument);
+    header.append(description, close);
+    const sections = node("div", undefined, "source-document-sections");
+    doc.sections.forEach(section => {
+      const item = node("section", undefined, "source-section");
+      item.id = "source-" + doc.id + "-" + section.id;
+      const text = node("p", section.text);
+      text.lang = "nl";
+      item.append(node("h4", heading(section.heading)), text);
+      sections.append(item);
+    });
+    reader.append(header, sections);
+  }
   function renderSourceLabels() {
     document.querySelectorAll(".source-document").forEach(item => {
-      const doc = source.sources.find(doc => doc.id === item.dataset.source);
-      item.querySelector("summary").textContent = sourceTitle(doc.id);
-      item.querySelector("small").textContent = sourceDate(doc.date);
-      item.querySelectorAll(".source-section h3").forEach((label, index) => {
-        const section = doc.sections[index];
-        label.textContent = section.id + " · " + heading(section.heading);
-      });
+      item.textContent = sourceTitle(item.dataset.source);
+      item.setAttribute("aria-expanded", String(item.dataset.source === selectedSource));
     });
+    renderSourceDocument();
   }
   function renderLanguage() {
     el("question").placeholder = t("questionPlaceholder");
@@ -176,19 +204,21 @@
     try {
       source = await api("/api/source");
       source.sources.forEach(doc => {
-        const document = node("details", undefined, "source-document");
-        document.name = "activity";
-        document.dataset.source = doc.id;
-        document.append(node("summary", sourceTitle(doc.id)), node("small", sourceDate(doc.date)));
-        doc.sections.forEach(section => {
-          const item = node("section", undefined, "source-section");
-          item.id = "source-" + doc.id + "-" + section.id;
-          const text = node("p", section.text);
-          text.lang = "nl";
-          item.append(node("h3", section.id + " · " + heading(section.heading)), text);
-          document.append(item);
+        const trigger = node("button", sourceTitle(doc.id), "source-document");
+        trigger.type = "button";
+        trigger.dataset.source = doc.id;
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.setAttribute("aria-controls", "activity-document");
+        trigger.addEventListener("click", () => {
+          selectedSource = selectedSource === doc.id ? null : doc.id;
+          renderSourceLabels();
+          const reader = el("activity-document");
+          const header = reader.querySelector("header");
+          if (header && header.getBoundingClientRect().bottom > window.innerHeight) {
+            reader.scrollIntoView({ block: "start" });
+          }
         });
-        el("source-sections").append(document);
+        el("source-sections").append(trigger);
       });
       try { session = sessionStorage.getItem("coa-test-session") || ""; } catch { session = ""; }
       let summary;

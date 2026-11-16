@@ -19,6 +19,7 @@
     technicalPageTitle: ["Hoe het werkt · COA Assistent", "How it works · COA Assistant"],
     resultsPageTitle: ["Tests en resultaten · COA Assistent", "Tests and results · COA Assistant"],
     activities: ["Activiteiten", "Activities"],
+    closeDocument: ["Sluiten", "Close"],
     questionTitle: ["Vind een activiteit die past", "Find an activity that fits"],
     questionLabel: ["Stel de COA assistent een vraag", "Ask the COA assistant a question"],
     questionPlaceholder: ["Welke activiteiten zijn er op dinsdag?", "Which activities are there on Tuesday?"],
