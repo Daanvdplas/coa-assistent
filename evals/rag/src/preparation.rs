@@ -417,6 +417,12 @@ impl LocalEmbeddings {
             return Ok(identity.clone());
         }
         let base = self.choice.repository_cache(&self.cache);
+        if let Ok(revision) = std::fs::read_to_string(base.join("refs/main")) {
+            let revision = revision.trim();
+            if revision.len() != 40 || !revision.bytes().all(|value| value.is_ascii_hexdigit()) {
+                return Err("Invalid cached embedding model revision".into());
+            }
+        }
         if !self.choice.cached(&self.cache) {
             self.load()?;
         }
