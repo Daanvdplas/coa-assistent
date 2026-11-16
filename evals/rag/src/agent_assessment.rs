@@ -537,15 +537,15 @@ mod tests {
     }
 
     #[test]
-    fn either_accepted_nature_source_completes_the_walking_question() {
+    fn explicit_outdoor_evidence_and_finish_time_complete_the_walking_question() {
         let context = ExpectationsContext::load("legacy").unwrap();
-        for alternative in ["S1", "S3"] {
+        for (alternative, complete) in [("S1", false), ("S3", true)] {
             let natural = section("ACT-WANDEL-005", alternative);
             let when = section("ACT-WANDEL-005", "S2");
             let result = source_coverage(&context.criteria["P06"], &[vec![natural], vec![when]]);
-            assert_eq!(result.complete, Some(true));
+            assert_eq!(result.complete, Some(complete));
             assert_eq!(result.expected_sections.len(), 2);
-            assert_eq!(result.first_complete_call_index, Some(2));
+            assert_eq!(result.first_complete_call_index, complete.then_some(2));
         }
     }
 

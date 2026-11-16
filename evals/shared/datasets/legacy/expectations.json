@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
-  "dataset_version": "activities-evaluation-v1",
-  "questions_sha256": "161363c4b8dff29047894e0a5492e90a27f3044777268a66cf88cff5943ba264",
+  "dataset_version": "activities-evaluation-v2-20261116",
+  "questions_sha256": "6e8838881b65f85f9b33d633533f5782ecf5ae38c56415d39b63c8d33b9f8d1c",
   "evaluation_only_canary": "EVAL-GOLD-ONLY-9d27b684-do-not-send-to-generator",
   "review_note": "Descriptions are semantic criteria, not exact-match answer strings. Empty evidence alternatives mean no positive source evidence exists; judge the required unknown separately. Complete relevance labels follow direct fact/condition support, including useful exclusion evidence. P06 labels are deliberately incomplete, so precision must remain N/A.",
   "cases": [
@@ -229,16 +229,10 @@
       "case_id": "P06",
       "facts": [
         {
-          "id": "walking-nature",
-          "description": "Wandelen is buiten en bij/in het park.",
+          "id": "walking-outdoor",
+          "description": "Wandelen vindt buiten plaats.",
           "kind": "fact",
           "evidence_alternatives": [
-            [
-              {
-                "source_id": "ACT-WANDEL-005",
-                "section_id": "S1"
-              }
-            ],
             [
               {
                 "source_id": "ACT-WANDEL-005",
@@ -248,8 +242,8 @@
           ]
         },
         {
-          "id": "walking-thursday",
-          "description": "Wandelen is op donderdag van 9.30 tot 10.30 uur.",
+          "id": "walking-finish",
+          "description": "Wandelen eindigt om 10.30 uur en is dus vóór 11.00 uur afgelopen.",
           "kind": "fact",
           "evidence_alternatives": [
             [
@@ -262,40 +256,24 @@
         }
       ],
       "conditions": [
-        "Respecteer zowel natuur/buiten als beschikbaarheid donderdag of vrijdag.",
-        "Onderzoek vrije plaatsen niet als vervanging van de gevraagde beschikbare dagen."
+        "De volledige activiteit moet buiten plaatsvinden en vóór 11.00 uur eindigen.",
+        "Eén passende activiteit met de buitenlocatie en eindtijd onderbouwen is voldoende; een vergelijking met niet-genoemde activiteiten is niet vereist."
       ],
       "forbidden_claims": [
-        "Tuinieren is op donderdag of vrijdag.",
-        "Samen koken is een buiten- of natuuractiviteit.",
-        "Er is bewezen een passende natuuractiviteit op vrijdag."
+        "Tuinieren als volledig passend voorstellen terwijl het om 12.00 uur eindigt.",
+        "Zelf een kortere deelname aan een langer durende activiteit toezeggen.",
+        "Zeggen dat de wandeling een bevestigde vrije plek heeft."
       ],
       "required_unknowns": [],
       "relevance_labels_complete": false,
       "relevant_sections": [
         {
           "source_id": "ACT-WANDEL-005",
-          "section_id": "S1"
+          "section_id": "S3"
         },
         {
           "source_id": "ACT-WANDEL-005",
           "section_id": "S2"
-        },
-        {
-          "source_id": "ACT-WANDEL-005",
-          "section_id": "S3"
-        },
-        {
-          "source_id": "ACT-TUIN-001",
-          "section_id": "S2"
-        },
-        {
-          "source_id": "ACT-KOKEN-004",
-          "section_id": "S2"
-        },
-        {
-          "source_id": "ACT-KOKEN-004",
-          "section_id": "S3"
         }
       ]
     },

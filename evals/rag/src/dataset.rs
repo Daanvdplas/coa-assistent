@@ -7,6 +7,13 @@ pub const QUESTION_INPUTS: [&str; 2] = [
     include_str!("../../shared/datasets/legacy/heldout-questions.json"),
 ];
 
+// Retained exact v1 inputs bind historical runs; the default stays current.
+pub const LEGACY_V1_ID: &str = "legacy-v1";
+pub const LEGACY_V1_QUESTIONS: &str =
+    include_str!("../../shared/datasets/legacy/v1/questions.json");
+pub const LEGACY_V1_EXPECTATIONS: &str =
+    include_str!("../../shared/datasets/legacy/v1/expectations.json");
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct DatasetIdentity {
@@ -220,6 +227,12 @@ pub fn load(id: &str) -> Result<QuestionDataset, String> {
         "legacy" => Ok(QuestionDataset {
             id: id.into(),
             catalog: bundled_questions()?,
+            query_inputs: Default::default(),
+            query_inputs_sha256: None,
+        }),
+        LEGACY_V1_ID => Ok(QuestionDataset {
+            id: id.into(),
+            catalog: questions_from_inputs(&[LEGACY_V1_QUESTIONS, QUESTION_INPUTS[1]], false)?,
             query_inputs: Default::default(),
             query_inputs_sha256: None,
         }),
