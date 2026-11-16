@@ -152,6 +152,7 @@
   function renderLanguage() {
     el("question").placeholder = t("questionPlaceholder");
     el("result").setAttribute("aria-label", t("resultLabel"));
+    document.querySelectorAll("[data-example]").forEach(button => { button.title = t(button.dataset.example); });
     renderSourceLabels();
     renderStatus();
     if (currentRun) showRun(currentRun);
@@ -192,6 +193,15 @@
     currentRun = null;
     message(null);
   });
+  document.querySelectorAll("[data-example]").forEach(button => button.addEventListener("click", () => {
+    if (busy) return;
+    const question = el("question");
+    question.value = t(button.dataset.example);
+    question.dispatchEvent(new Event("input", { bubbles: true }));
+    question.focus();
+    question.setSelectionRange(0, 0);
+    question.scrollTop = 0;
+  }));
   async function createSession() {
     const data = await api("/api/session", { seen_question_ids: [] });
     session = data.session_id;

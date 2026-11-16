@@ -27,6 +27,11 @@
       label { display:block; font-size:.9375rem; font-weight:650; margin-bottom:8px; }
       textarea { display:block; width:100%; min-width:0; min-height:120px; resize:vertical; padding:14px 16px; background:var(--surface); border:1px solid var(--muted); border-radius:2px; margin-bottom:16px; }
       textarea::placeholder { color:var(--muted); opacity:1; }
+      .example-questions { display:flex; flex-wrap:wrap; align-items:center; gap:0 20px; margin:-8px 0 16px; }
+      .example-label { flex-basis:100%; font-size:.8125rem; color:var(--muted); }
+      .demo-main .example-question { min-height:44px; max-width:100%; padding:8px 0; border:0; border-radius:0; background:transparent; font-size:.875rem; font-weight:500; text-align:start; white-space:normal; overflow-wrap:anywhere; text-decoration:underline; text-underline-offset:3px; }
+      .demo-main .example-question:hover { background:transparent; color:var(--heading); }
+      @media(max-width:650px) { .example-questions { flex-direction:column; align-items:flex-start; gap:0; margin-top:0; } .example-label { flex-basis:auto; margin-bottom:4px; } }
       .form-actions { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; }
       .method-field { flex:0 1 240px; min-width:0; }
       .method-field select { width:100%; min-height:48px; background:var(--surface); border-color:var(--muted); border-radius:2px; padding:10px 14px; }
@@ -77,8 +82,8 @@
     </style>
 
   <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
-<script src="/assets/language.js?v=20261116-activity-reader" defer></script>
-<script src="/assets/demo.js?v=20261116-activity-reader" defer></script>
+<script src="/assets/language.js?v=20261116-examples" defer></script>
+<script src="/assets/demo.js?v=20261116-examples" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main">
@@ -91,6 +96,12 @@
       <form id="form">
         <label for="question" data-i18n="questionLabel">Stel de COA assistent een vraag</label>
         <textarea id="question" class="run-control" maxlength="1000" required placeholder="Welke activiteiten zijn er op dinsdag?"></textarea>
+        <div class="example-questions" role="group" aria-labelledby="example-heading">
+          <span id="example-heading" class="example-label" data-i18n="exampleHeading">Probeer een voorbeeld</span>
+          <button class="example-question run-control" type="button" data-example="exampleLookupQuestion" data-i18n="exampleLookupLabel">Waar en wanneer kan ik tuinieren?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Welke buitenactiviteit eindigt vóór 11.00 uur?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Binnen om 14.00 uur: gratis en materiaal aanwezig</button>
+        </div>
         <div class="form-actions">
         <div class="method-field">
           <label for="retrieval-method" data-i18n="retrievalMethod">Zoekmethode</label>
