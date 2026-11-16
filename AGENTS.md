@@ -22,3 +22,10 @@ Voor keuzes over agentplatforms en AI-engineering: gebruik bronnen die in 2026 z
 ## Repo-werkwijze
 
 Alle wijzigingen gaan via een branch en pull request; commit nooit rechtstreeks naar `main`. Merge geen PR zonder expliciete toestemming. Branch protection is met de huidige private repo/accountconfiguratie niet af te dwingen, dus volg de PR-werkwijze handmatig.
+
+## Bouwbestanden opruimen
+
+- Alle agents en subagents controleren na grote build-/testreeksen en bij taakafronding de ruimte van Rust `target` en tijdelijke buildbestanden, ook in worktrees en gedeelde buildmappen.
+- Ruim verouderde, genegeerde en opnieuw te maken bouwbestanden zelfstandig op zodra geen actieve build, agent of server ze nodig heeft. Stem gedeeld gebruik eerst af.
+- Verwijder bevestigde bouwbestanden rechtstreeks zodat ruimte echt vrijkomt. Laat broncode, `.git`, gebruikersbestanden (ook untracked), fixtures, evalresultaten, sleutels en modelcaches staan.
+- Meld kort hoeveel GB werkelijk is vrijgemaakt. Bouw of test niet opnieuw alleen vanwege het opruimen.
