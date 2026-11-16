@@ -402,6 +402,7 @@ fn router(app: App) -> Router {
  .route("/resultaten/",get(||async{Html(include_str!("../evals/rag/site/results.html"))}))
  .route("/techniek/",get(||async{Html(include_str!("../static/site/technical.html"))}))
  .route("/assets/site.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../static/site/site.css"))}))
+ .route("/assets/coa-symbol.svg",get(||async{([(header::CONTENT_TYPE,"image/svg+xml")],include_str!("../static/site/coa-symbol.svg"))}))
  .route("/assets/language.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/language.js"))}))
  .route("/assets/demo.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/demo.js"))}))
  .route("/api/evals/rag",get(rag_evaluation_results))
@@ -850,6 +851,7 @@ mod tests {
             "/resultaten/",
             "/techniek/",
             "/assets/site.css",
+            "/assets/coa-symbol.svg",
             "/assets/results.js",
             "/assets/language.js",
             "/assets/demo.js",
