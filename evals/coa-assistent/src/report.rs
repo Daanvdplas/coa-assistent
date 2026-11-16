@@ -170,6 +170,10 @@ fn catalog() -> Result<Vec<(QuestionSet, LabelSet)>, String> {
             include_str!("../../shared/datasets/legacy/heldout-questions.json"),
             include_str!("../../shared/datasets/legacy/heldout-expectations.json"),
         )?,
+        dataset::parse(
+            crate::retrieval_lab::dataset::LEGACY_V1_QUESTIONS,
+            crate::retrieval_lab::dataset::LEGACY_V1_EXPECTATIONS,
+        )?,
     ])
 }
 fn bind<'a>(

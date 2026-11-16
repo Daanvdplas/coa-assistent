@@ -159,7 +159,7 @@ pub fn render_html_with_context(
                     .chain((!assessments.iter().any(|assessment| assessment.run_id == stored.record.run_id && assessment.kind == super::assessment::AssessmentKind::Deterministic)).then_some(computed))
                     .collect(),
                 reference_metadata: context.metadata.get(&stored.record.case_id),
-                dataset_info: serde_json::json!({"id": context.dataset.id, "provenance": if context.dataset.id == "legacy" {"previously_seen_regression"} else {"agent_authored_and_independently_agent_reviewed_not_human"}, "limitation": context.dataset.catalog.identity.limitation, "freeze_sha256": (context.dataset.id != "legacy").then_some(super::dataset::FROZEN_SHA256)}),
+                dataset_info: serde_json::json!({"id": context.dataset.id, "provenance": if ["legacy", super::dataset::LEGACY_V1_ID].contains(&context.dataset.id.as_str()) {"previously_seen_regression"} else {"agent_authored_and_independently_agent_reviewed_not_human"}, "limitation": context.dataset.catalog.identity.limitation, "freeze_sha256": (!["legacy", super::dataset::LEGACY_V1_ID].contains(&context.dataset.id.as_str())).then_some(super::dataset::FROZEN_SHA256)}),
                 scenario: scenario(&stored.record),
                 task_metrics: super::task_metrics::derive(
                     &stored.record,

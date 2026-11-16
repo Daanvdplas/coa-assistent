@@ -2,10 +2,10 @@
   "schema_version": 1,
   "purpose": "Byte identities of existing frozen/source inputs; no new labels.",
   "files": {
-    "evals/shared/datasets/legacy/expectations.json": "78a9515a7989b517cd7d925d08655e3a1de0f18bea24394f1e7821ea83d21aeb",
+    "evals/shared/datasets/legacy/expectations.json": "991d31b1b994866e085264eba596a5d350ea4808163bc9d335f670b4694e8b66",
     "evals/shared/datasets/legacy/heldout-expectations.json": "3d2c845ff39291916b0029981a39b31ae222c30f0d2562daf175ed4a23b80f5a",
     "evals/shared/datasets/legacy/heldout-questions.json": "80128a23ace818d18ca2a4551d0d0d86919685819e7bd020d19a6834ef75b83d",
-    "evals/shared/datasets/legacy/questions.json": "7f224d87277b618de9df60111cfa0a3ed6ec51cb102d8abcf0312618ed6bbf5a",
+    "evals/shared/datasets/legacy/questions.json": "73318a509a5dc8f3dfde3aabb201c5396ade9e322076f12b2b21b699c6b2538a",
     "evals/shared/datasets/legacy/heldout-freeze.json": "36b5a789023571efb80ae6ec1976eb688255e06d978588907ec4b7ff12b48321",
     "evals/shared/datasets/independent-20261103/expectations.json": "91db64915b44f483fd902d46aa857c6eeae0e50591a18619d9dc28e132115ef9",
     "evals/shared/datasets/independent-20261103/FROZEN.json": "351a7df4d85e5295e36d3fbbb31c62948619425158b038bd8370a11c982e2fe6",
