@@ -131,7 +131,7 @@ impl ResponsesRunner {
         Ok(runner)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v2","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v3","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -751,10 +751,12 @@ mod tests {
             );
             assert!(instructions.contains("Lead with the specific activities"));
             assert!(instructions.contains("Keep relevant uncertainty honest"));
+            assert!(instructions.contains("Do not add standalone verdicts"));
+            assert!(instructions.contains("Dit is een bevestigde passende optie"));
         }
         assert_eq!(
             runner.configuration()["prompt_version"],
-            "responses-activity-v2"
+            "responses-activity-v3"
         );
         assert_eq!(requests[0]["tool_choice"], "required");
         assert!(
