@@ -101,14 +101,14 @@ test('three collapsed tests only run on click and retain results after reopening
     assert.equal(await page.evaluate(() => window.sourceInjected === true), false);
   } finally { await page.close(); }
 });
-test('word search explains that embedding choice is unused; mobile retains every control', async () => {
+test('word search marks the disabled embedding label; mobile retains every control', async () => {
   const { page, starts } = await fixture({ mobile: true });
   try {
     await page.waitForSelector('#eval-garden-time-location'); const card = page.locator('#eval-garden-time-location');
     await card.locator('summary').first().click();
     await card.getByLabel('Zoekmethode').selectOption('bm25');
     assert.equal(await card.getByLabel('Embeddingmodel').isDisabled(), true);
-    assert.match(await card.innerText(), /geen embedding/i);
+    assert.equal(await card.getByLabel('Embeddingmodel (niet gebruikt)', {exact:true}).count(), 1);
     assert.equal(starts.length, 0);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.equal(await card.getByRole('button', { name: 'Start test', exact: true }).isVisible(), true);
