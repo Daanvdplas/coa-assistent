@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "dataset_version": "activities-evaluation-v1",
+  "dataset_version": "activities-evaluation-v2-20261116",
   "as_of": "2026-10-20",
   "corpus_sha256": "5e7143226ad250d1ed6e2e5242a740b6dc533a622d87147fb10b65dfcfbd71f8",
   "sources": [
@@ -30,7 +30,7 @@
       "sha256": "f65335bb91b8fc17b68836916619dbaa459837c29c3396e47d658069376bd691"
     }
   ],
-  "selection_note": "Twelve instrument-pilot cases. P01–P06 are known development cases; P07–P12 broaden the pilot. No held-out quality claim. Never pass family/split/kind metadata or expectations to the generator.",
+  "selection_note": "Twelve instrument-pilot cases. P01–P06 are known development cases; P07–P12 broaden the pilot. P06 was revised on 2026-11-16 to ask visitor-first outdoor discovery with a finish deadline, without naming activities. No held-out quality claim. Never pass family/split/kind metadata or expectations to the generator.",
   "cases": [
     {
       "id": "P01",
@@ -69,10 +69,10 @@
     },
     {
       "id": "P06",
-      "family": "nature-thursday-friday",
+      "family": "visitor-outdoor-finish-deadline",
       "split": "development",
       "kind": "combined_conditions",
-      "question": "Ik wil buiten in de natuur bezig zijn en kan alleen donderdag of vrijdag. Welke activiteit past?"
+      "question": "Ik zoek een activiteit die helemaal buiten plaatsvindt en vóór 11.00 uur afgelopen is. Wat past daarbij?"
     },
     {
       "id": "P07",
