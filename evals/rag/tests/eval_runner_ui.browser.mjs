@@ -59,7 +59,7 @@ async function fixture(options = {}) {
   const starts = []; const headers = []; let polls = 0; let sessions = 0; let cancelled = false;
   await page.route('**/api/session', route => { sessions++; return route.fulfill({json:{session_id:'test-session'}}); });
   await page.route('**/api/evals/rag', route => route.fulfill({ json: { schema_version: 1, source: 'promptfoo', sources: {}, evaluations: [] } }));
-  await page.route('**/api/evals/rag/catalog', route => route.fulfill({ json: catalog }));
+  await page.route('**/api/evals/rag/catalog', route => route.fulfill({ json: options.catalog || catalog }));
   await page.route('**/api/evals/rag/runs', async route => {
     headers.push(route.request().headers()['x-session-id']);
     const body = route.request().postDataJSON(); starts.push(body);
@@ -86,21 +86,27 @@ test('three collapsed tests only run on click and retain results after reopening
     const card = page.locator('#eval-garden-time-location');
     await card.locator('summary').first().click();
     assert.match(await card.innerText(), /Vaste vraag garden-time-location/);
-    assert.match(await card.innerText(), /Wanneer de activiteit/);
+    assert.equal(await card.locator('.eval-card-title').textContent(),'Vaste vraag garden-time-location?');
+    assert.equal(await card.locator('.eval-question').count(),0);
+    assert.deepEqual(await card.locator('.eval-goal-source').allTextContents(),['Tuinieren · Tijd','Tuinieren · Locatie']);
+    assert.equal(await card.locator('.eval-expectations blockquote').first().textContent(),sources.time.text);
     await card.getByLabel('Embeddingmodel').selectOption('model-b');
     await card.getByRole('button', { name: 'Start test', exact: true }).click();
-    await card.locator('.eval-card-state').getByText('1/2 gevonden',{exact:true}).waitFor();
+    await card.locator('.eval-score').getByText('1/2 verwachtingen compleet',{exact:true}).waitFor();
     assert.ok(flow.headers.length>=2);assert.ok(flow.headers.every(header=>header==='test-session'));
     assert.deepEqual(starts, [{ eval_id: 'garden-time-location', method: 'dense', embedding_model: 'model-b' }]);
-    assert.deepEqual(await card.locator('.eval-goal-state').allTextContents(),['Gevonden','Niet gevonden']);
+    assert.equal(await card.locator('.eval-goal-state,.eval-card-state').count(),0);
+    assert.equal(await card.locator('.eval-hits .eval-expected-hit').count(),1);
+    assert.equal(await card.locator('.eval-results>:last-child').getAttribute('class'),'eval-score');
     assert.equal(await card.locator('.eval-goals').count(),1);
-    assert.equal(await card.getByText('Wanneer de activiteit plaatsvindt',{exact:true}).count(),1);
+    assert.equal(await card.getByText('Wanneer de activiteit plaatsvindt',{exact:true}).count(),0);
+    assert.equal(await card.locator('.eval-expectations').getByText(sources.time.text,{exact:true}).count(),1);
     assert.equal(await card.locator('.eval-goal-results,.eval-used-configuration,.eval-provenance,.source-date').count(),0);
     assert.equal(await card.locator('.eval-hits details:not([open])').count(),1);
     assert.equal(await card.locator('.eval-status').textContent(),'');
     await card.locator('summary').first().click(); await card.locator('summary').first().click();
     assert.equal(starts.length, 1);
-    assert.equal(await card.locator('.eval-card-state').textContent(),'1/2 gevonden');
+    assert.equal(await card.locator('.eval-score').textContent(),'1/2 verwachtingen compleet');
     assert.equal(await page.evaluate(() => window.sourceInjected === true), false);
   } finally { await page.close(); }
 });
@@ -128,7 +134,7 @@ test('targetless results remain unscored and execution errors never become sourc
     try {
       await page.waitForSelector('#eval-garden-time-location'); const card = page.locator('#eval-garden-time-location'); await card.locator('summary').first().click();
       await card.getByRole('button', { name: 'Start test', exact: true }).click();
-      await card.locator('.eval-card-state').getByText(executionError ? 'Uitvoeringsfout' : 'N/A',{exact:true}).waitFor();
+      await card.locator(executionError?'.eval-status':'.eval-score').getByText(executionError?/Uitvoeringsfout/:'N/A',{exact:!executionError}).waitFor();
       const text = await card.innerText();
       assert.match(text, executionError ? /Uitvoeringsfout/i : /N\/A/i);
       assert.ok((await card.locator('.eval-goal-state').allTextContents()).every(value=>value===''));
@@ -143,7 +149,7 @@ test('a missing or different actual embedding identity cannot produce a successf
     try {
       const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
       await card.getByLabel('Embeddingmodel').selectOption('model-b');await card.getByRole('button',{name:'Start test',exact:true}).click();
-      await card.locator('.eval-card-state').getByText('Uitvoeringsfout',{exact:true}).waitFor();
+      await card.locator('.eval-status').getByText(/Uitvoeringsfout/).waitFor();
       assert.doesNotMatch(await card.locator('.eval-results').innerText(),/Bronset compleet/);
     } finally {await flow.page.close();}
   }
@@ -154,7 +160,7 @@ test('stopping model preparation cancels only the current run and gives no sourc
   try {
     const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
     await card.getByRole('button',{name:'Start test',exact:true}).click();await card.getByRole('button',{name:'Stop test',exact:true}).click();
-    await card.locator('.eval-card-state').getByText('Geannuleerd',{exact:true}).waitFor();
+    await card.locator('.eval-status').getByText('Geannuleerd',{exact:true}).waitFor();
     assert.equal(flow.cancelled,true);assert.equal(flow.starts.length,1);assert.doesNotMatch(await card.innerText(),/Uitvoeringsfout|Bronset compleet/);
     assert.equal(await card.getByRole('button',{name:'Start test',exact:true}).isEnabled(),true);
   } finally {await flow.page.close();}
@@ -176,11 +182,12 @@ test('only a real method or model change clears the old score without starting a
  const flow=await fixture({result:body=>completed(body,'passed')});
  try {
   const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
-  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-card-state').getByText('2/2 gevonden',{exact:true}).waitFor();
+  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-score').getByText('2/2 verwachtingen compleet',{exact:true}).waitFor();
   await card.getByLabel('Embeddingmodel',{exact:true}).selectOption('model-a');
-  assert.equal(await card.locator('.eval-card-state').textContent(),'2/2 gevonden');
+  assert.equal(await card.locator('.eval-score').textContent(),'2/2 verwachtingen compleet');
   await card.getByLabel('Embeddingmodel',{exact:true}).selectOption('model-b');
-  assert.equal(await card.locator('.eval-card-state').textContent(),'Nog niet uitgevoerd');
+  assert.equal(await card.locator('.eval-status').textContent(),'');
+  assert.equal(await card.locator('.eval-score').count(),0);
   assert.equal(await card.locator('.eval-results').textContent(),'');
   assert.ok((await card.locator('.eval-goal-state').allTextContents()).every(value=>value===''));
   assert.equal(flow.starts.length,1);
@@ -191,8 +198,36 @@ test('whole-goal coverage comes from the existing assessment, without mixing par
  const flow=await fixture({result(body){const run=completed(body);const row=run.result.rows[0];row.goals[0].covered=false;row.goals[0].alternatives=[[{source_id:'ACT-TUIN-001',section_id:'S2',found:true},{source_id:'ACT-TUIN-001',section_id:'S3',found:false}],[{source_id:'ACT-TUIN-001',section_id:'S4',found:false},{source_id:'ACT-TUIN-001',section_id:'S5',found:true}]];row.metrics.covered_goals=0;return run;}});
  try {
   const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
-  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-card-state').getByText('0/2 gevonden',{exact:true}).waitFor();
-  assert.deepEqual(await card.locator('.eval-goal-state').allTextContents(),['Niet gevonden','Niet gevonden']);
+  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-score').getByText('0/2 verwachtingen compleet',{exact:true}).waitFor();
+  assert.equal(await card.locator('.eval-goal-state').count(),0);
+  assert.equal(await card.locator('.eval-hits .eval-expected-hit').count(),1);
   assert.equal(await card.locator('.eval-hits li').count(),1);
  } finally {await flow.page.close();}
+});
+
+test('combined and alternative evidence keeps one semantic expectation without pretending it is a quote',async()=>{
+ const expected={...catalog,evals:catalog.evals.map(row=>row.id==='indoor-tuesday'?{...row,expected_goals:[
+  {id:'time',description:'Synthetische verwachting met tijd en plaats.',alternatives:[[expectedSource(sources.time),expectedSource(sources.location)]]},
+  {id:'location',description:'Synthetische verwachting met een alternatief.',alternatives:[[expectedSource(sources.time)],[expectedSource(sources.location)]]},
+ ]}:row)};
+ const flow=await fixture({catalog:expected});
+ try {
+  const card=flow.page.locator('#eval-indoor-tuesday');await card.waitFor();await card.locator('summary').first().click();
+  assert.deepEqual(await card.locator('.eval-goal-source').allTextContents(),['Tuinieren · Tijd + Tuinieren · Locatie','Tuinieren · Tijd of Tuinieren · Locatie']);
+  assert.deepEqual(await card.locator('.eval-goal-fragment').allTextContents(),['Synthetische verwachting met tijd en plaats.','Synthetische verwachting met een alternatief.']);
+  assert.equal(await card.locator('.eval-expectations blockquote').count(),0);
+  assert.equal(flow.starts.length,0);
+ } finally {await flow.page.close();}
+});
+
+test('green marks require a found assessment reference and the exact expected source identity',async()=>{
+ const flow=await fixture({result(body){const run=completed(body);run.result.sources.other={...sources.time,source_id:'ACT-OTHER'};run.result.rows[0].calls[0].hits=['time','other','location'];return run;}});
+ try {
+  const card=flow.page.locator('#eval-garden-time-location');await card.waitFor();await card.locator('summary').first().click();await card.getByRole('button',{name:'Start test',exact:true}).click();
+  await card.locator('.eval-score').getByText('1/2 verwachtingen compleet',{exact:true}).waitFor();
+  assert.equal(await card.locator('.eval-hits>li').count(),3);
+  assert.deepEqual(await card.locator('.eval-expected-hit').evaluateAll(items=>items.map(item=>[item.dataset.sourceId,item.dataset.sectionId])),[['ACT-TUIN-001','S2']]);
+  assert.equal(await card.locator('.eval-results>:last-child').textContent(),'1/2 verwachtingen compleet');
+  assert.equal(await card.locator('.eval-expectations .eval-goal-state').count(),0);
+ }finally{await flow.page.close();}
 });

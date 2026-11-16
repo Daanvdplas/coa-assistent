@@ -23,8 +23,8 @@
     return payload;
   }
   function state(card, text, type = '') {
-    card.state.textContent = text;
-    card.state.dataset.status = type;
+    card.status.textContent = text;
+    card.status.dataset.status = type;
   }
   function controls() {
     for (const card of cards) {
@@ -38,17 +38,10 @@
   function sourceLabel(ref) {
     return [ref.source_title || ref.source_id, ref.heading || ref.section_id || ref.id].filter(Boolean).join(' · ');
   }
-  function resetGoals(card) {
-    for (const view of card.goalViews.values()) {
-      view.status.textContent='';
-      view.status.classList.remove('eval-found','eval-missing');
-    }
-  }
+  const referenceKey=ref=>ref.source_id+':'+(ref.section_id || ref.id);
   function clearPresentation(card) {
-    resetGoals(card);
     card.results.replaceChildren();
-    card.status.textContent='';
-    state(card,'Nog niet uitgevoerd');
+    state(card,'');
   }
   function selectionChanged(card) {
     if (active)return;
@@ -63,10 +56,17 @@
     const goals=node('ul',null,'eval-goals');
     for (const goal of evaluation.expected_goals || []) {
       const item=node('li');item.dataset.goalId=goal.id;
-      const description=node('span',goal.description,'eval-goal-description');
-      const status=node('span','','eval-goal-state');
-      item.append(description,status);goals.append(item);
-      card.goalViews.set(goal.id,{status});
+      const content=node('div',null,'eval-goal-content');
+      const alternatives=goal.alternatives || [];
+      const label=alternatives.map(option=>option.map(sourceLabel).join(' + ')).join(' of ');
+      const simple=alternatives.length===1 && alternatives[0].length===1;
+      content.append(node('h4',label,'eval-goal-source'),node(simple?'blockquote':'p',simple?alternatives[0][0].text:goal.description,'eval-goal-fragment'));
+      item.append(content);goals.append(item);
+      const references=new Set();
+      for (const option of alternatives) for (const ref of option) {
+        const key=referenceKey(ref);references.add(key);card.references.set(key,ref);
+      }
+      card.goalReferences.set(goal.id,references);
     }
     section.append(goals);
     return section;
@@ -74,24 +74,25 @@
   function renderResult(card, run) {
     if (!run.result || !Array.isArray(run.result.rows) || run.result.rows.length!==1 || !run.result.sources) throw new Error('De uitvoering bevat geen controleerbare bronresultaten.');
     const row=run.result.rows[0];
-    resetGoals(card);card.results.replaceChildren();
+    card.results.replaceChildren();
     if (row.status==='error') {
-      state(card,'Uitvoeringsfout','error');
-      card.status.textContent=row.reason || 'De lokale broncontrole kon niet worden afgerond.';
+      failed(card,row.reason || 'De lokale broncontrole kon niet worden afgerond.');
       return;
     }
     const applicable=row.metrics?.source_quality_applicable===true && row.source_complete!==null;
+    const matched=new Set();
     if (applicable) {
       const goals=new Map((row.goals || []).map(goal=>[goal.id,goal]));
-      if (goals.size!==card.goalViews.size) throw new Error('De broncontrole hoort niet bij de verwachte bronstukken.');
-      for (const [id,view] of card.goalViews) {
+      if (goals.size!==card.goalReferences.size) throw new Error('De broncontrole hoort niet bij de verwachte bronstukken.');
+      for (const [id,references] of card.goalReferences) {
         const goal=goals.get(id);
         if (typeof goal?.covered!=='boolean') throw new Error('De broncontrole mist een verwachte bronstatus.');
-        view.status.textContent=goal.covered?'Gevonden':'Niet gevonden';
-        view.status.classList.add(goal.covered?'eval-found':'eval-missing');
+        for (const option of goal.alternatives || []) for (const ref of option) {
+          const key=referenceKey(ref);
+          if (ref.found===true && references.has(key)) matched.add(key);
+        }
       }
-      state(card,`${row.metrics.covered_goals}/${row.metrics.target_goals} gevonden`,row.source_complete?'complete':'incomplete');
-    } else state(card,'N/A');
+    }
     card.results.append(node('h3','Gevonden bronstukken'));
     const hits=node('ol',null,'eval-hits');
     for (const call of row.calls || []) {
@@ -100,16 +101,23 @@
         if (!source) throw new Error('Een gevonden bronstuk ontbreekt in het resultaat.');
         const item=node('li');item.dataset.sourceId=source.source_id;item.dataset.sectionId=source.id;
         const details=node('details');
-        details.append(node('summary',sourceLabel(source)),node('blockquote',source.text,'source-text'));
+        const summary=node('summary');summary.append(node('span',sourceLabel(source),'eval-hit-title'));
+        const expected=card.references.get(referenceKey(source));
+        if (matched.has(referenceKey(source)) && expected && ['source_id','source_title','source_date','heading','text'].every(field=>source[field]===expected[field])) {
+          item.classList.add('eval-expected-hit');summary.setAttribute('aria-label','Verwacht bronstuk: '+sourceLabel(source));
+        }
+        details.append(summary,node('blockquote',source.text,'source-text'));
         item.append(details);hits.append(item);
       }
     }
     if (hits.children.length) card.results.append(hits);
     else card.results.append(node('p','Geen bronstukken gevonden.'));
+    const score=node('p',applicable?`${row.metrics.covered_goals}/${row.metrics.target_goals} verwachtingen compleet`:'N/A','eval-score');
+    score.dataset.status=applicable?(row.source_complete?'complete':'incomplete'):'unassessed';
+    score.setAttribute('role','status');card.results.append(score);
   }
   function failed(card, message) {
-    resetGoals(card);state(card, 'Uitvoeringsfout', 'error');
-    card.status.textContent = message;
+    state(card,'Uitvoeringsfout: '+message,'error');
     card.results.replaceChildren();
   }
   function release(card) {
@@ -135,7 +143,7 @@
         card.status.textContent='';renderResult(card, run);release(card);return;
       }
       if (run.status === 'cancelled') {
-        resetGoals(card);state(card,'Geannuleerd');card.status.textContent='';card.results.replaceChildren();release(card);return;
+        state(card,'Geannuleerd');card.results.replaceChildren();release(card);return;
       }
       if (run.status === 'failed') {
         failed(card, run.error?.message || 'De lokale zoektest kon niet worden uitgevoerd.'); release(card); return;
@@ -182,10 +190,9 @@
   }
   function makeCard(evaluation) {
     const details = node('details', null, 'search-eval-card'); details.id = 'eval-' + evaluation.id;
-    const summary = node('summary'); const title = node('span', evaluation.title, 'eval-card-title'); const badge = node('span', 'Nog niet uitgevoerd', 'eval-card-state');badge.setAttribute('role','status'); summary.append(title, badge);
+    const summary = node('summary'); const title = node('span', evaluation.question, 'eval-card-title'); summary.append(title);
     const body = node('div', null, 'eval-card-body');
-    body.append(node('p', evaluation.question, 'eval-question'));
-    const card = { details, evaluation, state: badge, goalViews: new Map() };
+    const card = { details, evaluation, goalReferences: new Map(), references: new Map() };
     body.append(expected(card, evaluation));
     const form = node('div', null, 'eval-controls');
     const methodId = details.id + '-method'; const modelId = details.id + '-embedding';
@@ -206,7 +213,7 @@
     card.stop=node('button','Stop test','eval-stop');card.stop.type='button';card.stop.hidden=true;card.stop.addEventListener('click',()=>stop(card));
     const buttons=node('div',null,'eval-run-buttons');buttons.append(card.start,card.stop);
     card.status = node('p', '', 'eval-status'); card.status.setAttribute('role', 'status');
-    card.results = node('section', null, 'eval-results'); card.results.setAttribute('aria-label', 'Resultaat van ' + evaluation.title);
+    card.results = node('section', null, 'eval-results'); card.results.setAttribute('aria-label', 'Resultaat van ' + evaluation.question);
     body.append(form, buttons, card.status, card.results); details.append(summary, body); cards.push(card); return details;
   }
   async function load() {
