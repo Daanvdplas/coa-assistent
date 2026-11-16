@@ -18,6 +18,9 @@ use std::{io::Read, path::Path, sync::Arc, time::Duration};
 
 const ENDPOINT: &str = "https://api.openai.com/v1/responses";
 const MODEL: &str = "gpt-6.1-sol";
+const RUNTIME_VERSION: &str = "rig-0.46.0";
+const MAX_SEARCHES: usize = 4;
+const MAX_PROVIDER_REQUESTS: usize = 5;
 const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_RESPONSE_BYTES: usize = 512 * 1024;
 const MAX_HISTORY_BYTES: usize = 1024 * 1024;
@@ -120,7 +123,7 @@ impl ResponsesRunner {
         Self::new(key, ENDPOINT, search)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":"rig-0.46.0","model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v1","max_searches":4,"max_provider_requests":5,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v1","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -468,6 +471,8 @@ mod tests {
         let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
         let result = run(&runner).await.unwrap();
         assert_eq!(runner.configuration()["runtime"], "rig-0.46.0");
+        assert_eq!(runner.configuration()["max_searches"], 4);
+        assert_eq!(runner.configuration()["max_provider_requests"], 5);
         assert_eq!(result["client_version"], "rig-0.46.0");
         assert_eq!(result["provider"], "openai");
         assert_eq!(result["transport"], "responses_api");
@@ -481,10 +486,7 @@ mod tests {
             evidence(crate::DemoSearchMethod::Bm25)
         );
         let public = result.to_string();
-        assert!(
-            !public.contains("synthetic-api-key")
-                && !public.contains("synthetic-encrypted-private")
-        );
+        assert!(!public.contains(MOCK_KEY) && !public.contains("synthetic-encrypted-private"));
         let requests = seen.lock().unwrap();
         assert_eq!(requests.len(), 2);
         for request in requests.iter() {
@@ -606,23 +608,17 @@ mod tests {
         }
     }
     #[tokio::test]
-    async fn provider_error_details_and_redirects_cannot_escape_or_forward_the_key() {
+    async fn provider_error_details_cannot_escape() {
         use axum::{http::StatusCode, response::IntoResponse};
         for status in [
             StatusCode::UNAUTHORIZED,
             StatusCode::TOO_MANY_REQUESTS,
             StatusCode::INTERNAL_SERVER_ERROR,
-            StatusCode::TEMPORARY_REDIRECT,
         ] {
             let app = Router::new().route(
                 "/v1/responses",
                 post(move || async move {
-                    (
-                        status,
-                        [("location", "http://127.0.0.1:1/stolen")],
-                        "synthetic-api-key private provider diagnostics",
-                    )
-                        .into_response()
+                    (status, "synthetic-api-key private provider diagnostics").into_response()
                 }),
             );
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -640,23 +636,70 @@ mod tests {
         }
     }
     #[tokio::test]
+    async fn redirects_are_rejected_without_contacting_the_destination() {
+        use axum::{http::StatusCode, response::IntoResponse};
+        let destination_hits = Arc::new(AtomicUsize::new(0));
+        let hits = destination_hits.clone();
+        let destination = Router::new().route(
+            "/stolen",
+            post(move || {
+                hits.fetch_add(1, Ordering::SeqCst);
+                async { Json(envelope(json!([final_answer()]))) }
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let location = format!("http://{}/stolen", listener.local_addr().unwrap());
+        let destination_task =
+            tokio::spawn(async move { axum::serve(listener, destination).await.unwrap() });
+        let app =
+            Router::new().route(
+                "/v1/responses",
+                post(move || {
+                    let location = location.clone();
+                    async move {
+                        (StatusCode::TEMPORARY_REDIRECT, [("location", location)]).into_response()
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        let result = run(&runner).await;
+        assert_eq!(destination_hits.load(Ordering::SeqCst), 0);
+        assert!(result.unwrap_err().starts_with("runtime:"));
+        task.abort();
+        destination_task.abort();
+    }
+    #[tokio::test(start_paused = true)]
     async fn deadline_covers_the_whole_tool_loop() {
+        // A blocking task inhibits Tokio's automatic clock advance during real I/O.
+        // Dropping the sender releases it, including when an assertion panics.
+        let (release_clock, wait_for_release) = std::sync::mpsc::channel::<()>();
+        let (clock_ready, ready) = tokio::sync::oneshot::channel();
+        let clock_guard = tokio::task::spawn_blocking(move || {
+            clock_ready.send(()).unwrap();
+            let _ = wait_for_release.recv();
+        });
+        ready.await.unwrap();
+        let first_response = Arc::new(tokio::sync::Notify::new());
+        let release_first = first_response.clone();
+        let (request_started, mut requests) = tokio::sync::mpsc::unbounded_channel();
         let count = Arc::new(AtomicUsize::new(0));
-        let second_started = Arc::new(tokio::sync::Notify::new());
         let seen = count.clone();
-        let started = second_started.clone();
         let app = Router::new().route(
             "/v1/responses",
             post(move || {
                 let seen = seen.clone();
-                let started = started.clone();
+                let first_response = first_response.clone();
+                let request_started = request_started.clone();
                 async move {
-                    if seen.fetch_add(1, Ordering::SeqCst) == 0 {
+                    let request = seen.fetch_add(1, Ordering::SeqCst);
+                    request_started.send(request).unwrap();
+                    if request == 0 {
+                        first_response.notified().await;
                         Json(envelope(json!([call("one", "tuinieren")])))
                     } else {
-                        started.notify_one();
-                        // A per-request HTTP timeout is 120 seconds. Only the
-                        // runner's one shared deadline can finish this run.
                         std::future::pending::<()>().await;
                         unreachable!()
                     }
@@ -666,15 +709,29 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let mut runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
-        runner.timeout = Duration::from_secs(1);
-        let execution = tokio::spawn(async move { run(&runner).await });
-        tokio::time::timeout(Duration::from_secs(1), second_started.notified())
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        let mut execution = tokio::spawn(async move { run(&runner).await });
+        for request in 0..2 {
+            let started = tokio::select! {
+                started = requests.recv() => started,
+                result = &mut execution => {
+                    panic!("execution stopped before request {request}: {result:?}")
+                }
+            };
+            assert_eq!(started, Some(request));
+            if request == 0 {
+                tokio::time::advance(Duration::from_secs(60)).await;
+                release_first.notify_one();
+            }
+        }
+        tokio::time::advance(Duration::from_secs(59)).await;
+        assert!(!execution.is_finished());
+        tokio::time::advance(Duration::from_secs(2)).await;
+        drop(release_clock);
+        clock_guard.await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(1), execution)
             .await
-            .expect("the second request starts before the shared deadline");
-        let result = tokio::time::timeout(Duration::from_secs(2), execution)
-            .await
-            .expect("the shared deadline cancels the blocked second request")
+            .expect("round two gets only the remaining shared budget, not 120 new seconds")
             .unwrap();
         assert_eq!(
             result.unwrap_err(),

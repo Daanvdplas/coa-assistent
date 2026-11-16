@@ -24,6 +24,7 @@ rusqlite = { version = "=0.41.1", optional = true, default-features = false, fea
 
 [dev-dependencies]
 futures-util = "0.3"
+tokio = { version = "1", features = ["test-util"] }
 tower = { version = "0.5", features = ["util"] }
 
 # Keep source/runtime SHA-256 checks fast in debug builds without changing their
