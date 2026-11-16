@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -8,9 +9,11 @@ import unittest
 from unittest.mock import patch
 from test_assertions import HERE,local_record
 from test_provider import load_provider
+from test_environment import isolate_runtime_environment
 
 class PreparedExecutionTest(unittest.TestCase):
     def setUp(self):
+        isolate_runtime_environment(self)
         path=HERE/'prepare.py';self.assertTrue(path.exists(),'Fresh batch preparation is not implemented')
         spec=importlib.util.spec_from_file_location('coa_prepare_test',path);self.prepare=importlib.util.module_from_spec(spec);spec.loader.exec_module(self.prepare)
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
@@ -59,13 +62,29 @@ class PreparedExecutionTest(unittest.TestCase):
         self.assertEqual(len(observed),1)
 
     def test_changed_native_record_or_wrong_execution_id_is_not_a_cache_hit(self):
-        request={'schema_version':1,'execution_id':'fresh-test-execution','tests':[]}
-        output=self.root/'prepared.json'
-        with patch.dict(os.environ,self.env):self.prepare.prepare(request,output)
         provider=load_provider()
-        with patch.dict(os.environ,{**self.env,'COA_PROMPTFOO_PREPARED':str(output),'COA_PROMPTFOO_EXECUTION_ID':'another-execution'}),patch.object(provider,'_execute') as execute:
+        base=Path(self.env['COA_PROMPTFOO_ARTIFACT_DIR']);base.mkdir()
+        native=base/'prepared-case.json'
+        original=json.dumps(local_record()['record']).encode()
+        native.write_bytes(original)
+        manifest={'schema_version':1,'execution_id':'fresh-test-execution','records':{
+            provider.request_key(self.rows[0]['vars']):{'path':str(native),'sha256':hashlib.sha256(original).hexdigest()}
+        }}
+        output=self.root/'prepared.json';output.write_text(json.dumps(manifest))
+        env={**self.env,'COA_PROMPTFOO_PREPARED':str(output)}
+        with patch.dict(os.environ,env),patch.object(provider,'_execute') as execute:
             result=provider.call_api('',{},self.rows[0])
-        self.assertIn('error',result);self.assertEqual(execute.call_count,0)
+            self.assertNotIn('error',result)
+            self.assertEqual(result['metadata']['execution_mode'],'fresh_batch_retrieval')
+            execute.assert_not_called()
+            for changed in ('execution_id','native_bytes'):
+                with self.subTest(changed=changed):
+                    native.write_bytes(original+b' ' if changed=='native_bytes' else original)
+                    execution='another-execution' if changed=='execution_id' else env['COA_PROMPTFOO_EXECUTION_ID']
+                    with patch.dict(os.environ,{'COA_PROMPTFOO_EXECUTION_ID':execution}):
+                        result=provider.call_api('',{},self.rows[0])
+                    self.assertIn('error',result)
+                    execute.assert_not_called()
 
     def test_browser_preparation_pins_the_resolved_model_before_retrieval(self):
         model='e5-small-multilingual'

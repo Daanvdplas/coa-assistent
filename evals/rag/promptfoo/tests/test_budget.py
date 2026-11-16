@@ -7,9 +7,11 @@ import unittest
 from unittest.mock import patch
 from test_provider import load_provider
 from test_assertions import local_record
+from test_environment import isolate_runtime_environment
 
 class BudgetTest(unittest.TestCase):
     def setUp(self):
+        isolate_runtime_environment(self)
         self.provider=load_provider();self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name);self.ledger=self.root/'ledger.json';binary=self.root/'runtime';binary.write_text('#!fake');binary.chmod(0o700)
         q=local_record()['question'];self.context={'vars':{'dataset':'legacy','case_id':'P01','question':q}}

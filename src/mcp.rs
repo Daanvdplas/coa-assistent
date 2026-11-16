@@ -238,6 +238,26 @@ mod tests {
             invoked, 0,
             "Invalid attempts must consume the fixed session allowance"
         );
+        let replies: Vec<Value> = std::str::from_utf8(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(replies.len(), requests.len());
+        for (id, reply) in replies.iter().enumerate() {
+            assert_eq!(reply["jsonrpc"], "2.0");
+            assert_eq!(reply["id"], json!(id));
+        }
+        assert!(
+            replies[..4]
+                .iter()
+                .all(|reply| reply["error"]["code"] == -32602)
+        );
+        assert_eq!(replies[4]["result"]["isError"], true);
+        assert_eq!(
+            replies[4]["result"]["content"][0]["text"],
+            SEARCH_LIMIT_MESSAGE
+        );
     }
 
     #[test]

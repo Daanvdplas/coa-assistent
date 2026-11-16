@@ -371,11 +371,21 @@ mod agentic_plan_tests {
         assert_eq!(output["status"], "completed");
         assert_eq!(output["score_kind"], "jaccard_overlap");
         assert_eq!(output["source_manifest"]["corpus_id"], "baseline-five");
-        assert!(output["hits"].as_array().unwrap().iter().all(|hit| {
-            hit["section"]["source_id"].as_str().is_some()
-                && hit["section"]["source_date"].as_str().is_some()
-                && hit["section"]["text"].as_str().is_some()
-        }));
+        assert_eq!(output["top_k"], 3);
+        let hits = output["hits"].as_array().unwrap();
+        assert!(!hits.is_empty(), "The garden query must retrieve evidence");
+        assert!(hits.len() <= 3);
+        let garden = crate::source::parse_source(crate::DOCUMENT).unwrap();
+        for hit in hits {
+            assert_eq!(hit["section"]["source_id"], "ACT-TUIN-001");
+            assert_eq!(hit["section"]["source_date"], "2026-10-20");
+            let canonical = garden
+                .sections
+                .iter()
+                .find(|section| hit["section"]["id"] == section.id)
+                .expect("Every garden hit must identify a canonical section");
+            assert_eq!(hit["section"], serde_json::to_value(canonical).unwrap());
+        }
         assert!(output.get("expected").is_none() && output.get("score").is_none());
         assert!(
             super::cli(&[

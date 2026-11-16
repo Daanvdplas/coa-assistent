@@ -560,20 +560,22 @@ mod tests {
         assert_eq!(first[0], first[1]);
         assert_eq!((hits, misses), (1, 1));
         sections[1].text.push_str(" Changed text.");
-        let (_, hits, misses) =
+        let (changed, hits, misses) =
             document_vectors(&sections, &identity, &mut store, &mut memory, |texts| {
                 assert_eq!(texts.len(), 1);
                 Ok(vec![vec![0.0, 1.0, 0.0]])
             })
             .unwrap();
         assert_eq!((hits, misses), (1, 1));
+        assert_eq!(changed, vec![vec![1.0, 0.0, 0.0], vec![0.0, 1.0, 0.0]]);
         let mut empty_memory = EmbeddingCache::default();
-        let (_, hits, misses) =
+        let (reloaded, hits, misses) =
             document_vectors(&sections, &identity, &mut store, &mut empty_memory, |_| {
                 panic!("Persisted valid cache must avoid encoding")
             })
             .unwrap();
         assert_eq!((hits, misses), (2, 0));
+        assert_eq!(reloaded, vec![vec![1.0, 0.0, 0.0], vec![0.0, 1.0, 0.0]]);
     }
     #[test]
     fn expanded_storage_profiles_preserve_sixty_sections_and_baseline_cache() {

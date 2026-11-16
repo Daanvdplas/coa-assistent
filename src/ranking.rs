@@ -49,18 +49,29 @@ mod tests {
     use super::*;
     #[test]
     fn cosine_compares_meaning_vectors_without_hiding_invalid_inputs() {
-        assert!((cosine(&[1., 0.], &[1., 0.]).unwrap() - 1.).abs() < 1e-6);
-        assert_eq!(cosine(&[1., 0.], &[0., 1.]).unwrap(), 0.);
+        for (left, right, expected) in [
+            ([1., 0.], [1., 0.], 1.),
+            ([1., 0.], [0., 1.], 0.),
+            ([3., 4.], [1., 0.], 0.6),
+            ([3., 4.], [10., 0.], 0.6),
+            ([-3., -4.], [1., 0.], -0.6),
+        ] {
+            let actual = cosine(&left, &right).unwrap();
+            assert!(
+                (actual - expected).abs() < 1e-6,
+                "cosine({left:?}, {right:?}): expected {expected}, got {actual}"
+            );
+        }
         assert!(cosine(&[0., 0.], &[1., 0.]).is_err());
         assert!(cosine(&[1.], &[1., 0.]).is_err());
         assert!(cosine(&[f32::NAN], &[1.]).is_err());
     }
     #[test]
     fn top_k_is_bounded_and_ties_use_source_ids() {
-        let sections: Vec<_> = ["S3", "S1", "S2"]
+        let sections: Vec<_> = [("C", "S1"), ("B", "S3"), ("B", "S1"), ("A", "S1")]
             .iter()
-            .map(|id| Section {
-                source_id: "X".into(),
+            .map(|(source_id, id)| Section {
+                source_id: (*source_id).into(),
                 source_date: "2026-10-20".into(),
                 source_title: "Example".into(),
                 id: (*id).into(),
@@ -68,13 +79,14 @@ mod tests {
                 text: "Exact evidence".into(),
             })
             .collect();
-        let hits = rank(&sections, &[0.8, 0.8, 0.3], 2).unwrap();
+        let hits = rank(&sections, &[0.8, 0.8, 0.8, 0.3], 3).unwrap();
         assert_eq!(
             hits.iter()
-                .map(|hit| hit.section.id.as_str())
+                .map(|hit| (hit.section.source_id.as_str(), hit.section.id.as_str()))
                 .collect::<Vec<_>>(),
-            ["S1", "S3"]
+            [("B", "S1"), ("B", "S3"), ("C", "S1")]
         );
+        assert!(hits.iter().all(|hit| hit.similarity == 0.8));
         assert!(validate_top_k(0).is_err());
         assert!(validate_top_k(7).is_err());
         assert!(rank(&sections, &[0.3], 2).is_err());

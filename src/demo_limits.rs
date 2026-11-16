@@ -146,7 +146,9 @@ mod tests {
             assert_eq!(limits.check_run(ip(), &session, now), Ok(()));
             limits.record_run(ip(), &session, now);
         }
-        assert!(limits.check_run(ip(), "new-session", now).is_err());
+        let blocked = limits.check_run(ip(), "new-session", now).unwrap_err();
+        assert_eq!(blocked.code, "rate_limit");
+        assert_eq!(blocked.retry_after_seconds, 3600);
         assert_eq!(
             limits.check_run(ip(), "new-session", now + Duration::from_secs(3600)),
             Ok(())
@@ -157,11 +159,11 @@ mod tests {
         let mut limits = DemoLimits::default();
         let now = Instant::now();
         limits.record_run(ip(), "one", now);
-        assert!(
-            limits
-                .check_run(ip(), "one", now + Duration::from_secs(4))
-                .is_err()
-        );
+        let blocked = limits
+            .check_run(ip(), "one", now + Duration::from_millis(3500))
+            .unwrap_err();
+        assert_eq!(blocked.code, "session_cooldown");
+        assert_eq!(blocked.retry_after_seconds, 2, "round remaining time up");
         assert_eq!(limits.check_run(ip(), "two", now), Ok(()));
         assert_eq!(
             limits.check_run(ip(), "one", now + Duration::from_secs(5)),
@@ -176,7 +178,9 @@ mod tests {
             assert_eq!(limits.check_session(ip(), now), Ok(()));
             limits.record_session(ip(), now);
         }
-        assert!(limits.check_session(ip(), now).is_err());
+        let blocked = limits.check_session(ip(), now).unwrap_err();
+        assert_eq!(blocked.code, "session_limit");
+        assert_eq!(blocked.retry_after_seconds, 600);
         assert_eq!(limits.check_run(ip(), "one", now), Ok(()));
         assert_eq!(
             limits.check_session(ip(), now + Duration::from_secs(600)),
@@ -196,14 +200,19 @@ mod tests {
         assert!(client_ip(proxy, Some(proxy), None).is_err());
     }
     #[test]
-    fn ipv6_privacy_addresses_and_ipv4_mapped_addresses_share_limits() {
-        let one = "2001:db8:1:2::1".parse().unwrap();
-        let two = "2001:db8:1:2::beef".parse().unwrap();
-        assert_eq!(client_ip(one, None, None), client_ip(two, None, None));
-        assert_eq!(
-            client_ip("::ffff:192.0.2.1".parse().unwrap(), None, None),
-            Ok(ip())
-        );
+    fn client_identity_groups_ipv6_prefixes_without_merging_other_networks() {
+        for (address, expected) in [
+            ("2001:db8:1:2::1", "2001:db8:1:2::"),
+            ("2001:db8:1:2::beef", "2001:db8:1:2::"),
+            ("2001:db8:1:3::1", "2001:db8:1:3::"),
+            ("::ffff:192.0.2.1", "192.0.2.1"),
+        ] {
+            assert_eq!(
+                client_ip(address.parse().unwrap(), None, None),
+                Ok(expected.parse().unwrap()),
+                "client identity for {address}"
+            );
+        }
     }
     #[test]
     fn full_memory_does_not_evict_existing_quota_and_expires_after_the_window() {
