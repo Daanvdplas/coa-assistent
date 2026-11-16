@@ -1,5 +1,6 @@
 #[path = "../evals/rag/src/legacy.rs"]
 mod evaluation;
+mod operator_lock;
 mod web;
 use meedoen_retrieval::Index;
 use serde_json::json;
@@ -13,6 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.remove(0)
     };
     match command.as_str() {
+        "lock-exec" => {
+            std::process::exit(operator_lock::run(&args)?);
+        }
         "lab" => {
             if args.first().map(String::as_str) == Some("agent-run") {
                 meedoen_retrieval::retrieval_lab::agent_run::cli(&args)

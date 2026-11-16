@@ -4,9 +4,16 @@
   "scripts": {
     "eval:rag": "node evals/rag/scripts/run_promptfoo.mjs",
     "eval:rag:live": "node evals/rag/scripts/run_promptfoo.mjs --live",
-    "test:rag": "python3 -m unittest discover -s evals/rag/promptfoo/tests -p 'test_*.py' && node --test evals/rag/promptfoo/tests/config.test.cjs evals/rag/scripts/test_promptfoo_export.mjs evals/rag/scripts/test_promptfoo_regrade.mjs evals/rag/scripts/test_promptfoo_runner.mjs"
+    "test:rag": "node --test evals/rag/promptfoo/tests/*.test.ts evals/rag/scripts/*.test.ts evals/rag/promptfoo/tests/config.test.cjs evals/rag/scripts/test_promptfoo_export.mjs evals/rag/scripts/test_promptfoo_regrade.mjs evals/rag/scripts/test_promptfoo_runner.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "promptfoo": "0.125.1"
+    "@types/node": "22.20.5",
+    "promptfoo": "0.125.1",
+    "typescript": "5.9.3"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
   }
 }

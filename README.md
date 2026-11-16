@@ -10,7 +10,9 @@ De [vastgelegde echte evaluatie van 23–26 oktober 2026](evals/coa-assistent/re
 
 ## Starten
 
-Benodigd: Rust 1.97.1, vastgelegd in `rust-toolchain.toml`. De webdemo gebruikt de Rig-agentruntime met `gpt-6.1-sol` via de OpenAI Responses API met reasoning `low`. Hiervoor is een **OpenAI API-sleutel** nodig; een Codex-aanmelding wordt door de webdemo niet gebruikt.
+Benodigd: Rust 1.97.1, vastgelegd in `rust-toolchain.toml`, en Node.js 22.22 of nieuwer voor de RAG-evaluaties. Draai `npm ci --ignore-scripts` om de vastgelegde TypeScript- en promptfoo-tools te installeren. Eigen applicatiecode blijft Rust; evaluatieproviders, assertions en hulpmiddelen zijn TypeScript. Python is niet nodig.
+
+De webdemo gebruikt de Rig-agentruntime met `gpt-6.1-sol` via de OpenAI Responses API met reasoning `low`. Hiervoor is een **OpenAI API-sleutel** nodig; een Codex-aanmelding wordt door de webdemo niet gebruikt.
 
 ```sh
 cargo run --locked
@@ -63,9 +65,11 @@ De zestig vastgelegde sessies van 6 november 2026 blijven bewaard: tien vragen, 
 De gepubliceerde presentatie is een beperkte export van de werkelijke brontraces. Ruwe logs, reasoning, aanmeldgegevens en lokale paden worden niet door de webserver aangeboden. Opnieuw exporteren uit een bestaande, bevroren proefmap kan zonder modelcalls:
 
 ```sh
-python3 evals/rag/scripts/export_site_results.py --experiment-dir /pad/naar/de/proef
-python3 -m unittest discover -s evals/rag/scripts -p 'test_export_site_results.py'
+node evals/rag/scripts/export_site_results.ts --experiment-dir /pad/naar/de/proef
+node --test evals/rag/scripts/export_site_results.test.ts
 ```
+
+TypeScript draait rechtstreeks met de ingebouwde type stripping van Node.js; `npm run typecheck` controleert de types en `npm run test:rag` draait de lokale contracttests zonder modelcalls. Zie de [Node.js 22.22-documentatie](https://nodejs.org/download/release/v22.22.0/docs/api/typescript.html) bij de [release van 13 januari 2026](https://nodejs.org/en/blog/release/v22.22.0). Er is geen extra TypeScript-runner of buildstap.
 
 ## Zelf testen
 
@@ -163,7 +167,9 @@ Alle vier zoekmethoden en de bestaande document-/SQLite-structuren kunnen dezelf
 
 De aparte ontwikkelset `strengthened-10-20261106` bevat tien brongebaseerde vragen op hetzelfde corpus. Vier vragen zijn behouden en zes zijn nieuw of aangescherpt. De oude datasets en resultaten blijven afzonderlijk beschikbaar; een score op deze nieuwe vragen is geen verbetering ten opzichte van de eerdere 35/40-meting.
 
-De historische `evals/rag/scripts/model_trials.py`-proef gebruikte `gpt-6.1-sol` en `gpt-6-luna`, de bestaande standaardzoekmethode `dense`, tien vragen en drie herhalingen: zestig pogingen. Modelvolgorde wisselt per vraag/herhaling. Beide gebruiken dezelfde gepinde runtime, bron- en embeddingidentiteit, `low` reasoning, top-3, contextlimiet 1200, maximaal vier zoekpogingen en 120 seconden per sessie. Dezelfde reasoningnaam betekent geen gegarandeerd gelijk rekenwerk.
+De historische modelproef (de lezer staat nu in `evals/rag/scripts/model_trials.ts`) gebruikte `gpt-6.1-sol` en `gpt-6-luna`, de bestaande standaardzoekmethode `dense`, tien vragen en drie herhalingen: zestig pogingen. Modelvolgorde wisselt per vraag/herhaling. Beide gebruiken dezelfde gepinde runtime, bron- en embeddingidentiteit, `low` reasoning, top-3, contextlimiet 1200, maximaal vier zoekpogingen en 120 seconden per sessie. Dezelfde reasoningnaam betekent geen gegarandeerd gelijk rekenwerk.
+
+Oude preregistraties en hun absolute Python-bronpinnen blijven ongewijzigd. `model_trials.ts assess` weigert als een oorspronkelijk gepind bronbestand ontbreekt; de controles worden niet omzeild. De opgeslagen dashboardresultaten en bytegebonden herbeoordeling via promptfoo blijven afzonderlijk beschikbaar.
 
 Het historische script gebruikte drie stappen: `plan` schrijft de volledige volgorde en hashes zonder modelcalls; `run --live --phase pilot` voert eerst vier vastgelegde pogingen uit; `run --live --phase remaining` vereist een onafhankelijke, hashgebonden `PILOT_APPROVED.json`. `assess` herberekent daarna zes afzonderlijke model/herhalingcohorten met de bestaande Rust-beoordeling. Nieuwe uitvoeringen van deze RAG-modelvergelijking gebruiken nu `npm run eval:rag:live -- --suite models` met een expliciet begrensd ledger; zie de [actuele RAG-handleiding](evals/rag/README.md). De oude script-runner is uitgeschakeld; historische bestanden blijven leesbaar. De globale limiet is zestig pogingen en 7200 seconden, met twee begrensde modelledgers van elk dertig; er zijn geen automatische herhalingen of alternatieve modellen bij fouten.
 
@@ -174,7 +180,7 @@ De gerepareerde proef gebruikt een nieuw ledger en verbindt de eerdere zes afgeb
 De budget-/volgorde-/annuleringschecks draaien zonder modelcalls:
 
 ```sh
-python3 -m unittest discover -s evals/rag/scripts -p 'test_model_trials.py'
+node --test evals/rag/scripts/model_trials.test.ts
 ```
 
 ## Grenzen en werkwijze

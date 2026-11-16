@@ -19,6 +19,10 @@ Voor keuzes over agentplatforms en AI-engineering: gebruik bronnen die in 2026 z
 - Meedoen blijft vrijwillig; de medewerker bespreekt suggesties met de bewoner.
 - De demo schrijft niets naar dossiers, verstuurt geen berichten en meldt niemand aan.
 
+## Projecttalen
+
+Gebruik Rust voor de applicatie en TypeScript voor eigen evaluatietools en scripts. Voeg geen Python-code of Python-runtimevereiste toe. Bestaande browser-JavaScript en historische resultaatbestanden blijven behouden.
+
 ## Repo-werkwijze
 
 Alle wijzigingen gaan via een branch en pull request; commit nooit rechtstreeks naar `main`. Merge geen PR zonder expliciete toestemming. Branch protection is met de huidige private repo/accountconfiguratie niet af te dwingen, dus volg de PR-werkwijze handmatig.

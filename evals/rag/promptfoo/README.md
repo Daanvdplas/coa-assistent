@@ -8,7 +8,7 @@ hun scores worden niet als nieuwe promptfoo-scores overgenomen.
 
 ## Starten zonder modelcalls
 
-Benodigd: Rust en Node **22.22.0 of hoger**. Vanuit de repo-root:
+Benodigd: Rust en Node **22.22.0 of hoger**. De eigen evaluatiecode en tests zijn TypeScript; Python is niet nodig. Vanuit de repo-root:
 
 ```sh
 npm ci
@@ -67,7 +67,7 @@ Dezelfde gedeelde ledger begrenst alle
 verdere sessies gezamenlijk; een volledig nieuwe vergelijking van zestig
 sessies vereist dus een afzonderlijk, expliciet passend budget.
 
-De globale teller reserveert vóór elke Codex-start. Mislukte of onzekere pogingen
+De globale teller reserveert vóór elke Codex-start. De Rust-opdracht `lock-exec` houdt daarbij een OS-bestandslock vast terwijl de TypeScript-transactie schrijft en synchroniseert. Een crash geeft de lock automatisch vrij; een onzekere reservering blijft staan. Mislukte of onzekere pogingen
 tellen mee, stoppen vervolguitvoering en worden niet automatisch herhaald. Alleen
 aantoonbare `model_output_invalid`- en `model_contract_violation`-uitkomsten mogen
 binnen de modelvergelijking als gefaalde modelantwoorden doorgaan; hun bronkwaliteit
@@ -117,15 +117,13 @@ uitgevoerd. Payloadbytes zijn geen antwoordkwaliteit, providertokens of kosten.
 
 ## Implementatie en bronnen
 
-- [provider.py](provider.py): uitvoering en begrensde Codex-ledgers.
-- [prepare.py](prepare.py): verse, exacte lokale requestgroepen, zonder beoordeling.
-- [assertions.py](assertions.py): canonieke bron-/tracecontroles en eigen scores.
+- [provider.ts](provider.ts): uitvoering en begrensde Codex-ledgers.
+- [prepare.ts](prepare.ts): verse, exacte lokale requestgroepen, zonder beoordeling.
+- [assertions.ts](assertions.ts): canonieke bron-/tracecontroles en eigen scores.
 - [data-pins.json](data-pins.json): hashes van bestaande inputbytes, geen nieuwe labels.
 
 Gepind: **promptfoo 0.125.1**, gepubliceerd **25 oktober 2026 om
 02:12:24.374 UTC**, volgens de [officiële npm-registry](https://registry.npmjs.org/promptfoo).
-Versie en uitvoering gecontroleerd op **13 november 2026**. De officiële
-[Python-providerdocumentatie](https://www.promptfoo.dev/docs/providers/python/)
-en [Python-assertions](https://www.promptfoo.dev/docs/configuration/expected-outputs/python/)
-zijn als implementatiereferentie gebruikt; het werkelijk geïnstalleerde
-0.125.1-contract is met de CLI gecontroleerd.
+Versie en native TypeScript-loading gecontroleerd op **16 november 2026**. De provider volgt het `ApiProvider.callApi(prompt, context, options)`-contract uit de geïnstalleerde, gepinde package; de bronassertions gebruiken het JavaScript-assertiontype van Promptfoo met TypeScript-bestanden. De echte CLI is zonder modelcalls met Rust-BM25 gecontroleerd.
+
+Voor lokale contracttests: `npm run typecheck` en `npm run test:rag`. Geef na de Rust-build `COA_RAG_BINARY` mee zodat ook de tests voor bestandslocks, gedeelde budgetten en procesopruiming draaien. Nieuwe modelproeven pinnen de TypeScript-code en de native binary. Historische preregistraties die oude Python-code pinnen worden niet herschreven; zulke oude uitvoeringen hervatten niet onder gewijzigde code. Opgeslagen resultaten blijven herbeoordeelbaar zonder modelcalls.

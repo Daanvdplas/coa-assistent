@@ -19,7 +19,7 @@ Deze gids beschrijft de actuele weblaag en de grenzen tussen live uitvoering en 
 | 2026-11-10 | Een Nederlandse/Engelse taalkeuze vertaalt de demo-interface en kiest de taal van nieuwe antwoorden. De taal staat in de runcontext; originele broninhoud en citaten blijven ongewijzigd. Historische CLI- en experimentprompts blijven gelijk. | [`language.js`](../static/site/language.js), [`demo.js`](../static/site/demo.js), [`web::run`](../src/web.rs), [`CodexRunner::run_for_corpus_in_language`](../src/codex.rs) |
 | 2026-11-10 | De live demo toont alleen activiteiten, vrije vraag, antwoord en zoekresultaten. De voorbeeldvragen, extra vraag-/herhaalknoppen, uitvoeringsmetadata en geschiedenis zijn uit de browser verwijderd; de bestaande API blijft beschikbaar. De navigatie toont geen resultatenlink en de demo heeft één projectdisclaimer. | [`static/index.html`](../static/index.html), [`static/site/`](../static/site/) |
 | 2026-11-09 | Eén webserver verbindt startpagina, bestaande live demo, opgeslagen modelvergelijking en technische uitleg. De live modeluitvoering blijft dezelfde. | [`web::router`](../src/web.rs), [`static/site/`](../static/site/) |
-| 2026-11-09 | Een aparte, controleerbare export maakt van de zestig vastgelegde sessies een openbare presentatieprojectie. Ruwe uitvoer en lokale bestandspaden worden niet geserveerd. | [`export_site_results.py`](../evals/rag/scripts/export_site_results.py) |
+| 2026-11-09 | Een aparte, controleerbare export maakt van de zestig vastgelegde sessies een openbare presentatieprojectie. Ruwe uitvoer en lokale bestandspaden worden niet geserveerd. | [`export_site_results.ts`](../evals/rag/scripts/export_site_results.ts) |
 
 ## Eén origin, drie onderdelen
 
@@ -83,7 +83,7 @@ Onder eerdere resultaten selecteert de pagina alleen bewaarde gegevens. Die hist
 
 De weergegeven proef gebruikt de dataset `strengthened-10-20261106`, twee modellen en drie herhalingen. Beide modellen gebruikten de methode `dense` op dezelfde zestig secties. Deze pagina vergelijkt dus geen vier zoekmethoden onder beide modellen. De zes eerdere afgebroken pogingen blijven buiten de zestig vergelijkingssessies en worden als afzonderlijke geschiedenis vermeld. De geschreven antwoorden hebben geen inhoudelijke kwaliteitsscore.
 
-[`export_site_results.py`](../evals/rag/scripts/export_site_results.py) controleert de verzegelde bronartefacten, de recordhashes en de native beoordelingen. Vervolgens schrijft het uitsluitend:
+[`export_site_results.ts`](../evals/rag/scripts/export_site_results.ts) controleert de verzegelde bronartefacten, de recordhashes en de native beoordelingen. Vervolgens schrijft het uitsluitend:
 
 - tien vraagteksten en de volledige geldige combinaties van verwachte bronstukjes;
 - de tien fictieve documenten, hun datums en zestig exacte secties;
@@ -99,8 +99,8 @@ De browser haalt de kleine, gecureerde `results.json` op. Alle bronquotes versch
 Vanaf een eigen bestaande experimentmap:
 
 ```sh
-python3 evals/rag/scripts/export_site_results.py --experiment-dir /pad/naar/de/bevroren/proef
-python3 -m unittest discover -s evals/rag/scripts -p 'test_export_site_results.py'
+node evals/rag/scripts/export_site_results.ts --experiment-dir /pad/naar/de/bevroren/proef
+node --test evals/rag/scripts/export_site_results.test.ts
 cargo test --locked learning_site_routes_share_navigation
 ```
 
@@ -120,4 +120,4 @@ De Rig-migratie is vervolgens op **13 november 2026** gecontroleerd met 64 onafh
 
 ## Promptfoo en de eigen resultaatpagina
 
-`evals/rag/promptfoo/config.cjs` bepaalt de RAG-matrix; de Pythonprovider voert alleen gevalideerde vragen/configuraties uit. De assertions laden beschermde bronverwachtingen afzonderlijk. `run_promptfoo.mjs` begrenst uitvoering, zet lokale opslag/telemetrie/cache-instellingen en exporteert een publieke whitelist naar `evals/rag/site/promptfoo-results.json`. `GET /api/evals/rag` leest uitsluitend dat historische operatorbestand. De nieuwe `GET /api/evals/rag/catalog` levert drie vaste vragen en hun bronverwachtingen; `POST /api/evals/rag/runs` start één lokale promptfoo-job, en GET/DELETE op de run-URL leest of annuleert alleen de eigen uitvoering. De start-/stoproute vereist loopback zonder forwardedheaders, passende Host/Origin en een geldige sessie. Eén actieve job, 300 seconden en aparte 60/uur- plus 5/minuutlimieten begrenzen CPU/uitvoer. Geen HTTP-invoer kan een suite, model-URL, opdracht, bestandspad, Codex- of API-modelpad kiezen. De worker gebruikt vaste argv en verwijdert gevoelige modelinstellingen. PID/startidentiteit bewaakt ook detached-childopruiming bij annuleren. De browser houdt bronkwaliteit, N/A en uitvoeringsfouten uit elkaar. Ruwe configs, auditpaden, procesomgeving en reasoning blijven uit deze projectie. Native zoektijd en promptfoo-doorlooptijd hebben verschillende labels. De oude `results.json` en rapportlezers behouden hun historische betekenis.
+`evals/rag/promptfoo/config.cjs` bepaalt de RAG-matrix; de TypeScriptprovider voert alleen gevalideerde vragen/configuraties uit. De assertions laden beschermde bronverwachtingen afzonderlijk. `run_promptfoo.mjs` begrenst uitvoering, zet lokale opslag/telemetrie/cache-instellingen en exporteert een publieke whitelist naar `evals/rag/site/promptfoo-results.json`. `GET /api/evals/rag` leest uitsluitend dat historische operatorbestand. De nieuwe `GET /api/evals/rag/catalog` levert drie vaste vragen en hun bronverwachtingen; `POST /api/evals/rag/runs` start één lokale promptfoo-job, en GET/DELETE op de run-URL leest of annuleert alleen de eigen uitvoering. De start-/stoproute vereist loopback zonder forwardedheaders, passende Host/Origin en een geldige sessie. Eén actieve job, 300 seconden en aparte 60/uur- plus 5/minuutlimieten begrenzen CPU/uitvoer. Geen HTTP-invoer kan een suite, model-URL, opdracht, bestandspad, Codex- of API-modelpad kiezen. De worker gebruikt vaste argv en verwijdert gevoelige modelinstellingen. PID/startidentiteit bewaakt ook detached-childopruiming bij annuleren. De browser houdt bronkwaliteit, N/A en uitvoeringsfouten uit elkaar. Ruwe configs, auditpaden, procesomgeving en reasoning blijven uit deze projectie. Native zoektijd en promptfoo-doorlooptijd hebben verschillende labels. De oude `results.json` en rapportlezers behouden hun historische betekenis.

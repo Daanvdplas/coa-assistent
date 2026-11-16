@@ -64,7 +64,7 @@ function buildConfig(env = process.env) {
     if (!['plan', 'pilot', 'remaining', 'smoke'].includes(phase)) throw new Error('Unknown model protocol phase');
     if (phase === 'smoke' && env.COA_PROMPTFOO_REPEATS !== '1') throw new Error('Model smoke requires explicit repeat1');
     if (['pilot', 'remaining'].includes(phase) && ['COA_PROMPTFOO_CASES', 'COA_PROMPTFOO_MODELS', 'COA_PROMPTFOO_DATASET', 'COA_PROMPTFOO_METHODS', 'COA_PROMPTFOO_PROFILES'].some(key => env[key])) throw new Error('Pilot/remaining use the fixed full model schedule; use smoke for filters');
-    let rows = JSON.parse(execFileSync('python3', [path.join(__dirname, 'model_control.py'), 'schedule'], { encoding: 'utf8', env: { ...process.env, ...env } }));
+    let rows = JSON.parse(execFileSync(process.execPath, [path.join(__dirname, 'model_control.ts'), 'schedule'], { encoding: 'utf8', env: { ...process.env, ...env } }));
     if (phase === 'pilot') rows = rows.filter(row => row.slot <= 4);
     if (phase === 'remaining') rows = rows.filter(row => row.slot > 4);
     if (phase === 'smoke') rows = rows.filter(row => row.trial === 1);
@@ -91,6 +91,6 @@ function buildConfig(env = process.env) {
     if (choices) tests = tests.filter(row => choices.has(row.vars[variable]));
   }
   if (!tests.length) throw new Error('No matching existing tests selected');
-  return { description: `COA RAG / ${suite} / existing frozen data`, prompts: ['{{question}}'], providers: [{ id: 'file://provider.py', label: `coa-${suite}-runtime`, config: {} }], tests, defaultTest: { assert: [{ type: 'python', value: suite === 'models' ? 'file://assertions.py:get_model_assert' : 'file://assertions.py:get_assert' }] }, evaluateOptions: { maxConcurrency: 1, maxRetries: 0, cache: false }, commandLineOptions: { cache: false, maxConcurrency: 1, maxRetries: 0 } };
+  return { description: `COA RAG / ${suite} / existing frozen data`, prompts: ['{{question}}'], providers: [{ id: 'file://provider.ts', label: `coa-${suite}-runtime`, config: {} }], tests, defaultTest: { assert: [{ type: 'javascript', value: suite === 'models' ? 'file://assertions.ts:getModelAssert' : 'file://assertions.ts:getAssert' }] }, evaluateOptions: { maxConcurrency: 1, maxRetries: 0, cache: false }, commandLineOptions: { cache: false, maxConcurrency: 1, maxRetries: 0 } };
 }
 module.exports = { buildConfig, questions, configurationName, ROOT };

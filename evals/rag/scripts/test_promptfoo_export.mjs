@@ -4,7 +4,7 @@ import { project } from './export_promptfoo_results.mjs';
 const section = {source_id:'ACT-X',source_date:'2026-11-13',source_title:'Test',id:'S2',heading:'Wanneer?',text:'Iedere dinsdag.'};
 function fixture(metrics) {
  return {evalId:'eval-test',results:{timestamp:'2026-11-13T12:00:00Z',results:[{
-  id:'result-1',provider:{id:'file://private-provider.py',label:'Lokale retrieval'},
+  id:'result-1',provider:{id:'file://private-provider.ts',label:'Lokale retrieval'},
   testCase:{vars:{dataset:'legacy',case_id:'T05',question:'Wanneer?',method:'bm25',profile:'documents_sections',suite:'retrieval',mode:'local',model:'gpt-6.1-sol'}},
   response:{output:{status:'completed',record:{status:'completed',run_id:'native-1',outcome:{hits:[{section}],candidates:[{secret:'PRIVATE'}]},audit_trace:{path:'/Users/PRIVATE'}}},metadata:{secret:'PRIVATE'}},
   success:false,latencyMs:3,gradingResult:{pass:false,reason:'Bronnen ontbreken',componentResults:[{pass:false,score:0.5,reason:'1 van 2 bewijsdoelen',metadata:{source_metrics:metrics}}]},private:'PRIVATE'
