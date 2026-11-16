@@ -1,7 +1,7 @@
 //! Rig owns the model/tool loop; COA supplies its search tool and boundaries.
 use super::{
-    DemoSearchMethod, MAX_OUTPUT_TOKENS, MODEL, Search, SearchArguments, TokenUsage, ToolCall,
-    add_usage,
+    DemoSearchMethod, MAX_OUTPUT_TOKENS, MAX_PROVIDER_REQUESTS, MAX_SEARCHES, MODEL,
+    RUNTIME_VERSION, Search, SearchArguments, TokenUsage, ToolCall, add_usage,
 };
 use rig::{
     AgentBuilder,
@@ -83,7 +83,7 @@ impl SearchTool {
             .map_err(|_| BoundaryError("runtime: De uitvoering is niet beschikbaar."))?
             .calls
             .len()
-            >= 4
+            >= MAX_SEARCHES
         {
             return Err(BoundaryError(
                 "tool: Alleen maximaal vier bronzoekacties zijn toegestaan.",
@@ -150,7 +150,7 @@ impl AgentHook for RunPolicy {
         }
         let choice = if state.calls.is_empty() {
             ToolChoice::Required
-        } else if state.calls.len() >= 4 {
+        } else if state.calls.len() >= MAX_SEARCHES {
             ToolChoice::None
         } else {
             ToolChoice::Auto
@@ -235,7 +235,7 @@ pub(super) async fn run(
         .build();
     let response = agent
         .prompt(query)
-        .max_turns(5)
+        .max_turns(MAX_PROVIDER_REQUESTS)
         .max_invalid_tool_call_retries(0)
         .max_consecutive_malformed_tool_calls(0)
         .tool_concurrency(1)
@@ -255,7 +255,7 @@ pub(super) async fn run(
     result["question"] = json!(query);
     result["id"] = json!(format!("api-{}", started.elapsed().as_nanos()));
     result["model"] = json!(MODEL);
-    result["client_version"] = json!("rig-0.46.0");
+    result["client_version"] = json!(RUNTIME_VERSION);
     result["provider"] = json!("openai");
     result["transport"] = json!("responses_api");
     result["provider_requests"] = json!(state.requests);
@@ -288,7 +288,7 @@ pub(super) fn check_response(response: &Value, state: &mut RunState) -> Result<(
                 if tools > 1 {
                     return Err(BoundaryError("tool: Onverwachte parallelle zoekacties."));
                 }
-                if state.calls.len() >= 4 || item["name"] != "search_document" {
+                if state.calls.len() >= MAX_SEARCHES || item["name"] != "search_document" {
                     return Err(BoundaryError(
                         "tool: Alleen maximaal vier bronzoekacties zijn toegestaan.",
                     ));
