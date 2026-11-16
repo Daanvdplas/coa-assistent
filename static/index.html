@@ -27,12 +27,10 @@
       label { display:block; font-size:.9375rem; font-weight:650; margin-bottom:8px; }
       textarea { display:block; width:100%; min-width:0; min-height:120px; resize:vertical; padding:14px 16px; background:var(--surface); border:1px solid var(--muted); border-radius:2px; margin-bottom:16px; }
       textarea::placeholder { color:var(--muted); opacity:1; }
-      .example-questions { display:flex; flex-wrap:wrap; align-items:center; gap:4px 24px; margin:8px 0 20px; }
-      .example-label { flex-basis:100%; font-size:.8125rem; color:var(--muted); margin-bottom:0; }
-      .demo-main .example-question { display:inline-flex; align-items:center; gap:8px; min-height:44px; max-width:100%; padding:8px 0; border:0; border-radius:2px; background:transparent; font-size:.875rem; font-weight:400; text-align:start; white-space:normal; overflow-wrap:anywhere; text-decoration:none; color:var(--ink); }
-      .demo-main .example-question::before { content:"+"; flex:none; color:var(--muted); font-size:1rem; line-height:1; }
+      .example-questions { display:flex; flex-wrap:wrap; align-items:center; gap:0 24px; margin:-8px 0 12px; }
+      .demo-main .example-question { display:inline-flex; align-items:center; min-height:44px; max-width:100%; padding:8px 0; border:0; border-radius:2px; background:transparent; font-size:.875rem; font-weight:400; text-align:start; white-space:normal; overflow-wrap:anywhere; text-decoration:none; color:var(--ink); }
       .demo-main .example-question:not(:disabled):hover { background:var(--surface); color:var(--heading); }
-      @media(max-width:650px) { .example-questions { flex-direction:column; align-items:stretch; gap:2px; margin-top:8px; } .example-label { flex-basis:auto; } .demo-main .example-question { width:100%; justify-content:flex-start; } }
+      @media(max-width:650px) { .example-questions { flex-direction:column; align-items:stretch; gap:0; margin-top:-8px; } .demo-main .example-question { width:100%; justify-content:flex-start; } }
       .form-actions { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; }
       .method-field { flex:0 1 240px; min-width:0; }
       .method-field select { width:100%; min-height:48px; background:var(--surface); border-color:var(--muted); border-radius:2px; padding:10px 14px; }
@@ -98,7 +96,7 @@
         <label for="question" data-i18n="questionLabel">Stel de COA assistent een vraag</label>
         <textarea id="question" class="run-control" maxlength="1000" required placeholder="Welke activiteiten zijn er op dinsdag?"></textarea>
         <div class="example-questions" role="group" aria-labelledby="example-heading">
-          <span id="example-heading" class="example-label" data-i18n="exampleHeading">Probeer een voorbeeld</span>
+          <span id="example-heading" class="sr-only" data-i18n="exampleHeading">Probeer een voorbeeld</span>
           <button class="example-question run-control" type="button" data-example="exampleLookupQuestion" data-i18n="exampleLookupLabel">Waar en wanneer kan ik tuinieren?</button>
           <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Welke buitenactiviteit eindigt vóór 11.00 uur?</button>
           <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Binnen om 14.00 uur: gratis en materiaal aanwezig</button>
