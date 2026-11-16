@@ -43,18 +43,23 @@
       #source { margin-bottom:24px; }
       #source-heading { font-size:1rem; font-weight:650; line-height:1.4; margin:0 0 10px; }
       #source-sections { display:flex; flex-wrap:wrap; gap:1px; border:1px solid var(--line); background:var(--line); }
-      #source .source-document { flex:1 1 calc(25% - 1px); min-width:min(100%,10.5rem); margin:0; padding:0; border:0; background:var(--surface); }
-      #source .source-document>summary { display:flex; align-items:center; justify-content:flex-start; gap:8px; min-height:44px; padding:0 14px; font-size:.9375rem; font-weight:500; overflow-wrap:anywhere; cursor:pointer; list-style:none; }
-      #source .source-document>summary::-webkit-details-marker { display:none; }
-      #source .source-document>summary::after { content:"+"; order:-1; flex-shrink:0; width:14px; font-size:1rem; color:var(--muted); }
-      #source .source-document[open]>summary::after { content:"−"; }
-      #source .source-document:not([open]):hover { background:var(--paper); }
-      #source .source-document[open] { flex-basis:100%; order:1; padding:0 16px 16px; }
-      #source .source-document[open]>summary { padding-inline:0; font-weight:650; }
-      #source .source-document>small { display:none; margin-top:4px; }
-      #source .source-document[open]>small { display:block; }
-      #source .source-section { border-top:1px solid var(--line); margin-top:16px; padding-top:4px; }
-      #source .source-section p { white-space:pre-wrap; font-size:.9375rem; margin-bottom:0; }
+      #source .source-document { display:flex; align-items:center; justify-content:flex-start; gap:8px; flex:1 1 calc(25% - 1px); min-width:min(100%,10.5rem); min-height:44px; margin:0; padding:0 14px; border:0; border-radius:0; background:var(--surface); font-size:.9375rem; font-weight:500; text-align:start; overflow-wrap:anywhere; }
+      #source .source-document::before { content:"+"; flex-shrink:0; width:14px; font-size:1rem; color:var(--muted); }
+      #source .source-document[aria-expanded="true"] { background:var(--accent-soft); color:var(--heading); font-weight:650; }
+      #source .source-document[aria-expanded="true"]::before { content:"−"; }
+      #source .source-document:not([aria-expanded="true"]):hover { background:var(--paper); }
+      #source .source-document:focus-visible { position:relative; z-index:1; outline-offset:-3px; }
+      .activity-document { margin-top:24px; padding:24px; border:1px solid var(--line); background:var(--surface); scroll-margin-top:16px; }
+      .activity-document-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
+      .demo-main .activity-document-title { font-size:1.25rem; line-height:1.3; color:var(--heading); margin:0 0 6px; }
+      .activity-document small { display:block; font-size:.8125rem; }
+      .demo-main .source-close { flex:none; min-height:44px; padding:4px 8px; margin-top:-8px; border-color:transparent; background:transparent; font-size:.875rem; text-decoration:underline; text-underline-offset:3px; }
+      .source-document-sections { display:grid; grid-template-columns:minmax(0,1fr); gap:24px 32px; }
+      .source-section { min-width:0; }
+      .source-section h4 { font-size:1rem; font-weight:650; line-height:1.35; margin:0 0 6px; color:var(--heading); }
+      .source-section p { white-space:pre-wrap; font-size:.9375rem; line-height:1.55; margin:0; overflow-wrap:anywhere; }
+      @media(min-width:760px) { .source-document-sections { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      @media(max-width:650px) { .activity-document { padding:16px; } .activity-document-header { gap:8px; } .demo-main .source-close { padding-inline:4px; } }
       #tool-details { border-top:1px solid var(--line); padding:16px 0; }
       #tool-details>summary { min-height:32px; cursor:pointer; font-weight:650; }
       .search-action { padding:28px 0 16px; }
@@ -67,14 +72,13 @@
       .error { color:var(--error); }
       [hidden] { display:none !important; }
       @media(max-width:650px) { main { padding:28px 16px 32px; } .site-nav.demo-nav { gap:8px 12px; } .demo-main h1 { font-size:2rem; margin-bottom:24px; } .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
-      @media(max-width:360px) { .source-document { padding-inline:6px; } .source-document summary,.source-document summary::after { font-size:.875rem; } .source-document summary { gap:4px; } }
-      @media(max-width:650px) { .demo-nav .demo-name { flex-basis:100%; } main.demo-main>h1 { font-size:1.75rem; margin-bottom:16px; } #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document>summary { min-height:48px; padding-inline:8px; gap:6px; } #source .source-document[open] { flex-basis:100%; } }
-      @media(max-width:360px) { #source .source-document>summary { font-size:.875rem; padding-inline:6px; gap:4px; } }
+      @media(max-width:650px) { .demo-nav .demo-name { flex-basis:100%; } main.demo-main>h1 { font-size:1.75rem; margin-bottom:16px; } #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document { min-height:48px; padding-inline:8px; gap:6px; } }
+      @media(max-width:360px) { #source .source-document { font-size:.875rem; padding-inline:6px; gap:4px; } }
     </style>
 
-  <link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand">
-<script src="/assets/language.js?v=20261110-grouped-header" defer></script>
-<script src="/assets/demo.js?v=20261110-grouped-header" defer></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
+<script src="/assets/language.js?v=20261116-activity-reader" defer></script>
+<script src="/assets/demo.js?v=20261116-activity-reader" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main">
@@ -82,6 +86,7 @@
       <section id="source" aria-labelledby="source-heading">
         <h2 id="source-heading" data-i18n="activities">Activiteiten</h2>
         <div id="source-sections"></div>
+        <section id="activity-document" class="activity-document" aria-labelledby="activity-document-title" hidden></section>
       </section>
       <form id="form">
         <label for="question" data-i18n="questionLabel">Stel de COA assistent een vraag</label>
