@@ -36,7 +36,6 @@
       .method-field select { width:100%; min-height:48px; background:var(--surface); border-color:var(--muted); border-radius:2px; padding:10px 14px; }
       .toolbar { display:flex; }
       .toolbar button { white-space:nowrap; }
-      .run-method { font-size:.875rem; margin:0 0 16px; }
       #status { margin:20px 0 0; font-size:.9375rem; }
       #status:empty { display:none; }
       #result { margin-top:40px; }
@@ -65,14 +64,16 @@
       @media(min-width:760px) { .source-document-sections { grid-template-columns:repeat(2,minmax(0,1fr)); } }
       @media(max-width:650px) { .activity-document { padding:16px; } .activity-document-header { gap:8px; } .demo-main .source-close { padding-inline:4px; } }
       #tool-details { border-top:1px solid var(--line); padding:16px 0; }
-      #tool-details>summary { min-height:32px; cursor:pointer; font-weight:650; }
-      .search-action { padding:28px 0 16px; }
-      .search-action + .search-action { border-top:2px solid var(--line); margin-top:24px; }
-      .demo-main .search-action-heading { font-size:1.375rem; font-weight:700; margin:0 0 12px; }
-      .demo-main .search-query { font-size:1.125rem; font-weight:600; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; margin:0 0 24px; }
-      .retrieved { max-width:76ch; padding:16px 0; border-top:1px solid var(--line); font-size:.9375rem; }
-      .retrieved h4 { font-size:.9375rem; font-weight:650; line-height:1.4; margin:0 0 8px; }
-      .retrieved small { margin-top:12px; }
+      .demo-main #search-actions-heading { font-size:1rem; font-weight:650; margin:0 0 12px; }
+      .search-actions { margin:0; padding-left:24px; }
+      .search-action { padding:0 0 16px 8px; }
+      .search-action + .search-action { border-top:1px solid var(--line); padding-top:16px; }
+      .search-action::marker { color:var(--muted); }
+      .demo-main .search-query { font-size:1rem; font-weight:650; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; margin:0 0 8px; }
+      .retrieved { max-width:76ch; border-top:1px solid var(--line); font-size:.9375rem; }
+      .retrieved>summary { cursor:pointer; min-height:44px; padding:10px 0; font-size:.9375rem; font-weight:500; line-height:1.4; }
+      .retrieved blockquote { margin:8px 0; }
+      .retrieved small { margin:8px 0 12px; }
       .error { color:var(--error); }
       [hidden] { display:none !important; }
       @media(max-width:650px) { main { padding:28px 16px 32px; } .site-nav.demo-nav { gap:8px 12px; } .demo-main h1 { font-size:2rem; margin-bottom:24px; } .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
@@ -81,8 +82,8 @@
     </style>
 
   <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
-<script src="/assets/language.js?v=20261116-examples" defer></script>
-<script src="/assets/demo.js?v=20261116-examples" defer></script>
+<script src="/assets/language.js?v=20261116-answer-trace" defer></script>
+<script src="/assets/demo.js?v=20261116-answer-trace" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main">
@@ -117,12 +118,11 @@
       <p id="status" role="status"></p>
       <section id="result" hidden aria-label="Uitvoering en antwoord">
         <h2 id="result-title" data-i18n="answer">Het antwoord</h2>
-        <p id="run-method" class="run-method muted" hidden></p>
         <div class="answer-panel"><p id="answer" class="answer"></p></div>
-        <details id="tool-details">
-          <summary data-i18n="results">Bekijk de resultaten</summary>
-          <div id="tools"></div>
-        </details>
+        <section id="tool-details" aria-labelledby="search-actions-heading" hidden>
+          <h2 id="search-actions-heading" data-i18n="searchActions">Zoekacties</h2>
+          <ol id="tools" class="search-actions"></ol>
+        </section>
       </section>
     </main>
 
