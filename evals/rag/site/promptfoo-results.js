@@ -65,7 +65,7 @@
               const source = data.sources[sourceKey];
               if (!source) return;
               const piece = node('article',null,'hit');
-              piece.append(node('h4',source.source_title + ' · ' + source.heading),node('p',source.source_id + ':' + source.id + ' · brondatum ' + source.source_date,'source-date'),node('blockquote',source.text,'source-text'));
+              piece.append(node('h4',source.source_title + ' · ' + source.heading),node('p',source.source_id + ':' + source.id,'site-caption'),node('blockquote',source.text,'source-text'));
               step.append(piece);
             });
             if (!call.hits.length) step.append(node('p','Geen bronpassages teruggegeven.'));
