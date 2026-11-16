@@ -34,7 +34,7 @@
       card.method.disabled = Boolean(active);
       card.model.disabled = Boolean(active) || !usesEmbeddings;
       card.start.disabled = Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
-      card.note.textContent = usesEmbeddings ? 'Het gekozen model helpt om vraag en bronstukken op betekenis te vergelijken. Alles draait lokaal.' : 'Deze woordmethode gebruikt geen embeddings. Het embeddingmodel heeft hier geen invloed op de rangschikking.';
+      card.modelLabel.textContent = usesEmbeddings ? 'Embeddingmodel' : 'Embeddingmodel (niet gebruikt)';
     }
   }
   function sourceLabel(ref) {
@@ -50,7 +50,7 @@
       for (const goal of evaluation.expected_goals) {
         const item = node('li'); item.append(node('p', goal.description, 'eval-goal-description'));
         goal.alternatives.forEach((option, index) => {
-          if (goal.alternatives.length > 1) item.append(node('p', 'Optie ' + (index + 1) + ' — één volledige optie is voldoende.', 'site-caption'));
+          if (goal.alternatives.length > 1) item.append(node('p', 'Optie ' + (index + 1), 'site-caption'));
           option.forEach(ref => {
             card.references.set(referenceKey(ref), ref);
             const details = node('details', null, 'eval-source-preview');
@@ -72,7 +72,7 @@
     const actualSpec=catalog.embedding_models.find(model=>actualModel?.startsWith(model.repository+'@'));
     const used = method?.uses_embeddings === false ? 'Geen embeddings gebruikt' : actualSpec ? actualSpec.label : actualModel || 'Gebruikt embeddingmodel niet teruggegeven';
     card.results.append(node('p', [method?.label || run.method, used].filter(Boolean).join(' · '), 'eval-used-configuration'));
-    details.append(node('p', 'Uitvoering ' + run.run_id, 'site-caption'), node('p', 'De broncontrole gebruikt vaste verwachtingen; de inhoud van een geschreven antwoord wordt hier niet beoordeeld.', 'site-caption'));
+    details.append(node('p', 'Uitvoering ' + run.run_id, 'site-caption'));
     if (actualModel) details.append(node('p', 'Modelversie: ' + actualModel, 'eval-hash site-caption'));
     if (identity?.dimensions) details.append(node('p', identity.dimensions + ' dimensies', 'site-caption'));
     for (const [key, label] of [['source_sha256', 'Bronversie'], ['vectors_sha256', 'Indexversie']]) {
@@ -165,7 +165,7 @@
         failed(card, run.error?.message || 'De lokale zoektest kon niet worden uitgevoerd.'); release(card); return;
       }
       if (!['preparing', 'running'].includes(run.status)) throw new Error('De server gaf een onbekende uitvoeringsstatus.');
-      card.status.textContent = run.status === 'preparing' ? methodFor(selection.method)?.uses_embeddings ? modelName(selection.embedding_model)+' en de zoekindex worden voorbereid. Een eerste download kan even duren.' : 'De tekstzoekindex wordt voorbereid. Er worden geen embeddings gebruikt.' : 'Bronstukken zoeken en controleren…';
+      card.status.textContent = run.status === 'preparing' ? methodFor(selection.method)?.uses_embeddings ? modelName(selection.embedding_model)+' en zoekindex voorbereiden…' : 'Zoekindex voorbereiden…' : 'Bronstukken zoeken en controleren…';
       if (Number.isInteger(run.progress?.completed) && Number.isInteger(run.progress?.total) && run.progress.total > 0) card.status.textContent += ` ${run.progress.completed} van ${run.progress.total} afgerond.`;
       card.timer=setTimeout(() => poll(card, runId, selection), 750);
     } catch (error) {
@@ -209,7 +209,6 @@
     const summary = node('summary'); const title = node('span', evaluation.title, 'eval-card-title'); const badge = node('span', 'Nog niet uitgevoerd', 'eval-card-state'); summary.append(title, badge);
     const body = node('div', null, 'eval-card-body');
     body.append(node('p', evaluation.question, 'eval-question'));
-    if (evaluation.description) body.append(node('p', evaluation.description, 'site-caption'));
     const card = { details, evaluation, state: badge, references: new Map() };
     body.append(expected(card, evaluation));
     const form = node('div', null, 'eval-controls');
@@ -222,17 +221,15 @@
     catalog.embedding_models.forEach(model => { const option = node('option', model.label + (model.available ? '' : ' · niet beschikbaar')); option.value = model.id; option.disabled = !model.available; card.model.append(option); });
     card.model.value = catalog.embedding_models.some(model => model.id === catalog.default_embedding_model && model.available) ? catalog.default_embedding_model : catalog.embedding_models.find(model => model.available)?.id || '';
     const methodLabel = node('label', 'Zoekmethode'); methodLabel.htmlFor = methodId;
-    const modelLabel = node('label', 'Embeddingmodel'); modelLabel.htmlFor = modelId;
-    const methodField = node('div'); methodField.append(methodLabel, card.method); const modelField = node('div'); modelField.append(modelLabel, card.model); form.append(methodField, modelField);
-    card.note = node('p', null, 'site-caption eval-model-note'); card.note.id = details.id + '-model-note'; card.model.setAttribute('aria-describedby', card.note.id);
+    card.modelLabel = node('label', 'Embeddingmodel'); card.modelLabel.htmlFor = modelId;
+    const methodField = node('div'); methodField.append(methodLabel, card.method); const modelField = node('div'); modelField.append(card.modelLabel, card.model); form.append(methodField, modelField);
     card.method.addEventListener('change', controls);
     card.start = node('button', 'Start test', 'eval-start'); card.start.type = 'button'; card.start.addEventListener('click', () => start(card));
     card.stop=node('button','Stop test','eval-stop');card.stop.type='button';card.stop.hidden=true;card.stop.addEventListener('click',()=>stop(card));
     const buttons=node('div',null,'eval-run-buttons');buttons.append(card.start,card.stop);
     card.status = node('p', '', 'eval-status'); card.status.setAttribute('role', 'status');
     card.results = node('section', null, 'eval-results'); card.results.setAttribute('aria-label', 'Resultaat van ' + evaluation.title);
-    if (evaluation.top_k) body.append(node('p', `We zoeken de beste ${evaluation.top_k} bronstukken in ${evaluation.corpus?.document_count || 5} fictieve documenten.`, 'site-caption'));
-    body.append(form, card.note, buttons, card.status, card.results); details.append(summary, body); cards.push(card); return details;
+    body.append(form, buttons, card.status, card.results); details.append(summary, body); cards.push(card); return details;
   }
   async function load() {
     byId('eval-catalog-retry').hidden = true;
@@ -241,7 +238,7 @@
       catalog = await request('/api/evals/rag/catalog');
       if (catalog.schema_version !== 1 || !Array.isArray(catalog.evals) || catalog.evals.length !== 3 || !Array.isArray(catalog.methods) || !catalog.methods.length || !Array.isArray(catalog.embedding_models) || !catalog.embedding_models.length) throw new Error('De drie zoektests zijn nu niet beschikbaar.');
       cards.length = 0; list.replaceChildren(...catalog.evals.map(makeCard)); controls();
-      byId('eval-catalog-status').textContent = 'Open een test om de vaste vraag en bronverwachtingen te bekijken.';
+      byId('eval-catalog-status').textContent = '';
     } catch (error) { byId('eval-catalog-status').textContent = error.message; byId('eval-catalog-retry').hidden = false; }
   }
   let archiveLoaded=false;
