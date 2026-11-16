@@ -4,20 +4,25 @@ import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { saveProjection } from './export_promptfoo_results.mjs';
+import { project, saveProjection } from './export_promptfoo_results.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const options = {};
 const args = process.argv.slice(2);
-const allowed = new Set(['suite','dataset','cases','methods','profiles','models','binary','model-cache','output-dir','ledger','max-generations','max-seconds','repeat','phase','approval']);
+const allowed = new Set(['suite','dataset','cases','methods','profiles','models','binary','model-cache','output-dir','ledger','max-generations','max-seconds','repeat','phase','approval','eval-id','embedding-model']);
 for (let i=0;i<args.length;i++) {
   const key = args[i].replace(/^--/,'');
-  if (key==='help') { console.log('Gebruik: npm run eval:rag -- --suite garden|retrieval|quality|compact|all-local [--dataset ID --cases ID --methods METHOD --profiles PROFILE]\nCodex: npm run eval:rag:live -- --suite agentic|models|compact-live --ledger PAD --max-generations 8 --max-seconds 900 [--phase pilot|remaining|smoke --approval PAD --repeat 1]'); process.exit(0); }
+  if (key==='help') { console.log('Gebruik: npm run eval:rag -- --suite garden|retrieval|quality|compact|all-local [--dataset ID --cases ID --methods METHOD --profiles PROFILE]\nBrowser: --suite browser --eval-id ID --methods METHOD --embedding-model minilm-multilingual|e5-small-multilingual --no-publish\nCodex: npm run eval:rag:live -- --suite agentic|models|compact-live --ledger PAD --max-generations 8 --max-seconds 900 [--phase pilot|remaining|smoke --approval PAD --repeat 1]'); process.exit(0); }
+  if (key==='no-publish') { options['no-publish']=true; continue; }
   if (key==='live') { options.live=true; continue; }
   if (!allowed.has(key) || !args[i+1] || args[i+1].startsWith('--')) throw new Error('Onbekende of onvolledige optie: '+args[i]);
   options[key]=args[++i];
 }
 const suite = options.suite || 'retrieval';
+if (suite!=='browser' && (options['eval-id'] || options['embedding-model'])) throw new Error('--eval-id en --embedding-model horen uitsluitend bij browser.');
+if (suite==='browser' && !options['eval-id']) throw new Error('Browser vereist --eval-id voor één bestaande test.');
+if (suite==='browser' && options.live) throw new Error('Browser zoekt uitsluitend lokaal, zonder live-generaties.');
+if (suite==='browser' && options.repeat && options.repeat!=='1') throw new Error('Browser voert één bestaande test eenmaal uit.');
 const liveSuites = new Set(['agentic','models','compact-live']);
 if (options.repeat && (!/^\d+$/.test(options.repeat) || Number(options.repeat)<1)) throw new Error('Repeat moet positief geheel zijn.');
 if (liveSuites.has(suite) && !options.live) throw new Error('Deze suite vereist expliciet --live en een begrensd nieuw ledger.');
@@ -43,7 +48,7 @@ if (options.repeat) env.COA_PROMPTFOO_REPEATS=options.repeat;
 for (const name of ['COA_PROMPTFOO_PHASE','COA_PROMPTFOO_APPROVAL']) delete env[name];
 if (options.phase) env.COA_PROMPTFOO_PHASE=options.phase;
 if (options.approval) env.COA_PROMPTFOO_APPROVAL=resolve(options.approval);
-for (const [flag,name] of Object.entries({dataset:'DATASET',cases:'CASES',methods:'METHODS',profiles:'PROFILES',models:'MODELS'})) if (options[flag]) env['COA_PROMPTFOO_'+name]=options[flag];
+for (const [flag,name] of Object.entries({dataset:'DATASET',cases:'CASES',methods:'METHODS',profiles:'PROFILES',models:'MODELS','eval-id':'EVAL_ID','embedding-model':'EMBEDDING_MODEL'})) if (options[flag]) env['COA_PROMPTFOO_'+name]=options[flag];
 if (options.live) Object.assign(env,{COA_PROMPTFOO_ALLOW_CODEX:'1',COA_PROMPTFOO_LEDGER:resolve(options.ledger),COA_PROMPTFOO_MAX_GENERATIONS:options['max-generations'],COA_PROMPTFOO_MAX_SECONDS:options['max-seconds']});
 else delete env.COA_PROMPTFOO_ALLOW_CODEX;
 let interrupted = false;
@@ -71,10 +76,17 @@ for (const selected of suites) {
   const inputs=join(runDir,selected+'-inputs.json');
   writeFileSync(inputs,JSON.stringify({schema_version:1,execution_id:env.COA_PROMPTFOO_EXECUTION_ID,tests:tests.map(vars=>({vars}))}),{mode:0o600});
   const prepare=join(root,'evals/rag/promptfoo/prepare.py');
-  if (existsSync(prepare) && ['retrieval','quality'].includes(selected)) {
+  if (existsSync(prepare) && ['retrieval','quality','browser'].includes(selected)) {
     env.COA_PROMPTFOO_PREPARED=join(runDir,selected+'-prepared.json');
     const result=await execute('python3',[prepare,'--input',inputs,'--output',env.COA_PROMPTFOO_PREPARED]);
     if (result.code!==0) throw new Error('Verse lokale retrievalvoorbereiding is mislukt.');
+    delete env.COA_PROMPTFOO_EMBEDDING_MANIFEST;
+    delete env.COA_PROMPTFOO_EMBEDDING_MANIFEST_SHA256;
+    const prepared=JSON.parse(readFileSync(env.COA_PROMPTFOO_PREPARED,'utf8'));
+    if (prepared.embedding_manifest) {
+      env.COA_PROMPTFOO_EMBEDDING_MANIFEST=prepared.embedding_manifest.path;
+      env.COA_PROMPTFOO_EMBEDDING_MANIFEST_SHA256=prepared.embedding_manifest.sha256;
+    }
   }
   const command=[join(root,'node_modules/promptfoo/dist/src/main.js')];
   // Use the package's declared executable rather than guessing a generated entrypoint.
@@ -87,7 +99,11 @@ for (const selected of suites) {
   if (existsSync(output)) {
     const raw=JSON.parse(readFileSync(output,'utf8'));
     if (!raw.evalId || !Array.isArray(raw.results?.results)) throw new Error('Promptfoo heeft geen volledig leesbaar resultaat geschreven.');
-    saveProjection(raw,join(root,'evals/rag/site/promptfoo-results.json'));
+    if (selected==='browser') {
+      const view=project(raw);
+      writeFileSync(join(runDir,'browser-view.json'),JSON.stringify({rows:view.evaluations[0].rows,sources:view.sources}),{mode:0o600});
+    }
+    if (!options['no-publish']) saveProjection(raw,join(root,'evals/rag/site/promptfoo-results.json'));
     writeFileSync(join(runDir,selected+'-summary.json'),JSON.stringify({evalId:raw.evalId,resultCount:raw.results.results.length,exitCode:result.code,rawFile:output}),{mode:0o600});
     console.log(JSON.stringify({suite:selected,evalId:raw.evalId,tests:raw.results.results.length,exitCode:result.code,output}));
   } else throw new Error('Promptfoo stopte zonder resultaatbestand.');

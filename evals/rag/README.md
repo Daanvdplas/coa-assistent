@@ -2,6 +2,20 @@
 
 Promptfoo bestuurt nu de RAG-vraagsets, configuratiematrix, herhalingen en assertions. De bestaande Rust-code voert alleen lokale zoekacties of een begrensde Codex-sessie uit. De beoordeling komt uit de nieuwe promptfoo-assertions; de oude native rapportlezers blijven beschikbaar voor historische bestanden.
 
+## Drie bronproeven in de browser
+
+De pagina `/resultaten/` begint met drie vaste tests op de oorspronkelijke vijf activiteiten (30 secties): P01 vraagt tijd en locatie van tuinieren; T02 vraagt een binnenactiviteit op dinsdag met tijd en adres; T05 vraagt de tijden en adressen van taalcafé en samen koken. De bestaande broncriteria blijven bytegelijk. Eén klik voert één vraag/configuratie uit, niet de grote matrices hieronder.
+
+Dit browserprotocol gebruikt vaste top-k **5**, kandidaat-k 30, contextlimiet 1200 en `documents_sections`. Daardoor is de minimaal benodigde vierdelige bewijsset van T05 structureel mogelijk. Deze instellingen worden niet als herhaling van oude top-3-metingen gepresenteerd. Iedere run gebruikt de volledige vijfbronnencorpus; verwachte sectie-ID’s worden geen zoekfilter of encoderinvoer. De twaalfdocumentendemo is geen nieuw gelabeld evaluatiecorpus.
+
+Kies dense, BM25, hybrid RRF of gewogen hybrid. Dense/hybrid gebruiken echt MiniLM meertalig of multilingual E5 Small uit de gedeelde [modelcatalogus](embedding-models.json). E5 krijgt `passage: ` voor documentinvoer en `query: ` voor vragen; MiniLM houdt zijn bestaande ongewijzigde invoer. Model/revisie, artifacthashes, prefixen, dimensies, werkelijke inputhashes en vectorhash blijven aan de run/cache gebonden. BM25 downloadt of laadt geen encoder en toont geen gebruikt embeddingmodel. De catalogus gebruikt het bestaande SDK-contract uit [fastembed-rs 7.1.2, uitgebracht 19 oktober 2026](https://github.com/Anush008/fastembed-rs/releases/tag/v7.1.2); er is geen bibliotheekupgrade of algemene modelranglijstclaim.
+
+De lokale webworker start uitsluitend de promptfoo-`browser`-config, bestaande retrievalprovider en dezelfde bronassertions. Hij verwijdert model-API-/Codexinstellingen uit zijn childomgeving. Rawuitvoer en `browser-view.json` staan privé onder `results/local/browser/<run_id>/`; oude publieke snapshots worden niet overschreven. Niet gevonden verwachte bronnen blijven zichtbaar; overige hits krijgen zonder volledige labels geen label ‘fout’.
+
+Starten/annuleren vereist een eigen geldige sessie, de lokale verbindingspeer en correcte Host/Origin; proxy-/forwardedrequests worden geweigerd. Er draait hoogstens één zware job tegelijk, zonder verborgen wachtrij. De aparte gratis zoektestlimiet is zestig starts per uur en vijf per minuut per netwerkadres. De bestaande API-demolimiet van tien modelvragen per uur blijft apart. Een job stopt na maximaal 300 seconden; annuleren ruimt ook bewezen eigen detached childprocessen op vóór de plek vrijkomt. Deze start-/stoproute is voor rechtstreeks lokaal gebruik; hosting valt buiten deze uitvoering.
+
+## Bestaande volledige suites
+
 | Suite | Wat wordt gemeten? | Standaard |
 | --- | --- | --- |
 | `garden` | MiniLM tegenover oorspronkelijke Jaccard-woordoverlap | 5 tuinvragen × 2 methoden |
@@ -61,7 +75,7 @@ Een afzonderlijke technische modelrookproef gebruikt expliciet `--phase smoke`, 
 
 ## Eigen resultaatpagina
 
-De bestaande pagina `/resultaten/` leest de publieke whitelistprojectie `site/promptfoo-results.json`. Zij toont echte promptfoo-run-ID's, vraagsets, configuraties, assertionstatus, redenen, bronhits, N/A en uitvoeringsfouten. De oude zestig sessies blijven bytevast als uitklapbare historie. De pagina start geen modelcalls en er is geen nieuw publiek startendpoint.
+Onder de drie lokale bronproeven staat een afzonderlijk, pas bij openen geladen archief. Dat leest de publieke whitelistprojectie `site/promptfoo-results.json` en toont promptfoo-run-ID's, vraagsets, configuraties, assertionstatus, redenen, bronhits, N/A en uitvoeringsfouten. De oude zestig sessies blijven bytevast als uitklapbare historie. Browserproeven starten geen antwoordmodel; de nieuwe lokale startroute is geen publiek startendpoint.
 
 De exporter neemt geen volledige config, machinepaden, auditbestanden of interne reasoning over. Rawresultaten blijven lokaal. Alleen bron-/testgegevens die bewust voor de pagina geselecteerd zijn worden gedeeld. [Provider- en assertiondetails](promptfoo/README.md).
 

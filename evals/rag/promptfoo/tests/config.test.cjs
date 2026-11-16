@@ -86,3 +86,18 @@ test('model phases keep the exact historical interleaving and four-pilot boundar
   } finally {fs.rmSync(directory,{recursive:true,force:true});}
   assert.throws(()=>build('models',{COA_PROMPTFOO_PHASE:'pilot',COA_PROMPTFOO_CASES:'RAG26-01'}),/smoke|fixed|frozen/i);
 });
+
+test('browser test selection reuses exactly one existing question with the chosen real embedding and method', () => {
+  for (const [id, caseId] of [['garden-time-location','P01'],['indoor-tuesday','T02'],['two-activities','T05']]) {
+    const config=build('browser',{COA_PROMPTFOO_EVAL_ID:id,COA_PROMPTFOO_METHODS:'hybrid_rrf',COA_PROMPTFOO_EMBEDDING_MODEL:'e5-small-multilingual'});
+    assert.equal(config.tests.length,1);
+    const vars=config.tests[0].vars;
+    assert.equal(vars.dataset,'legacy');assert.equal(vars.case_id,caseId);
+    assert.equal(vars.method,'hybrid_rrf');assert.equal(vars.embedding_model,'e5-small-multilingual');
+    assert.equal(vars.profile,'documents_sections');assert.equal(vars.top_k,5);assert.equal(vars.context_token_limit,1200);
+    assert.equal(config.tests[0].options.repeat,1);
+    for (const key of ['expected_goals','facts','evidence_alternatives','relevant_sections']) assert.equal(key in vars,false);
+  }
+  assert.throws(()=>build('browser',{COA_PROMPTFOO_EVAL_ID:'invented'}),/existing|unknown|browser/i);
+  assert.throws(()=>build('browser',{COA_PROMPTFOO_EVAL_ID:'garden-time-location',COA_PROMPTFOO_EMBEDDING_MODEL:'fake'}),/embedding|model/i);
+});

@@ -15,6 +15,8 @@ fn identity(dimensions: usize) -> EmbeddingIdentity {
         model: "explicit-two-dimensional-fixture".into(),
         sdk: "test".into(),
         dimensions,
+        document_prefix: String::new(),
+        query_prefix: String::new(),
         encoding: "title-heading-text".into(),
     }
 }
@@ -485,4 +487,33 @@ fn validation_rejects_invalid_queries_budgets_and_nonfinite_weights() {
         },
     };
     assert!(retrieve(&corpus, &request, &config, Some(&[1.0, 0.0])).is_err());
+}
+
+#[test]
+fn purpose_prefixes_bind_the_actual_document_embedding_inputs() {
+    let parsed = serde_json::from_value::<EmbeddingIdentity>(serde_json::json!({
+        "provider":"local-test-vectors","model":"explicit-e5-fixture","sdk":"test",
+        "dimensions":2,"encoding":"asymmetric retrieval","document_prefix":"passage: ","query_prefix":"query: "
+    }));
+    assert!(
+        parsed.is_ok(),
+        "Embedding identity must retain document and query prefixes"
+    );
+    let sections = fixture_sections();
+    let vectors = vec![vec![1.0, 0.5]; sections.len()];
+    let corpus =
+        PreparedCorpus::new(sections.clone(), Some(vectors), Some(parsed.unwrap())).unwrap();
+    let actual_inputs: Vec<String> = sections
+        .iter()
+        .map(|section| format!("passage: {}", embedding_input(section)))
+        .collect();
+    assert_eq!(
+        corpus.identity.embedding_inputs_sha256,
+        crate::manifest::hash(&serde_json::to_vec(&actual_inputs).unwrap())
+    );
+    let raw_inputs: Vec<_> = sections.iter().map(embedding_input).collect();
+    assert_ne!(
+        corpus.identity.embedding_inputs_sha256,
+        crate::manifest::hash(&serde_json::to_vec(&raw_inputs).unwrap())
+    );
 }

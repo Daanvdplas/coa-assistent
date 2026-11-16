@@ -20,6 +20,10 @@ pub struct EmbeddingIdentity {
     pub sdk: String,
     pub dimensions: usize,
     pub encoding: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub document_prefix: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub query_prefix: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -92,7 +96,14 @@ impl PreparedCorpus {
             _ => return Err("Vectors and embedding identity must be supplied together".into()),
         }
         let activities = metadata::activity_records(&sections)?;
-        let inputs: Vec<_> = sections.iter().map(embedding_input).collect();
+        let document_prefix = embedding
+            .as_ref()
+            .map(|identity| identity.document_prefix.as_str())
+            .unwrap_or("");
+        let inputs: Vec<_> = sections
+            .iter()
+            .map(|section| format!("{document_prefix}{}", embedding_input(section)))
+            .collect();
         let identity = CorpusIdentity {
             source_sha256: crate::manifest::hash(
                 &serde_json::to_vec(&sections).map_err(|error| error.to_string())?,

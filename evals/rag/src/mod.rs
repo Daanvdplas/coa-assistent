@@ -5,6 +5,7 @@ pub mod assessment;
 pub mod catalog;
 pub mod cli;
 pub mod dataset;
+pub mod embedding_models;
 pub mod lab_mcp;
 pub mod live;
 mod live_budget;

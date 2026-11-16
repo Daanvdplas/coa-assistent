@@ -196,6 +196,14 @@ pub fn cli(args: &[String]) -> Result<serde_json::Value, String> {
         );
     }
     match args.first().map(String::as_str) {
+        Some("embedding-identity") => {
+            let values=flags(&args[1..], &["--embedding-model","--model-cache"])?;
+            let model=required(&values,"--embedding-model")?.parse::<super::embedding_models::ModelChoice>()?;
+            let cache=values.get("--model-cache").map(std::path::PathBuf::from).unwrap_or_else(|| ".model-cache".into());
+            let identity=super::preparation::embedding_identity(model,&cache)?;
+            let hash=crate::manifest::hash(&serde_json::to_vec(&identity).map_err(|_|"Invalid encoder identity")?);
+            Ok(serde_json::json!({"model_id":model.id(),"embedding_identity":identity,"identity_sha256":hash}))
+        }
         Some("compact-project") => {
             let values = flags(&args[1..], &["--input"])?;
             let path = Path::new(required(&values, "--input")?);
@@ -274,12 +282,13 @@ pub fn cli(args: &[String]) -> Result<serde_json::Value, String> {
             serde_json::to_value(selected_plan(&flags)?).map_err(|error| error.to_string())
         }
         Some("run") => {
-            let allowed = [COMMON, &["--output", "--model-cache", "--sqlite-dir", "--query-filters"]].concat();
+            let allowed = [COMMON, &["--output", "--model-cache", "--sqlite-dir", "--query-filters", "--embedding-model"]].concat();
             let flags = flags(&args[1..], &allowed)?;
             let output = std::path::PathBuf::from(required(&flags, "--output")?);
             let filters: QueryFilters = flags.get("--query-filters").map(|value| serde_json::from_str(value).map_err(|_| "Typed query filters do not match the supported schema")).transpose()?.unwrap_or_default();
             let options = runner::RunOptions {output: output.clone(), preparation: PreparationOptions {
                 model_cache: flags.get("--model-cache").map(Into::into).unwrap_or_else(|| ".model-cache".into()),
+                embedding_model: flags.get("--embedding-model").map(|value| value.parse()).transpose()?.unwrap_or_default(),
                 sqlite_dir: flags.get("--sqlite-dir").map(Into::into).unwrap_or_else(|| output.parent().unwrap_or_else(|| Path::new(".")).join("retrieval-cache")),
             }, filters};
             serde_json::to_value(runner::run(&selected_plan(&flags)?, &options)?).map_err(|error| error.to_string())

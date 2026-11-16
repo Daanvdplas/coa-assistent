@@ -54,7 +54,11 @@ De CLI-opdracht `ask` en de bestaande lab-/experimentroutes gebruiken hun oorspr
 
 ## De website en opgeslagen vergelijking
 
-De resultatenpagina toont de zestig vastgelegde sessies van 6 november 2026: tien vragen, Sol en Luna en drie herhalingen. De modelkeuze daar selecteert bewaarde runs; zij verandert het live-demomodel niet en start geen modelcalls. Beide modellen zijn in deze proef met zoeken op betekenis getest. Bronvolledigheid is geen inhoudelijke antwoordkwaliteitsscore.
+Op `/resultaten/` staan drie afzonderlijke bronproeven: tuinieren (P01), binnen op dinsdag (T02) en twee activiteiten plannen (T05). Open een kaart om de vaste vraag en bronverwachtingen te lezen. Kies een zoekmethode en een lokaal embeddingmodel en start die ene test. De test gebruikt vijf fictieve activiteiten, top-5 en een vast contextplafond van 1200 tokens. Dit is een afzonderlijk browserprotocol; de demo heeft twaalf activiteiten en historische top-3-proeven blijven ongewijzigd.
+
+De vier methoden zijn dense, BM25 en de twee bestaande hybride combinaties. De modellen zijn meertalige MiniLM en multilingual E5 Small; document en vraag worden met het gekozen model en de juiste invoerprefixen verwerkt. BM25 gebruikt geen embeddings. Alleen **Start zoektest** begint lokaal zoekwerk en een deterministische promptfoo-beoordeling, zonder Codex, OpenAI API of AI-judge. Resultaten tonen de werkelijk gevonden bronpassages en gemiste bewijsdoelen; een technisch voltooide test kan terecht bronnen missen. De oude vergelijkingen staan apart onder eerdere resultaten.
+
+De zestig vastgelegde sessies van 6 november 2026 blijven bewaard: tien vragen, Sol en Luna en drie herhalingen. Hun modelkeuze selecteert uitsluitend historische runs; zij verandert het live-demomodel niet en start niets. Beide modellen gebruikten dense. Bronvolledigheid is geen inhoudelijke antwoordkwaliteitsscore.
 
 De gepubliceerde presentatie is een beperkte export van de werkelijke brontraces. Ruwe logs, reasoning, aanmeldgegevens en lokale paden worden niet door de webserver aangeboden. Opnieuw exporteren uit een bestaande, bevroren proefmap kan zonder modelcalls:
 

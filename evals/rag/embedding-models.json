@@ -1,0 +1,26 @@
+[
+  {
+    "id": "minilm-multilingual",
+    "label": "MiniLM meertalig",
+    "repository": "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+    "model_file": "model_optimized.onnx",
+    "dimensions": 384,
+    "sdk": "fastembed 7.1.2",
+    "max_tokens": 512,
+    "document_prefix": "",
+    "query_prefix": "",
+    "encoding": "unprefixed sentence transformer; title + newline + heading + newline + exact text; raw query; max_tokens=512"
+  },
+  {
+    "id": "e5-small-multilingual",
+    "label": "E5 Small meertalig",
+    "repository": "intfloat/multilingual-e5-small",
+    "model_file": "onnx/model.onnx",
+    "dimensions": 384,
+    "sdk": "fastembed 7.1.2",
+    "max_tokens": 512,
+    "document_prefix": "passage: ",
+    "query_prefix": "query: ",
+    "encoding": "asymmetric E5 retrieval; passage: title + newline + heading + newline + exact text; query: raw query; max_tokens=512"
+  }
+]

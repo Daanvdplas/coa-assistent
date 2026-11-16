@@ -38,6 +38,7 @@ impl LocalRetriever {
         let options = PreparationOptions {
             model_cache: model_cache.into(),
             sqlite_dir: sqlite_dir.into(),
+            embedding_model: Default::default(),
         };
         let mut session = PreparationSession::for_corpus(&options, corpus)?;
         let prepared = session.prepare(
@@ -78,6 +79,7 @@ impl LocalRetriever {
 pub struct PreparationOptions {
     pub model_cache: PathBuf,
     pub sqlite_dir: PathBuf,
+    pub embedding_model: super::embedding_models::ModelChoice,
 }
 
 pub(crate) struct PreparedSearch {
@@ -119,7 +121,7 @@ impl PreparationSession {
             } else {
                 options.sqlite_dir.join(corpus.sha256())
             },
-            embeddings: LocalEmbeddings::new(&options.model_cache),
+            embeddings: LocalEmbeddings::new(&options.model_cache, options.embedding_model),
             memory_cache: EmbeddingCache::default(),
             source_parse_ms: elapsed_ms(started),
         })
@@ -241,9 +243,10 @@ impl PreparationSession {
             let started = Instant::now();
             let result = (|| {
                 let identity = self.embeddings.identity()?;
+                let encoded_query = format!("{}{}", identity.query_prefix, request.query);
                 let key = CacheKey::new(
                     &serde_json::json!({"identity": identity, "purpose": "raw-query-v1"}),
-                    &request.query,
+                    &encoded_query,
                     identity.dimensions,
                 )?;
                 if let Some(vector) = prepared.store.get_embedding(&key)? {
@@ -255,7 +258,7 @@ impl PreparationSession {
                 }
                 let mut vectors = self
                     .embeddings
-                    .embed(std::slice::from_ref(&request.query), EncodingPurpose::Query)?;
+                    .embed(std::slice::from_ref(&encoded_query), EncodingPurpose::Query)?;
                 if vectors.len() != 1 {
                     return Err("Expected one query embedding".into());
                 }
@@ -304,7 +307,7 @@ fn document_vectors(
     let mut missing: Vec<(CacheKey, String, Vec<usize>)> = Vec::new();
     let mut hits = 0;
     for (index, section) in sections.iter().enumerate() {
-        let text = embedding_input(section);
+        let text = format!("{}{}", identity.document_prefix, embedding_input(section));
         let key = CacheKey::new(identity, &text, identity.dimensions)?;
         if let Some(vector) = store.get_embedding(&key)?.or(memory.get(&key)?) {
             store.put_embedding(&key, &vector)?;
@@ -349,7 +352,15 @@ fn document_vectors(
     ))
 }
 
+pub fn embedding_identity(
+    model: super::embedding_models::ModelChoice,
+    cache: &Path,
+) -> Result<EmbeddingIdentity, String> {
+    LocalEmbeddings::new(cache, model).identity()
+}
+
 struct LocalEmbeddings {
+    choice: super::embedding_models::ModelChoice,
     cache: PathBuf,
     model: Option<fastembed::TextEmbedding>,
     identity: Option<EmbeddingIdentity>,
@@ -368,8 +379,9 @@ enum EncodingPurpose {
 }
 
 impl LocalEmbeddings {
-    fn new(cache: &Path) -> Self {
+    fn new(cache: &Path, choice: super::embedding_models::ModelChoice) -> Self {
         Self {
+            choice,
             cache: cache.into(),
             model: None,
             identity: None,
@@ -387,13 +399,11 @@ impl LocalEmbeddings {
             let started = Instant::now();
             self.model = Some(
                 fastembed::TextEmbedding::try_new(
-                    fastembed::TextInitOptions::new(
-                        fastembed::EmbeddingModel::ParaphraseMLMiniLML12V2Q,
-                    )
-                    .with_cache_dir(self.cache.clone())
-                    .with_show_download_progress(false)
-                    .with_max_length(512)
-                    .with_intra_threads(2),
+                    fastembed::TextInitOptions::new(self.choice.sdk_model())
+                        .with_cache_dir(self.cache.clone())
+                        .with_show_download_progress(false)
+                        .with_max_length(self.choice.spec().max_tokens)
+                        .with_intra_threads(2),
                 )
                 .map_err(|error| error.to_string())?,
             );
@@ -406,10 +416,14 @@ impl LocalEmbeddings {
         if let Some(identity) = &self.identity {
             return Ok(identity.clone());
         }
-        let base = self
-            .cache
-            .join("models--Qdrant--paraphrase-multilingual-MiniLM-L12-v2-onnx-Q");
-        if !base.join("refs/main").is_file() {
+        let base = self.choice.repository_cache(&self.cache);
+        if let Ok(revision) = std::fs::read_to_string(base.join("refs/main")) {
+            let revision = revision.trim();
+            if revision.len() != 40 || !revision.bytes().all(|value| value.is_ascii_hexdigit()) {
+                return Err("Invalid cached embedding model revision".into());
+            }
+        }
+        if !self.choice.cached(&self.cache) {
             self.load()?;
         }
         let started = Instant::now();
@@ -420,13 +434,7 @@ impl LocalEmbeddings {
             return Err("Invalid cached embedding model revision".into());
         }
         let mut files = Vec::new();
-        for name in [
-            "model_optimized.onnx",
-            "config.json",
-            "tokenizer.json",
-            "tokenizer_config.json",
-            "special_tokens_map.json",
-        ] {
+        for name in self.choice.files() {
             let bytes = std::fs::read(base.join("snapshots").join(revision).join(name))
                 .map_err(|error| error.to_string())?;
             files.push((name, crate::manifest::hash(&bytes)));
@@ -435,11 +443,14 @@ impl LocalEmbeddings {
             crate::manifest::hash(&serde_json::to_vec(&files).map_err(|error| error.to_string())?);
         let identity = EmbeddingIdentity {
             provider: "local-fastembed".into(),
-            model: format!("{}@{revision}", crate::MODEL),
-            sdk: "fastembed 7.1.2".into(),
-            dimensions: 384,
+            model: format!("{}@{revision}", self.choice.spec().repository),
+            sdk: self.choice.spec().sdk.clone(),
+            dimensions: self.choice.spec().dimensions,
+            document_prefix: self.choice.spec().document_prefix.clone(),
+            query_prefix: self.choice.spec().query_prefix.clone(),
             encoding: format!(
-                "unprefixed sentence transformer; title + newline + heading + newline + exact text; raw query; max_tokens=512; model_files_sha256={artifact_hash}"
+                "{}; model_files_sha256={artifact_hash}",
+                self.choice.spec().encoding
             ),
         };
         self.identity = Some(identity.clone());
@@ -529,6 +540,8 @@ mod tests {
             model: "mini-fixture".into(),
             sdk: "fixture-v1".into(),
             dimensions: 3,
+            document_prefix: String::new(),
+            query_prefix: String::new(),
             encoding: "fixture".into(),
         };
         let mut store = DocumentsStore::new(crate::storage::StorageStructure::Sections);
@@ -575,6 +588,7 @@ mod tests {
         let options = PreparationOptions {
             model_cache: base.join("unused-model"),
             sqlite_dir: base.join("sqlite"),
+            embedding_model: Default::default(),
         };
         let expanded = crate::corpus::CorpusId::ExpandedTen;
         let mut expected_identity = None;

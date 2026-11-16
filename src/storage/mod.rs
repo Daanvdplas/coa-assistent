@@ -140,6 +140,8 @@ mod tests {
             model: "mini".into(),
             sdk: "7.1.2".into(),
             dimensions: 3,
+            document_prefix: String::new(),
+            query_prefix: String::new(),
             encoding: "title-heading-text-v2".into(),
         };
         let original =
