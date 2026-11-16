@@ -120,7 +120,7 @@ impl ResponsesRunner {
         Self::new(key, ENDPOINT, search)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":"rig-0.46.0","model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v2","max_searches":4,"max_provider_requests":5,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":"rig-0.46.0","model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v3","max_searches":4,"max_provider_requests":5,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -514,10 +514,12 @@ mod tests {
             );
             assert!(instructions.contains("Lead with the specific activities"));
             assert!(instructions.contains("Keep relevant uncertainty honest"));
+            assert!(instructions.contains("Do not add standalone verdicts"));
+            assert!(instructions.contains("Dit is een bevestigde passende optie"));
         }
         assert_eq!(
             runner.configuration()["prompt_version"],
-            "responses-activity-v2"
+            "responses-activity-v3"
         );
         assert_eq!(requests[0]["tool_choice"], "required");
         assert!(
