@@ -13,3 +13,14 @@ test('the full protocol cannot silently filter cases or change repetitions',()=>
   const result=run(['--phase','pilot',...extra]);assert.notEqual(result.status,0);assert.match(result.stderr,/volledige modelproef behoudt/);
  }
 });
+
+test('browser-only model and case options cannot alter historical suites',()=>{
+ for(const flag of ['--eval-id','--embedding-model']) {
+  const result=spawnSync(process.execPath,['evals/rag/scripts/run_promptfoo.mjs','--suite','retrieval',flag,'e5-small-multilingual','--binary','/nonexistent-runtime'],{encoding:'utf8'});
+  assert.notEqual(result.status,0);assert.match(result.stderr,/uitsluitend.*browser/);
+ }
+});
+test('browser execution requires one existing test and never accepts live generation',()=>{
+ const result=spawnSync(process.execPath,['evals/rag/scripts/run_promptfoo.mjs','--suite','browser','--no-publish','--binary','/nonexistent-runtime'],{encoding:'utf8'});
+ assert.notEqual(result.status,0);assert.match(result.stderr,/browser.*eval-id/i);
+});

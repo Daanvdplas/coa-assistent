@@ -33,7 +33,17 @@ function selected(value) { return value ? new Set(value.split(',').map(part => p
 function buildConfig(env = process.env) {
   const suite = env.COA_PROMPTFOO_SUITE || 'retrieval';
   let tests = [];
-  if (suite === 'garden') {
+  if (suite === 'browser') {
+    const cases = { 'garden-time-location':'P01', 'indoor-tuesday':'T02', 'two-activities':'T05' };
+    const evalId = env.COA_PROMPTFOO_EVAL_ID;
+    if (!Object.hasOwn(cases,evalId)) throw new Error('Unknown existing browser test');
+    const method = env.COA_PROMPTFOO_METHODS || 'dense';
+    const embeddingModel = env.COA_PROMPTFOO_EMBEDDING_MODEL || 'minilm-multilingual';
+    if (!METHODS.includes(method)) throw new Error('Unknown browser retrieval method');
+    if (!['minilm-multilingual','e5-small-multilingual'].includes(embeddingModel)) throw new Error('Unknown embedding model');
+    const input=questions('legacy').find(row=>row.case_id===cases[evalId]);
+    tests=[testCase({...input,browser_eval_id:evalId,embedding_model:embeddingModel},{method,top_k:5,profile:'documents_sections'},suite)];
+  } else if (suite === 'garden') {
     tests = questions('garden').flatMap(input => ['dense', 'keyword_overlap'].map(method => testCase(input, { mode: 'garden', method }, suite)));
   } else if (suite === 'retrieval') {
     tests = DATASETS.flatMap(dataset => questions(dataset).flatMap(input => METHODS.flatMap(method => PROFILES.map(profile => testCase(input, { method, profile }, suite)))));

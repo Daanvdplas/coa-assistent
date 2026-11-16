@@ -38,7 +38,7 @@ class PreparedExecutionTest(unittest.TestCase):
         provider=load_provider()
         with patch.dict(os.environ,{**self.env,'COA_PROMPTFOO_PREPARED':str(output)}),patch.object(provider,'_execute') as execute_again:
             result=provider.call_api('',{},self.rows[0])
-        self.assertNotIn('error',result);execute_again.assert_not_called()
+        self.assertNotIn('error',result);self.assertEqual(execute_again.call_count,0)
         self.assertEqual(result['metadata']['execution_mode'],'fresh_batch_retrieval')
 
     def test_native_independent_per_case_filters_are_not_overridden_with_a_global_flag(self):
@@ -66,5 +66,29 @@ class PreparedExecutionTest(unittest.TestCase):
         with patch.dict(os.environ,{**self.env,'COA_PROMPTFOO_PREPARED':str(output),'COA_PROMPTFOO_EXECUTION_ID':'another-execution'}),patch.object(provider,'_execute') as execute:
             result=provider.call_api('',{},self.rows[0])
         self.assertIn('error',result);self.assertEqual(execute.call_count,0)
+
+    def test_browser_preparation_pins_the_resolved_model_before_retrieval(self):
+        model='e5-small-multilingual'
+        variables={**self.rows[0]['vars'],'method':'dense','top_k':5,'browser_eval_id':'garden-time-location','embedding_model':model}
+        spec=next(row for row in json.loads((HERE.parent/'embedding-models.json').read_text()) if row['id']==model)
+        identity={'provider':'local-fastembed','model':spec['repository']+'@'+'a'*40,'sdk':spec['sdk'],'dimensions':spec['dimensions'],'encoding':spec['encoding']+'; model_files_sha256='+'b'*64,'document_prefix':spec['document_prefix'],'query_prefix':spec['query_prefix']}
+        seen=[]
+        def execute(command,env,timeout,cwd):
+            seen.append(command)
+            if command[2]=='embedding-identity':
+                return subprocess.CompletedProcess(command,0,json.dumps({'model_id':model,'embedding_identity':identity,'identity_sha256':'c'*64}),b'')
+            record=local_record()['record']
+            record['outcome']['corpus_identity']['embedding']=identity
+            Path(command[command.index('--output')+1]).write_text(json.dumps(record)+'\n')
+            return subprocess.CompletedProcess(command,0,b'',b'')
+        with patch.dict(os.environ,self.env),patch.object(self.prepare.provider,'_execute',side_effect=execute):
+            manifest=self.prepare.prepare({'schema_version':1,'execution_id':'fresh-test-execution','tests':[{'vars':variables}]},self.root/'prepared-browser.json')
+        self.assertEqual(seen[0][2],'embedding-identity')
+        self.assertIn('--embedding-model',seen[1])
+        pin=manifest['embedding_manifest']
+        raw=Path(pin['path']).read_bytes()
+        import hashlib
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),pin['sha256'])
+        self.assertEqual(json.loads(raw)['models'][model],identity)
 
 if __name__=='__main__':unittest.main()

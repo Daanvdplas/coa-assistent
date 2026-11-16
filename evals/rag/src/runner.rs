@@ -252,6 +252,7 @@ mod tests {
             output: output.clone(),
             preparation: PreparationOptions {
                 model_cache: output.with_extension("missing-model"),
+                embedding_model: Default::default(),
                 sqlite_dir: output.with_extension("sqlite"),
             },
             filters: Default::default(),
@@ -319,6 +320,7 @@ mod tests {
                 output: output.clone(),
                 preparation: PreparationOptions {
                     model_cache: "/missing-unused-model".into(),
+                    embedding_model: Default::default(),
                     sqlite_dir: "/missing-unused-sqlite".into(),
                 },
                 filters: Default::default(),
@@ -351,6 +353,7 @@ mod tests {
                 output: output.clone(),
                 preparation: PreparationOptions {
                     model_cache: base.join("model"),
+                    embedding_model: Default::default(),
                     sqlite_dir: base.join("sqlite"),
                 },
                 filters: Default::default(),
@@ -397,6 +400,7 @@ mod tests {
                 output: output.clone(),
                 preparation: PreparationOptions {
                     model_cache: "/missing-unused-model".into(),
+                    embedding_model: Default::default(),
                     sqlite_dir: "/missing-unused-sqlite".into(),
                 },
                 filters: Default::default(),
@@ -443,6 +447,7 @@ mod plan_integrity_tests {
                 output: output.clone(),
                 preparation: PreparationOptions {
                     model_cache: output.with_extension("NO_MODEL"),
+                    embedding_model: Default::default(),
                     sqlite_dir: output.with_extension("NO_SQLITE"),
                 },
                 filters: Default::default(),

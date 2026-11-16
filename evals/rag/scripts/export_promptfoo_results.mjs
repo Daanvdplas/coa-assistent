@@ -7,6 +7,20 @@ const text = value => typeof value === 'string' ? value : '';
 const publicReason = value => /\/Users\/|\/private\/|access_token|OPENAI_API_KEY|reasoning\.encrypted/i.test(text(value)) ? 'Details staan alleen in het lokale rapport.' : text(value).slice(0, 2000);
 const fields = (object, names) => Object.fromEntries(names.filter(name => object?.[name] === null || ['string','number','boolean'].includes(typeof object?.[name])).map(name => [name, object[name]]));
 
+
+const publicEmbedding = identity => identity && typeof identity==='object' ? fields(identity,['provider','model','sdk','dimensions','encoding','document_prefix','query_prefix']) : null;
+const publicCorpus = identity => identity && typeof identity==='object' ? {...fields(identity,['source_sha256','embedding_inputs_sha256','vectors_sha256']),embedding:publicEmbedding(identity.embedding)} : null;
+
+function publicGoals(goals) {
+  if (!Array.isArray(goals)) return [];
+  return goals.map(goal => ({
+    ...fields(goal, ['id','description','covered']),
+    alternatives: Array.isArray(goal.alternatives) ? goal.alternatives.map(option =>
+      Array.isArray(option) ? option.map(ref => fields(ref, ['source_id','section_id','found'])) : []
+    ) : [],
+  }));
+}
+
 export function project(input) {
   const results = input.results?.results;
   if (typeof input.evalId !== 'string' || !Array.isArray(results)) throw new Error('Geen ondersteund promptfoo-resultaat.');
@@ -51,7 +65,8 @@ export function project(input) {
       configuration,
       status:runtimeError ? 'error' : modelFailure ? 'failed' : grading.pass === true ? 'passed' : 'failed',
       reason:runtimeError ? 'De uitvoering kon niet worden afgerond; bekijk het lokale rapport.' : publicReason(grading.reason),
-      assertions:checks, source_complete:sourceComplete,
+      assertions:checks, source_complete:sourceComplete, goals:publicGoals(metrics.goals),
+      embedding_identity:publicEmbedding(metrics.embedding_identity),corpus_identity:publicCorpus(metrics.corpus_identity),
       metrics:fields(metrics,['model_failure_class','target_goals','covered_goals','goal_coverage','offered_sections','unknown_obligations','minimum_required_sections','minimum_required_activities','seed_activity_capacity_limit','section_capacity_limit','goal_set_exceeds_capacity','source_quality_applicable','first_complete_call','first_complete_call_index','search_calls','source_precision','source_recall','first_goal_support_reciprocal_rank','first_relevant_reciprocal_rank','full_bytes','compact_bytes','full_payload_bytes','compact_payload_bytes']),
       promptfoo_ms:typeof result.latencyMs === 'number' ? result.latencyMs : null,
       retrieval_ms:typeof record.timings?.retrieval_ms === 'number' ? record.timings.retrieval_ms : null,

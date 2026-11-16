@@ -1,3 +1,4 @@
+mod eval_jobs;
 use axum::{
     Json, Router,
     extract::{ConnectInfo, DefaultBodyLimit, Path, State},
@@ -405,6 +406,11 @@ fn router(app: App) -> Router {
  .route("/assets/language.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/language.js"))}))
  .route("/assets/demo.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/demo.js"))}))
  .route("/api/evals/rag",get(rag_evaluation_results))
+ .route("/api/evals/rag/catalog",get(eval_jobs::catalog))
+ .route("/api/evals/rag/runs",post(eval_jobs::start))
+ .route("/api/evals/rag/runs/{id}",get(eval_jobs::get).delete(eval_jobs::cancel))
+ .route("/assets/eval-runner.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/eval-runner.js"))}))
+ .route("/assets/eval-runner.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../evals/rag/site/eval-runner.css"))}))
  .route("/assets/promptfoo-results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/promptfoo-results.js"))}))
  .route("/assets/results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/results.js"))}))
  .route("/assets/results.json",get(||async{([(header::CONTENT_TYPE,"application/json; charset=utf-8")],include_str!("../evals/rag/site/results.json"))}))
@@ -415,7 +421,7 @@ fn router(app: App) -> Router {
  .route("/api/runs/{id}/judgement",post(judge)).route("/api/runs/{id}/criteria",post(reveal))
  .route("/api/runs/{id}/diagnosis",post(diagnose)).route("/api/report",get(report))
  .layer(DefaultBodyLimit::max(8192))
- .layer(axum::middleware::from_fn(api_cache_policy)).with_state(app)
+ .layer(axum::middleware::from_fn(api_cache_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
 }
 pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
     let corpus = index.corpus();

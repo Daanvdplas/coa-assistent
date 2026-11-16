@@ -31,16 +31,34 @@ def prepare(request, output):
         if settings['mode']!='local':continue
         if variables['question']!=provider._question(variables['dataset'],variables['case_id']):
             raise ValueError('Selected question differs from frozen input')
+        embedding_model=provider.browser_embedding_model(variables)
         filters=variables.get('filters',{})
-        group_key=json.dumps({'dataset':variables['dataset'],'settings':settings,'filters':None if variables['dataset']=='independent-20261103' else filters},sort_keys=True,separators=(',',':'))
-        group=groups.setdefault(group_key,{'dataset':variables['dataset'],'settings':settings,'filters':filters,'tests':[]})
+        group_key=json.dumps({'dataset':variables['dataset'],'settings':settings,'embedding_model':embedding_model,'filters':None if variables['dataset']=='independent-20261103' else filters},sort_keys=True,separators=(',',':'))
+        group=groups.setdefault(group_key,{'dataset':variables['dataset'],'settings':settings,'embedding_model':embedding_model,'filters':filters,'tests':[]})
         group['tests'].append(variables)
     manifest={'schema_version':1,'execution_id':request['execution_id'],'created_at':time.time(),'execution_mode':'fresh_batch_retrieval','records':{},'groups':len(groups),'runtime_binary_sha256':hashlib.sha256(binary.read_bytes()).hexdigest()}
+    embedding_models={}
+    for group in groups.values():
+        model=group['embedding_model']
+        if model and group['settings']['method']!='bm25' and model not in embedding_models:
+            command=[str(binary),'lab','embedding-identity','--embedding-model',model,'--model-cache',str(cache)]
+            result=provider._execute(command,provider._child_env(),3600,provider.ROOT)
+            if result.returncode!=0:raise RuntimeError('Local embedding preparation failed; private process output not exported')
+            resolved=json.loads(result.stdout)
+            if resolved.get('model_id')!=model or not isinstance(resolved.get('embedding_identity'),dict):
+                raise ValueError('Resolved model identity differs from selected model')
+            embedding_models[model]=resolved['embedding_identity']
+    if embedding_models:
+        pin_path=base/('embedding-'+request['execution_id']+'.json')
+        with pin_path.open('x') as handle:json.dump({'schema_version':1,'execution_id':request['execution_id'],'models':embedding_models},handle,separators=(',',':'))
+        pin_path.chmod(0o600)
+        manifest['embedding_manifest']={'path':str(pin_path),'sha256':hashlib.sha256(pin_path.read_bytes()).hexdigest()}
     for group in groups.values():
         directory=Path(tempfile.mkdtemp(prefix='prepared-',dir=base));directory.chmod(0o700)
         native=directory/'native.jsonl'
         case_ids=sorted({row['case_id'] for row in group['tests']})
         command=[str(binary),'lab','run','--dataset',group['dataset'],'--cases',','.join(case_ids),*provider.common_arguments(group['settings']),'--output',str(native),'--model-cache',str(cache),'--sqlite-dir',str(base/'retrieval-cache')]
+        if group['embedding_model']:command+=['--embedding-model',group['embedding_model']]
         if group['dataset']!='independent-20261103' and group['settings']['apply_filters'] and group['filters']:
             command+=['--query-filters',json.dumps(group['filters'],separators=(',',':'))]
         result=provider._execute(command,provider._child_env(),3600,provider.ROOT)
@@ -52,6 +70,10 @@ def prepare(request, output):
         for variables in group['tests']:
             row=by_case[variables['case_id']]
             if row['question']!=variables['question']:raise ValueError('Prepared case query differs')
+            if group['embedding_model']:
+                actual=row.get('outcome',{}).get('corpus_identity',{}).get('embedding')
+                expected=None if group['settings']['method']=='bm25' else embedding_models[group['embedding_model']]
+                if actual!=expected:raise ValueError('Retrieved evidence differs from independently prepared embedding model')
             key=provider.request_key(variables)
             path=directory/(key+'.json')
             if not path.exists():

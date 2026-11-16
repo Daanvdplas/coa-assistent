@@ -1,5 +1,7 @@
 # Evaluaties
 
+De eigen `/resultaten/`-pagina begint met drie afzonderlijke lokale bronproeven (P01/T02/T05), met echte zoekmethode- en embeddingkeuze. Zij hergebruiken promptfoo en de bestaande broncriteria; volledige matrices en historische/modelproeven blijven afzonderlijk beschikbaar. Zie [RAG-evaluaties](rag/README.md).
+
 Alle evaluatiecode, vraagsets, handleidingen en bewaarde resultaten staan hier. De indeling volgt wat een proef meet:
 
 - [RAG met promptfoo](rag/README.md): vinden we de benodigde bronnen, met welke zoekstrategie en hoeveel zoekwerk?

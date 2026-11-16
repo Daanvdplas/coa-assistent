@@ -8,6 +8,7 @@ from functools import lru_cache
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 
@@ -125,6 +126,51 @@ def _validate_config(actual, variables):
     return config
 
 
+
+def _browser_embedding(record, variables):
+    """Bind a browser run to the independently prepared model, including bytes."""
+    eval_id=variables.get('browser_eval_id')
+    if eval_id is None:return ''
+    cases={'garden-time-location':'P01','indoor-tuesday':'T02','two-activities':'T05'}
+    if cases.get(eval_id)!=variables.get('case_id') or variables.get('dataset')!='legacy':
+        raise ValueError('Browser case differs from its existing reference')
+    fixed={'profile':'documents_sections','top_k':5,'candidate_k':30,'context_token_limit':1200,'selection':'sections','apply_filters':False,'mmr':False}
+    if any(variables.get(key)!=value for key,value in fixed.items()):
+        raise ValueError('Browser search treatment differs from its fixed protocol')
+    specs=json.loads((ROOT/'evals/rag/embedding-models.json').read_text())
+    spec=next((row for row in specs if row['id']==variables.get('embedding_model')),None)
+    if spec is None:raise ValueError('Unknown selected browser embedding model')
+    corpus=record['outcome']['corpus_identity']
+    identity=corpus.get('embedding')
+    if variables['method']=='bm25':
+        if identity is not None or corpus.get('vectors_sha256') is not None:
+            raise ValueError('Word-only search must not claim embeddings or vectors')
+        return ''
+    path=Path(os.environ['COA_PROMPTFOO_EMBEDDING_MANIFEST']).resolve(strict=True)
+    base=Path(os.environ['COA_PROMPTFOO_ARTIFACT_DIR']).resolve(strict=True)
+    if not path.is_relative_to(base) or not path.is_file() or path.stat().st_size>1024*1024:
+        raise ValueError('Embedding preparation manifest escaped this execution')
+    raw=path.read_bytes()
+    if hashlib.sha256(raw).hexdigest()!=os.environ.get('COA_PROMPTFOO_EMBEDDING_MANIFEST_SHA256'):
+        raise ValueError('Independent embedding preparation bytes changed')
+    manifest=json.loads(raw)
+    if manifest.get('schema_version')!=1 or manifest.get('execution_id')!=os.environ.get('COA_PROMPTFOO_EXECUTION_ID') or manifest.get('models',{}).get(spec['id'])!=identity:
+        raise ValueError('Actual embedding differs from independently prepared model')
+    if not isinstance(identity,dict) or set(identity)-{'provider','model','sdk','dimensions','encoding','document_prefix','query_prefix'}:
+        raise ValueError('Unknown embedding identity fields')
+    if identity.get('provider')!='local-fastembed' or identity.get('sdk')!=spec['sdk'] or identity.get('dimensions')!=spec['dimensions']:
+        raise ValueError('Actual embedding SDK/provider/dimensions differ')
+    if not re.fullmatch(re.escape(spec['repository'])+r'@[0-9a-f]{40}',identity.get('model','')):
+        raise ValueError('Actual embedding repository/revision differs')
+    if not re.fullmatch(re.escape(spec['encoding'])+r'; model_files_sha256=[0-9a-f]{64}',identity.get('encoding','')):
+        raise ValueError('Actual embedding encoding/artifact identity differs')
+    for field in ('document_prefix','query_prefix'):
+        if identity.get(field,'')!=spec[field]:raise ValueError('Actual embedding prefix differs')
+    if not re.fullmatch(r'[0-9a-f]{64}',corpus.get('vectors_sha256') or ''):
+        raise ValueError('Embedding search lacks its vector content identity')
+    return spec['document_prefix']
+
+
 def _validate_local(record, variables, criteria, canonical):
     config=_validate_config(record['config'],variables)
     identity=record.get('dataset',{})
@@ -135,7 +181,8 @@ def _validate_local(record, variables, criteria, canonical):
         raise ValueError('Retrieval trace version/configuration differs')
     source_sections=[_ordered_section(section) for section in canonical.values()]
     expected_source=hashlib.sha256(_json_bytes(source_sections)).hexdigest()
-    inputs=[section['source_title']+'\n'+section['heading']+'\n'+section['text'] for section in source_sections]
+    document_prefix=_browser_embedding(record,variables)
+    inputs=[document_prefix+section['source_title']+'\n'+section['heading']+'\n'+section['text'] for section in source_sections]
     expected_embedding=hashlib.sha256(_json_bytes(inputs)).hexdigest()
     corpus_identity=outcome.get('corpus_identity',{})
     if corpus_identity.get('source_sha256')!=expected_source or corpus_identity.get('embedding_inputs_sha256')!=expected_embedding:
@@ -357,6 +404,22 @@ def measure(envelope, variables):
     offered={_key(hit) for hit in hits}
     result=goal_metrics(criteria.get('facts',[]),offered)
     support={_key(ref) for fact in criteria.get('facts',[]) for option in fact.get('evidence_alternatives',[]) for ref in option}
+    result['goals']=[]
+    for goal in criteria.get('facts',[]):
+        alternatives=goal.get('evidence_alternatives',[])
+        if not alternatives:continue
+        result['goals'].append({
+            'id':goal.get('id',''),
+            'description':goal.get('description',''),
+            'covered':any(all(_key(ref) in offered for ref in option) for option in alternatives),
+            'alternatives':[
+                [{'source_id':ref['source_id'],'section_id':ref['section_id'],'found':_key(ref) in offered} for ref in option]
+                for option in alternatives
+            ],
+        })
+    if envelope['operation']=='retrieve' and variables.get('browser_eval_id'):
+        corpus=envelope['record']['outcome']['corpus_identity']
+        result.update(embedding_identity=corpus.get('embedding'),corpus_identity=corpus)
     result.update(execution_integrity=True, reference_sha256=criteria['reference_sha256'], question_sha256=criteria['question_sha256'], offered_sections=len(offered), source_quality_applicable=result['target_goals']>0, answer_quality='not_assessed', unknown_obligations=len(criteria.get('required_unknowns',[])))
     if result['target_goals'] and envelope['operation']!='codex':
         result['first_goal_support_reciprocal_rank']=next((1/(i+1) for i,key in enumerate(seeds) if key in support),0)
@@ -432,7 +495,7 @@ def get_assert(output, context):
         envelope=json.loads(output) if isinstance(output,str) else output
         if envelope.get('operation')=='compact':return _compact_assert(envelope,context.get('vars',{}))
         measurements=measure(envelope,context.get('vars',{}))
-    except (ValueError,KeyError,TypeError,IndexError,json.JSONDecodeError) as error:
+    except (ValueError,KeyError,TypeError,IndexError,OSError,json.JSONDecodeError) as error:
         return {'pass':False,'score':0,'reason':'Execution/source integrity failed: '+str(error),'namedScores':{'execution_integrity':0}}
     scores={'execution_integrity':1}
     for key in ('goal_coverage','source_complete','first_goal_support_reciprocal_rank','source_recall','source_precision','first_relevant_reciprocal_rank'):

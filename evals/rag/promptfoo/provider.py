@@ -129,10 +129,26 @@ def _safe_live(record, artifact_root=None):
     return clean
 
 
+def browser_embedding_model(variables):
+    eval_id=variables.get('browser_eval_id')
+    if eval_id is None:
+        if 'embedding_model' in variables:raise ValueError('Embedding override requires the browser route')
+        return None
+    cases={'garden-time-location':'P01','indoor-tuesday':'T02','two-activities':'T05'}
+    models=json.loads((ROOT/'evals/rag/embedding-models.json').read_text())
+    if cases.get(eval_id)!=variables.get('case_id') or variables.get('dataset')!='legacy' or variables.get('mode','local')!='local':
+        raise ValueError('Unknown existing browser question')
+    model=variables.get('embedding_model')
+    if model not in {row['id'] for row in models}:raise ValueError('Unknown browser embedding model')
+    return model
+
+
 def request_key(variables):
     selected={key:variables.get(key,value) for key,value in DEFAULTS.items()}
     selected.update({key:variables[key] for key in ('dataset','case_id','question')})
     selected['filters']=variables.get('filters',{})
+    embedding=browser_embedding_model(variables)
+    if embedding:selected.update(browser_eval_id=variables['browser_eval_id'],embedding_model=embedding)
     return hashlib.sha256(json.dumps(selected,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
 
 
@@ -177,8 +193,10 @@ def call_api(prompt, options, context):
         variables=context.get('vars',{})
         settings={**DEFAULTS,**options.get('config',{}),**{key:variables[key] for key in DEFAULTS if key in variables}}
         dataset=variables['dataset'];case_id=variables['case_id'];question=variables['question']
+        embedding_model=browser_embedding_model(variables)
         if question!=_question(dataset,case_id):raise ValueError('Question differs from frozen input')
         mode=settings['mode'];method=settings['method'];profile=settings['profile']
+        if embedding_model and mode!='local':raise ValueError('Browser search cannot start model generations')
         if mode not in ('local','codex','garden','compact','compact-live'):raise ValueError('Unknown execution mode')
         if profile not in PROFILES or method not in (METHODS|({'keyword_overlap'} if mode=='garden' else set())):
             raise ValueError('Unsupported method/profile')
@@ -210,6 +228,7 @@ def call_api(prompt, options, context):
             command+=['garden-search','--question',question,'--method',method,'--top-k',str(settings['top_k'])];cwd=cache.parent
         elif mode=='local':
             command+=['run','--dataset',dataset,'--cases',case_id,*common,'--output',str(output),'--model-cache',str(cache),'--sqlite-dir',str(base/'retrieval-cache')]
+            if embedding_model:command+=['--embedding-model',embedding_model]
             if dataset!='independent-20261103' and settings['apply_filters'] and variables.get('filters'):
                 command+=['--query-filters',json.dumps(variables['filters'],separators=(',',':'))]
         else:

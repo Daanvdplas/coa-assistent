@@ -74,3 +74,28 @@ test('only independently verified model failures count as failed outcomes withou
  input.results.results[0].gradingResult.componentResults[0].metadata.source_metrics.execution_integrity=false;
  assert.equal(project(input).evaluations[0].rows[0].status,'error');
 });
+
+test('browser goal details expose only frozen goal labels and observed source coverage', () => {
+ const input=fixture({target_goals:2,covered_goals:1,source_quality_applicable:true,goals:[{
+  id:'time-and-place',description:'Vaste bronverwachting',covered:false,private:'PRIVATE',alternatives:[[
+   {source_id:'ACT-X',section_id:'S2',found:true,private:'PRIVATE'},
+   {source_id:'ACT-X',section_id:'S3',found:false,private:'PRIVATE'}
+  ]]
+ }]});
+ const result=project(input);
+ assert.deepEqual(result.evaluations[0].rows[0].goals,[{
+  id:'time-and-place',description:'Vaste bronverwachting',covered:false,alternatives:[[
+   {source_id:'ACT-X',section_id:'S2',found:true},{source_id:'ACT-X',section_id:'S3',found:false}
+  ]]
+ }]);
+ assert.ok(!JSON.stringify(result).includes('PRIVATE'));
+});
+
+test('public browser metadata preserves actual model and corpus identity without private preparation fields',()=>{
+ const identity={provider:'local-fastembed',model:'repository@revision',sdk:'fastembed',dimensions:384,encoding:'fixed',query_prefix:'query: ',document_prefix:'passage: ',private:'PRIVATE'};
+ const input=fixture({target_goals:2,covered_goals:1,source_quality_applicable:true,embedding_identity:identity,corpus_identity:{source_sha256:'source',embedding_inputs_sha256:'inputs',vectors_sha256:'vectors',embedding:identity,private:'PRIVATE'}});
+ const row=project(input).evaluations[0].rows[0];
+ assert.ok(row.embedding_identity);assert.ok(row.corpus_identity);
+ assert.equal(row.embedding_identity.model,'repository@revision');assert.equal(row.corpus_identity.vectors_sha256,'vectors');
+ assert.ok(!JSON.stringify(row).includes('PRIVATE'));
+});

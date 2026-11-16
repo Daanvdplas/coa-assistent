@@ -59,4 +59,32 @@ class ProviderTest(unittest.TestCase):
         self.assertIn('error',response);self.assertEqual(execute.call_count,1)
         self.assertNotIn('sk-secret',json.dumps(response));self.assertNotIn('reasoning',json.dumps(response))
 
+    def test_browser_embedding_model_reaches_native_retrieval_and_partitions_preparation_keys(self):
+        self.context['vars'].update(browser_eval_id='garden-time-location',embedding_model='e5-small-multilingual',method='dense',top_k=5)
+        commands=[]
+        def run(command,env,timeout,cwd):
+            commands.append(command)
+            Path(command[command.index('--output')+1]).write_text(json.dumps(self.record)+'\n')
+            return subprocess.CompletedProcess(command,0,b'',b'')
+        with patch.dict(os.environ,self.env),patch.object(self.provider,'_execute',side_effect=run):
+            result=self.provider.call_api('',{},self.context)
+        self.assertNotIn('error',result)
+        self.assertIn('--embedding-model',commands[0])
+        self.assertEqual(commands[0][commands[0].index('--embedding-model')+1],'e5-small-multilingual')
+        first=self.provider.request_key(self.context['vars'])
+        other={**self.context['vars'],'embedding_model':'minilm-multilingual'}
+        self.assertNotEqual(first,self.provider.request_key(other))
+
+    def test_embedding_override_is_rejected_outside_the_browser_route(self):
+        self.context['vars']['embedding_model']='e5-small-multilingual'
+        with patch.dict(os.environ,self.env),patch.object(self.provider,'_execute') as execute:
+            result=self.provider.call_api('',{},self.context)
+        self.assertIn('error',result);self.assertEqual(execute.call_count,0)
+
+    def test_browser_search_cannot_be_switched_to_codex_through_provider_options(self):
+        self.context['vars'].update(browser_eval_id='garden-time-location',embedding_model='e5-small-multilingual',top_k=5)
+        with patch.dict(os.environ,self.env),patch.object(self.provider,'_reserve',side_effect=ValueError('No models allowed in search tests')) as reserve,patch.object(self.provider,'_execute') as execute:
+            result=self.provider.call_api('',{'config':{'mode':'codex'}},self.context)
+        self.assertIn('error',result);self.assertEqual(reserve.call_count,0);self.assertEqual(execute.call_count,0)
+
 if __name__=='__main__':unittest.main()
