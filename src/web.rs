@@ -693,7 +693,7 @@ mod tests {
                         reached.wait().await;
                         release.notified().await;
                         active.fetch_sub(1,Ordering::SeqCst);
-                        json!([{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":question,"top_k":3}).to_string()}])
+                        json!([{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":question,"top_k":3,"search_goal":"Begintijden opzoeken"}).to_string()}])
                     };
                     Json(json!({"status":"completed","model":"gpt-6.1-sol","output":output,"usage":{"input_tokens":100,"output_tokens":30}}))
                 }
