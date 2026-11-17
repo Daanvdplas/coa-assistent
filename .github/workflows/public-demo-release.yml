@@ -1,0 +1,70 @@
+name: Public demo release candidate
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'docs/public-deployment.md'
+      - '.github/workflows/public-demo-release.yml'
+      - 'tsconfig.json'
+permissions:
+  contents: read
+concurrency:
+  group: public-demo-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  release:
+    name: Linux release, proxy and service contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, updated 2026-07-14
+        with:
+          node-version: '22.22.0'
+      - name: Install pinned tools
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          npm ci --ignore-scripts --no-audit --no-fund
+          curl --fail --silent --show-error --location https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_amd64.tar.gz --output "$RUNNER_TEMP/caddy.tar.gz"
+          printf '%s  %s\n' '0e85544340290a16ce4bfb76fe7d65e9de1bf3a6e67f5ccfff30b30d27ea4c73e078077b7bf3e58ae60b6b12e44327705287059c775bca5782e8ee85ea7edd75' "$RUNNER_TEMP/caddy.tar.gz" | sha512sum --check
+          tar -xzf "$RUNNER_TEMP/caddy.tar.gz" -C "$RUNNER_TEMP" caddy
+      - name: Type checks and real proxy contracts
+        run: |
+          npm run typecheck
+          COA_CADDY_BIN="$RUNNER_TEMP/caddy" node --test deploy/public-proxy.test.ts deploy/package-release.test.ts
+      - name: Build and package Linux release
+        run: |
+          cargo +1.97.1 build --release --locked --no-default-features
+          node deploy/package-release.ts target/release/meedoen-retrieval "$RUNNER_TEMP/coa-demo-release"
+      - name: Verify packaged runtime and service
+        run: |
+          cd "$RUNNER_TEMP/coa-demo-release"
+          sha256sum --check SHA256SUMS
+          LD_LIBRARY_PATH="$PWD/lib" ldd bin/meedoen-retrieval
+          mkdir "$RUNNER_TEMP/coa-demo-smoke"
+          cd "$RUNNER_TEMP/coa-demo-smoke"
+          LD_LIBRARY_PATH="$RUNNER_TEMP/coa-demo-release/lib" "$RUNNER_TEMP/coa-demo-release/bin/meedoen-retrieval" lab plan --dataset legacy --methods bm25 --profiles documents_sections > plan.json
+          sudo useradd --system --no-create-home --home-dir /var/lib/coa-demo --shell /usr/sbin/nologin coa-demo
+          sudo install -d -o coa-demo -g coa-demo -m 700 /var/lib/coa-demo/budget
+          sudo install -D -m 755 "$RUNNER_TEMP/coa-demo-release/bin/meedoen-retrieval" /opt/coa-demo/current/bin/meedoen-retrieval
+          sudo systemd-analyze verify "$GITHUB_WORKSPACE/deploy/coa-demo.service"
+          cd "$GITHUB_WORKSPACE"
+          COA_RELEASE_DIR="$RUNNER_TEMP/coa-demo-release" node --test deploy/runtime-smoke.test.ts
+      - name: Archive reviewable candidate
+        run: |
+          cd "$RUNNER_TEMP"
+          tar -czf "coa-demo-$GITHUB_SHA.tar.gz" -C coa-demo-release .
+          sha256sum "coa-demo-$GITHUB_SHA.tar.gz" > "coa-demo-$GITHUB_SHA.tar.gz.sha256"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, published 2026-10-07
+        with:
+          name: coa-demo-linux-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/coa-demo-${{ github.sha }}.tar.gz
+            ${{ runner.temp }}/coa-demo-${{ github.sha }}.tar.gz.sha256
+          retention-days: 7
