@@ -74,6 +74,7 @@ impl ResponsesRunner {
         let client = Client::builder()
             .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
+            .retry(reqwest::retry::never())
             .connect_timeout(Duration::from_secs(10))
             .timeout(TIMEOUT)
             .build()
