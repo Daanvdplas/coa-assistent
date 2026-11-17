@@ -51,6 +51,8 @@ test(`${profile.name} proxy allows only public routes, replaces visitor headers 
       return;
     }
     response.setHeader("Content-Type", "application/json");
+    response.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    response.setHeader("X-Frame-Options", "DENY");
     response.end(JSON.stringify(entry));
   });
   backend.listen(0, "127.0.0.1");
