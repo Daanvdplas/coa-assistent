@@ -45,6 +45,7 @@ pub struct ResponsesRunner {
 struct SearchArguments {
     query: String,
     top_k: usize,
+    search_goal: String,
 }
 impl ResponsesRunner {
     /// Endpoints are restricted to OpenAI or an explicit loopback development server.
@@ -131,7 +132,7 @@ impl ResponsesRunner {
         Ok(runner)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v3","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v4","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -269,7 +270,7 @@ mod tests {
         json!({"id":"resp_synthetic","object":"response","status":"completed","model":"gpt-6.1-sol","output":output,"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":20},"output_tokens":25,"output_tokens_details":{"reasoning_tokens":5}}})
     }
     fn call(id: &str, query: &str) -> Value {
-        json!({"type":"function_call","id":format!("fc_{id}"),"call_id":id,"name":"search_document","arguments":json!({"query":query,"top_k":3}).to_string(),"status":"completed"})
+        json!({"type":"function_call","id":format!("fc_{id}"),"call_id":id,"name":"search_document","arguments":json!({"query":query,"top_k":3,"search_goal":"Begintijden opzoeken"}).to_string(),"status":"completed"})
     }
     fn final_answer() -> Value {
         json!({"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":json!({"text":"Dinsdag van 10 tot 12 uur.","citations":[{"source_id":"ACT-TUIN-001","source_date":"2026-10-20","section_id":"S2","quote":"Iedere dinsdag van 10.00 tot 12.00 uur."}],"unknowns":[]}).to_string(),"annotations":[]}]})
@@ -696,6 +697,93 @@ mod tests {
         }
     }
     #[tokio::test]
+    async fn invalid_public_goals_stop_before_search_and_are_not_repaired() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        for goal in [
+            None,
+            Some(json!("")),
+            Some(json!("  ")),
+            Some(json!("x".repeat(81))),
+            Some(json!("Zoeken\nreden")),
+            Some(json!(123)),
+        ] {
+            let mut args = json!({"query":"tuinieren", "top_k":3});
+            if let Some(goal) = goal {
+                args["search_goal"] = goal;
+            }
+            let mut item = call("invalid", "tuinieren");
+            item["arguments"] = json!(args.to_string());
+            let (url, seen, task) = mock(vec![envelope(json!([item]))]).await;
+            let searches = Arc::new(AtomicUsize::new(0));
+            let observed = searches.clone();
+            let search: Search = Arc::new(move |_, _, method| {
+                observed.fetch_add(1, Ordering::SeqCst);
+                Ok(evidence(method))
+            });
+            let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search).unwrap();
+            assert!(run(&runner).await.unwrap_err().starts_with("tool:"));
+            assert_eq!(searches.load(Ordering::SeqCst), 0);
+            assert_eq!(seen.lock().unwrap().len(), 1, "No repair or provider retry");
+            task.abort();
+        }
+    }
+
+    #[test]
+    fn legacy_codex_calls_remain_valid_without_invented_goals() {
+        let legacy = json!({"server":"coa", "tool":"search_document", "query":"tuinieren", "top_k":3, "status":"completed", "result":evidence(DemoSearchMethod::Bm25), "error":null});
+        let call: ToolCall = serde_json::from_value(legacy.clone()).unwrap();
+        let answer = final_answer()["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let result = crate::codex::validate_retrieved_answer(vec![call], Some(answer)).unwrap();
+        assert_eq!(result["tool_calls"][0], legacy);
+        assert!(result["tool_calls"][0].get("search_goal").is_none());
+        assert!(!crate::codex::generation_prompt("tuinieren", 3).contains("search_goal"));
+    }
+
+    #[tokio::test]
+    async fn web_search_goals_follow_actual_calls_even_when_queries_repeat() {
+        let targeted_call = |id: &str, goal: &str| {
+            let mut item = call(id, "tuinieren");
+            item["arguments"] = json!(
+                json!({
+                    "query":"tuinieren", "top_k":3, "search_goal":goal
+                })
+                .to_string()
+            );
+            item
+        };
+        let (url, seen, task) = mock(vec![
+            envelope(json!([targeted_call("one", "Begintijden opzoeken")])),
+            envelope(json!([targeted_call("two", "Locatie opzoeken")])),
+            envelope(json!([final_answer()])),
+        ])
+        .await;
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        let result = run(&runner).await.unwrap();
+        let calls = result["tool_calls"].as_array().unwrap();
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0]["search_goal"], "Begintijden opzoeken");
+        assert_eq!(calls[1]["search_goal"], "Locatie opzoeken");
+        for call in calls {
+            assert_eq!(call["query"], "tuinieren");
+            assert_eq!(call["top_k"], 3);
+            assert_eq!(call["result"], evidence(crate::DemoSearchMethod::Bm25));
+        }
+        let requests = seen.lock().unwrap();
+        let schema = &requests[0]["tools"][0]["parameters"];
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("search_goal"))
+        );
+        assert_eq!(schema["properties"]["search_goal"]["maxLength"], 80);
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn stateless_tool_loop_keeps_real_evidence_and_sums_all_provider_usage() {
         let reasoning = json!({"type":"reasoning","id":"rs_synthetic","summary":[],"encrypted_content":"synthetic-encrypted-private"});
         let (url, seen, task) = mock(vec![
@@ -756,7 +844,7 @@ mod tests {
         }
         assert_eq!(
             runner.configuration()["prompt_version"],
-            "responses-activity-v3"
+            "responses-activity-v4"
         );
         assert_eq!(requests[0]["tool_choice"], "required");
         assert!(
@@ -779,8 +867,8 @@ mod tests {
     async fn unknown_or_invalid_tool_calls_never_execute_local_code() {
         for bad in [
             json!({"name":"shell","arguments":"{}"}),
-            json!({"name":"search_document","arguments":"{\"query\":\"ok\",\"top_k\":3,\"path\":\"/etc/shadow\"}"}),
-            json!({"name":"search_document","arguments":"{\"query\":\"\",\"top_k\":3}"}),
+            json!({"name":"search_document","arguments":"{\"query\":\"ok\",\"top_k\":3,\"search_goal\":\"Begintijden opzoeken\",\"path\":\"/etc/shadow\"}"}),
+            json!({"name":"search_document","arguments":"{\"query\":\"\",\"top_k\":3,\"search_goal\":\"Begintijden opzoeken\"}"}),
             json!({"name":"search_document","arguments":"{\"query\":"}),
         ] {
             let mut item = call("one", "ok");

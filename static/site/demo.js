@@ -79,6 +79,7 @@
     return block;
   }
   function showRun(run) {
+    const newRun = currentRun?.id !== run.id;
     currentRun = run;
     el("result").hidden = false;
     el("result-title").textContent = t(run.status === "failed" ? "failedTitle" : "answer");
@@ -86,10 +87,42 @@
     el("answer").lang = run.result?.answer?.text ? run.context?.answer_language || "nl" : language();
     el("answer").classList.toggle("error", run.status === "failed");
     const citations = run.result?.answer?.citations || [];
+    const calls = run.result?.tool_calls || [];
+    const citedSections = new Map();
+    for (const citation of citations) {
+      const section = calls.flatMap(call => call.result?.hits || []).find(hit =>
+        hit.section.source_id === citation.source_id && hit.section.source_date === citation.source_date &&
+        hit.section.id === citation.section_id && citation.quote && hit.section.text.includes(citation.quote))?.section;
+      if (!section) continue;
+      const key = JSON.stringify([section.source_id, section.source_date, section.id]);
+      if (!citedSections.has(key)) citedSections.set(key, { section, quotes: new Set() });
+      citedSections.get(key).quotes.add(citation.quote);
+    }
+    el("citations").replaceChildren();
+    for (const { section, quotes } of citedSections.values()) {
+      const evidence = node("details", undefined, "retrieved cited-source");
+      evidence.dataset.source = section.source_id;
+      evidence.dataset.section = section.id;
+      evidence.append(node("summary", sourceTitle(section.source_id) + " · " + heading(section.heading)));
+      for (const quote of quotes) {
+        const passage = node("blockquote", quote);
+        passage.lang = "nl";
+        evidence.append(passage);
+      }
+      evidence.append(node("small", t("published", { date: section.source_date })));
+      el("citations").append(evidence);
+    }
+    el("answer-sources").hidden = !citedSections.size;
     el("tools").replaceChildren();
-    (run.result?.tool_calls || []).forEach(call => {
+    calls.forEach((call, index) => {
       const item = node("li", undefined, "search-action");
-      item.append(node("h3", call.query, "search-query"));
+      const step = node("details", undefined, "search-step");
+      const goal = typeof call.search_goal === "string" && call.search_goal.trim() ? call.search_goal : t("searchAction", { number: index + 1 });
+      const summary = node("summary", goal);
+      if (call.search_goal) summary.lang = run.context?.answer_language || "nl";
+      const query = node("p", call.query, "search-query");
+      query.setAttribute("aria-label", t("searchQuery"));
+      step.append(summary, query);
       (call.result?.hits || []).forEach(hit => {
         const evidence = node("details", undefined, "retrieved");
         evidence.dataset.source = hit.section.source_id;
@@ -99,13 +132,19 @@
           quotedPassage(hit.section.text, citations.filter(c => c.source_id === hit.section.source_id && c.source_date === hit.section.source_date && c.section_id === hit.section.id).map(c => c.quote)),
           node("small", t("published", { date: hit.section.source_date })),
         );
-        item.append(evidence);
+        step.append(evidence);
       });
-      if (call.error || call.status === "failed") item.append(node("p", t("searchFailed"), "error"));
-      else if (call.status !== "completed") item.append(node("p", t("searchPending"), "muted"));
+      if (call.error || call.status === "failed") step.append(node("p", t("searchFailed"), "error"));
+      else if (call.status !== "completed") step.append(node("p", t("searchPending"), "muted"));
+      item.append(step);
       el("tools").append(item);
     });
-    el("tool-details").hidden = !run.result?.tool_calls?.length;
+    el("search-actions-heading").textContent = t("searchActionsCount", { count: calls.length });
+    el("tool-details").hidden = !calls.length;
+    if (newRun) {
+      el("answer-sources").open = false;
+      el("tool-details").open = false;
+    }
   }
   function closeSourceDocument() {
     const trigger = document.querySelector('.source-document[aria-expanded="true"]');
