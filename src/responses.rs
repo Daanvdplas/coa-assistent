@@ -313,13 +313,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn direct_live_transport_cannot_bypass_the_required_budget() {
+    async fn every_physical_transport_attempt_requires_a_durable_slot() {
         let (url, seen, task) = mock(vec![envelope(json!([call("unused", "tuinieren")]))]).await;
         let mut runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
         // Require the production guard while keeping all network traffic on loopback.
         runner.offline = false;
         assert!(run(&runner).await.unwrap_err().starts_with("budget:"));
         assert!(seen.lock().unwrap().is_empty());
+
+        use std::os::unix::fs::PermissionsExt;
+        let mut identifier = [0u8; 8];
+        getrandom::fill(&mut identifier).unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "coa-tool-round-budget-{:x}",
+            u64::from_ne_bytes(identifier)
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.join("attempts.json");
+        crate::demo_budget::cli(&[
+            "init".into(),
+            path.to_str().unwrap().into(),
+            "--max-attempts".into(),
+            "1".into(),
+        ])
+        .unwrap();
+        runner.offline = true;
+        runner.budget = Some(Arc::new(
+            crate::demo_budget::AttemptBudget::open(&path).unwrap(),
+        ));
+        assert!(run(&runner).await.unwrap_err().starts_with("budget:"));
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            1,
+            "The second request inside the same tool loop needs its own durable slot"
+        );
+        let state: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(state["attempts"], 1);
+        drop(runner);
+        std::fs::remove_dir_all(directory).unwrap();
         task.abort();
     }
 
