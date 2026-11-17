@@ -1,7 +1,7 @@
 (() => {
   const el = (id) => document.getElementById(id);
   const { t, current: language, activity, heading } = window.CoaLanguage;
-  let session = "", source = { sources: [] }, currentRun = null, busy = false, pollVersion = 0, status = null;
+  let session = "", source = { sources: [] }, currentRun = null, busy = false, pollVersion = 0, status = null, selectedSource = null;
   const errorKeys = {
     "Testsessie bestaat niet meer; start een nieuwe sessie.": "sessionExpired",
     "Testsessie bestaat niet meer.": "sessionExpired",
@@ -78,6 +78,25 @@
     block.append(document.createTextNode(text.slice(cursor)));
     return block;
   }
+  function positionOpenInfo() {
+    document.querySelectorAll(".info-trigger").forEach(button => {
+      const info = el(button.getAttribute("popovertarget"));
+      if (!info.matches(":popover-open")) return;
+      const trigger = button.getBoundingClientRect();
+      const panel = info.getBoundingClientRect();
+      info.style.left = Math.max(16, Math.min(trigger.left, window.innerWidth - panel.width - 16)) + "px";
+      info.style.top = Math.max(16, Math.min(trigger.bottom + 8, window.innerHeight - panel.height - 16)) + "px";
+    });
+  }
+  document.querySelectorAll(".info-trigger").forEach(button => {
+    const info = el(button.getAttribute("popovertarget"));
+    info.addEventListener("toggle", () => {
+      button.setAttribute("aria-expanded", String(info.matches(":popover-open")));
+      positionOpenInfo();
+    });
+  });
+  window.addEventListener("resize", positionOpenInfo);
+  window.addEventListener("scroll", positionOpenInfo, { passive: true });
   function showRun(run) {
     currentRun = run;
     el("result").hidden = false;
@@ -85,55 +104,112 @@
     el("answer").textContent = run.status === "failed" ? t(failureKey(run.error)) : run.result?.answer?.text || t("pendingAnswer");
     el("answer").lang = run.result?.answer?.text ? run.context?.answer_language || "nl" : language();
     el("answer").classList.toggle("error", run.status === "failed");
-    const method = run.result?.retrieval_method;
-    const methodKey = { dense: "methodDense", bm25: "methodBm25" }[method];
-    el("run-method").hidden = !methodKey;
-    el("run-method").textContent = methodKey ? t("runMethod", { method: t(methodKey) }) : "";
     const citations = run.result?.answer?.citations || [];
+    const calls = run.result?.tool_calls || [];
+    const citedSections = new Map();
+    for (const citation of citations) {
+      const section = calls.flatMap(call => call.result?.hits || []).find(hit =>
+        hit.section.source_id === citation.source_id && hit.section.source_date === citation.source_date &&
+        hit.section.id === citation.section_id && citation.quote && hit.section.text.includes(citation.quote))?.section;
+      if (!section) continue;
+      const key = JSON.stringify([section.source_id, section.source_date, section.id]);
+      if (!citedSections.has(key)) citedSections.set(key, { section, quotes: new Set() });
+      citedSections.get(key).quotes.add(citation.quote);
+    }
+    el("citations").replaceChildren();
+    for (const { section, quotes } of citedSections.values()) {
+      const evidence = node("article", undefined, "retrieved cited-source");
+      evidence.dataset.source = section.source_id;
+      evidence.dataset.section = section.id;
+      evidence.append(node("h3", sourceTitle(section.source_id) + " · " + heading(section.heading)));
+      for (const quote of quotes) {
+        const passage = node("blockquote", quote);
+        passage.lang = "nl";
+        evidence.append(passage);
+      }
+      evidence.append(node("small", t("published", { date: section.source_date })));
+      el("citations").append(evidence);
+    }
+    el("answer-sources").hidden = !citedSections.size;
     el("tools").replaceChildren();
-    (run.result?.tool_calls || []).forEach((call, index) => {
-      const item = node("article", undefined, "search-action");
-      item.append(node("h3", t("searchAction", { number: index + 1 }), "search-action-heading"),
-        node("p", call.query, "search-query"));
+    calls.forEach(call => {
+      const item = node("li", undefined, "search-action");
+      const step = node("details", undefined, "search-step");
+      step.append(node("summary", call.query, "search-query"));
       (call.result?.hits || []).forEach(hit => {
-        const evidence = node("section", undefined, "retrieved");
+        const evidence = node("article", undefined, "retrieved");
+        evidence.dataset.source = hit.section.source_id;
+        evidence.dataset.section = hit.section.id;
         evidence.append(
-          node("h4", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
+          node("h3", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
           quotedPassage(hit.section.text, citations.filter(c => c.source_id === hit.section.source_id && c.source_date === hit.section.source_date && c.section_id === hit.section.id).map(c => c.quote)),
           node("small", t("published", { date: hit.section.source_date })),
         );
-        item.append(evidence);
+        step.append(evidence);
       });
-      if (call.error || call.status === "failed") item.append(node("p", t("searchFailed"), "error"));
-      else if (call.status !== "completed") item.append(node("p", t("searchPending"), "muted"));
+      if (call.error || call.status === "failed") step.append(node("p", t("searchFailed"), "error"));
+      else if (call.status !== "completed") step.append(node("p", t("searchPending"), "muted"));
+      item.append(step);
       el("tools").append(item);
     });
-    el("tool-details").hidden = !run.result?.tool_calls?.length;
+    el("search-actions-heading").textContent = t("searchActionsCount", { count: calls.length });
+    el("tool-details").hidden = !calls.length;
+  }
+  function closeSourceDocument() {
+    const trigger = document.querySelector('.source-document[aria-expanded="true"]');
+    selectedSource = null;
+    renderSourceLabels();
+    trigger?.focus();
+  }
+  function renderSourceDocument() {
+    const reader = el("activity-document");
+    const doc = source.sources.find(doc => doc.id === selectedSource);
+    reader.hidden = !doc;
+    reader.replaceChildren();
+    if (!doc) return;
+    const header = node("header", undefined, "activity-document-header");
+    const description = node("div");
+    const title = node("h3", sourceTitle(doc.id), "activity-document-title");
+    title.id = "activity-document-title";
+    description.append(title, node("small", sourceDate(doc.date)));
+    const close = node("button", t("closeDocument"), "source-close");
+    close.type = "button";
+    close.addEventListener("click", closeSourceDocument);
+    header.append(description, close);
+    const sections = node("div", undefined, "source-document-sections");
+    doc.sections.forEach(section => {
+      const item = node("section", undefined, "source-section");
+      item.id = "source-" + doc.id + "-" + section.id;
+      const text = node("p", section.text);
+      text.lang = "nl";
+      item.append(node("h4", heading(section.heading)), text);
+      sections.append(item);
+    });
+    reader.append(header, sections);
   }
   function renderSourceLabels() {
     document.querySelectorAll(".source-document").forEach(item => {
-      const doc = source.sources.find(doc => doc.id === item.dataset.source);
-      item.querySelector("summary").textContent = sourceTitle(doc.id);
-      item.querySelector("small").textContent = sourceDate(doc.date);
-      item.querySelectorAll(".source-section h3").forEach((label, index) => {
-        const section = doc.sections[index];
-        label.textContent = section.id + " · " + heading(section.heading);
-      });
+      item.textContent = sourceTitle(item.dataset.source);
+      item.setAttribute("aria-expanded", String(item.dataset.source === selectedSource));
     });
+    renderSourceDocument();
   }
   function renderLanguage() {
     el("question").placeholder = t("questionPlaceholder");
     el("result").setAttribute("aria-label", t("resultLabel"));
+    document.querySelectorAll("[data-example]").forEach(button => { button.title = t(button.dataset.example); });
+    document.querySelectorAll(".info-trigger").forEach(button => { button.setAttribute("aria-label", t(button.dataset.infoLabel)); });
     renderSourceLabels();
     renderStatus();
     if (currentRun) showRun(currentRun);
+    positionOpenInfo();
   }
   window.addEventListener("languagechange", renderLanguage);
   async function watch(run) {
     const version = ++pollVersion;
     setBusy(true);
     showRun(run);
-    message("searching");
+    message(null);
     try {
       while (run.status === "pending") {
         await new Promise(resolve => setTimeout(resolve, 750));
@@ -160,10 +236,20 @@
   }
   el("form").addEventListener("submit", event => { event.preventDefault(); begin(); });
   el("question").addEventListener("input", () => {
+    document.querySelectorAll(".info-popover:popover-open").forEach(info => info.hidePopover());
     el("result").hidden = true;
     currentRun = null;
     message(null);
   });
+  document.querySelectorAll("[data-example]").forEach(button => button.addEventListener("click", () => {
+    if (busy) return;
+    const question = el("question");
+    question.value = t(button.dataset.example);
+    question.dispatchEvent(new Event("input", { bubbles: true }));
+    question.focus();
+    question.setSelectionRange(0, 0);
+    question.scrollTop = 0;
+  }));
   async function createSession() {
     const data = await api("/api/session", { seen_question_ids: [] });
     session = data.session_id;
@@ -176,19 +262,21 @@
     try {
       source = await api("/api/source");
       source.sources.forEach(doc => {
-        const document = node("details", undefined, "source-document");
-        document.name = "activity";
-        document.dataset.source = doc.id;
-        document.append(node("summary", sourceTitle(doc.id)), node("small", sourceDate(doc.date)));
-        doc.sections.forEach(section => {
-          const item = node("section", undefined, "source-section");
-          item.id = "source-" + doc.id + "-" + section.id;
-          const text = node("p", section.text);
-          text.lang = "nl";
-          item.append(node("h3", section.id + " · " + heading(section.heading)), text);
-          document.append(item);
+        const trigger = node("button", sourceTitle(doc.id), "source-document");
+        trigger.type = "button";
+        trigger.dataset.source = doc.id;
+        trigger.setAttribute("aria-expanded", "false");
+        trigger.setAttribute("aria-controls", "activity-document");
+        trigger.addEventListener("click", () => {
+          selectedSource = selectedSource === doc.id ? null : doc.id;
+          renderSourceLabels();
+          const reader = el("activity-document");
+          const header = reader.querySelector("header");
+          if (header && header.getBoundingClientRect().bottom > window.innerHeight) {
+            reader.scrollIntoView({ block: "start" });
+          }
         });
-        el("source-sections").append(document);
+        el("source-sections").append(trigger);
       });
       try { session = sessionStorage.getItem("coa-test-session") || ""; } catch { session = ""; }
       let summary;

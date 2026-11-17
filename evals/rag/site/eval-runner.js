@@ -13,9 +13,12 @@
   let catalog;
   let active = null;
   let sessionId = null;
+  const localOnly = 'Zoektests kun je alleen lokaal starten.';
+  const canRun = () => catalog?.can_run === true;
   const methodFor = id => catalog.methods.find(item => item.id === id);
   const modelName = id => catalog.embedding_models.find(item => item.id === id)?.label || id;
   async function request(url, options) {
+    if (!['GET', 'HEAD'].includes((options?.method || 'GET').toUpperCase()) && !canRun()) throw new Error(localOnly);
     const response = await fetch(url, { cache: 'no-store', ...options });
     let payload;
     try { payload = await response.json(); } catch { throw new Error('De server gaf geen leesbaar resultaat.'); }
@@ -31,7 +34,8 @@
       const usesEmbeddings = methodFor(card.method.value)?.uses_embeddings === true;
       card.method.disabled = Boolean(active);
       card.model.disabled = Boolean(active) || !usesEmbeddings;
-      card.start.disabled = Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
+      card.start.disabled = !canRun() || Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
+      card.stop.disabled = !canRun() || card.cancelling === true;
       card.modelLabel.textContent = usesEmbeddings ? 'Embeddingmodel' : 'Embeddingmodel (niet gebruikt)';
     }
   }
@@ -162,7 +166,7 @@
     }
   }
   async function start(card) {
-    if (active) return;
+    if (!canRun() || active) return;
     const selection = { eval_id: card.evaluation.id, method: card.method.value, embedding_model: card.model.value };
     clearPresentation(card);active = card; controls(); state(card, 'Bezig'); card.status.textContent = 'Zoektest starten…'; card.results.replaceChildren(); card.results.setAttribute('aria-busy', 'true');
     try {
@@ -173,18 +177,18 @@
       }
       const run = await request('/api/evals/rag/runs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-session-id':sessionId }, body: JSON.stringify(selection) });
       if (typeof run.run_id !== 'string' || run.eval_id !== card.evaluation.id) throw new Error('De server gaf geen geldige uitvoering terug.');
-      card.runId=run.run_id;card.selection=selection;card.stop.hidden=false;card.stop.disabled=false;
+      card.runId=run.run_id;card.selection=selection;card.stop.hidden=false;card.stop.disabled=!canRun();
       await poll(card, run.run_id, selection);
     } catch (error) { failed(card, error.message); release(card); }
   }
   async function stop(card) {
-    if (active!==card || !card.runId || card.cancelling)return;
+    if (!canRun() || active!==card || !card.runId || card.cancelling)return;
     card.cancelling=true;card.stop.disabled=true;clearTimeout(card.timer);card.status.textContent='Zoektest stoppen…';
     try {
       await request('/api/evals/rag/runs/'+encodeURIComponent(card.runId),{method:'DELETE',headers:{'x-session-id':sessionId}});
       card.cancelling=false;await poll(card,card.runId,card.selection);
     } catch(error) {
-      card.cancelling=false;card.stop.disabled=false;card.status.textContent=error.message+' Controleer opnieuw of de test nog loopt.';
+      card.cancelling=false;card.stop.disabled=!canRun();card.status.textContent=error.message+' Controleer opnieuw of de test nog loopt.';
       card.timer=setTimeout(()=>poll(card,card.runId,card.selection),750);
     }
   }
@@ -209,21 +213,23 @@
     card.choice={method:card.method.value,embedding_model:card.model.value};
     card.method.addEventListener('change',()=>selectionChanged(card));
     card.model.addEventListener('change',()=>selectionChanged(card));
-    card.start = node('button', 'Start test', 'eval-start'); card.start.type = 'button'; card.start.addEventListener('click', () => start(card));
-    card.stop=node('button','Stop test','eval-stop');card.stop.type='button';card.stop.hidden=true;card.stop.addEventListener('click',()=>stop(card));
+    card.start = node('button', 'Start test', 'eval-start'); card.start.type = 'button'; card.start.disabled = true; card.start.addEventListener('click', () => start(card));
+    card.stop=node('button','Stop test','eval-stop');card.stop.type='button';card.stop.hidden=true;card.stop.disabled=true;card.stop.addEventListener('click',()=>stop(card));
     const buttons=node('div',null,'eval-run-buttons');buttons.append(card.start,card.stop);
     card.status = node('p', '', 'eval-status'); card.status.setAttribute('role', 'status');
     card.results = node('section', null, 'eval-results'); card.results.setAttribute('aria-label', 'Resultaat van ' + evaluation.question);
     body.append(form, buttons, card.status, card.results); details.append(summary, body); cards.push(card); return details;
   }
   async function load() {
+    if (catalog) { catalog.can_run = false; controls(); }
     byId('eval-catalog-retry').hidden = true;
     byId('eval-catalog-status').textContent = 'Zoektests laden…';
     try {
-      catalog = await request('/api/evals/rag/catalog');
-      if (catalog.schema_version !== 1 || !Array.isArray(catalog.evals) || catalog.evals.length !== 3 || !Array.isArray(catalog.methods) || !catalog.methods.length || !Array.isArray(catalog.embedding_models) || !catalog.embedding_models.length) throw new Error('De drie zoektests zijn nu niet beschikbaar.');
+      const loaded = await request('/api/evals/rag/catalog');
+      if (loaded.schema_version !== 1 || !Array.isArray(loaded.evals) || loaded.evals.length !== 3 || !Array.isArray(loaded.methods) || !loaded.methods.length || !Array.isArray(loaded.embedding_models) || !loaded.embedding_models.length) throw new Error('De drie zoektests zijn nu niet beschikbaar.');
+      catalog = loaded;
       cards.length = 0; list.replaceChildren(...catalog.evals.map(makeCard)); controls();
-      byId('eval-catalog-status').textContent = '';
+      byId('eval-catalog-status').textContent = canRun() ? '' : localOnly;
     } catch (error) { byId('eval-catalog-status').textContent = error.message; byId('eval-catalog-retry').hidden = false; }
   }
   let archiveLoaded=false;

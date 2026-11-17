@@ -270,7 +270,7 @@ mod tests {
         let seen_generations = generated.clone();
         let app = Router::new()
             .route("/v1/responses/input_tokens", post(move |Json(body): Json<Value>| { let seen = seen_counts.clone(); async move {seen.lock().unwrap().push(body); Json(json!({"object":"response.input_tokens","input_tokens":1}))} }))
-            .route("/v1/responses", post(move |body: Bytes| { let seen = seen_generations.clone(); async move {seen.lock().unwrap().push(body); Json(json!({"status":"completed","output":[{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":"Hallo","top_k":3}).to_string()}]}))} }));
+            .route("/v1/responses", post(move |body: Bytes| { let seen = seen_generations.clone(); async move {seen.lock().unwrap().push(body); Json(json!({"status":"completed","output":[{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":"Hallo","top_k":3,"search_goal":"Begintijden opzoeken"}).to_string()}]}))} }));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint: reqwest::Url =
             format!("http://{}/v1/responses", listener.local_addr().unwrap())

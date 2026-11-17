@@ -403,6 +403,7 @@ fn router(app: App) -> Router {
  .route("/resultaten/",get(||async{Html(include_str!("../evals/rag/site/results.html"))}))
  .route("/techniek/",get(||async{Html(include_str!("../static/site/technical.html"))}))
  .route("/assets/site.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../static/site/site.css"))}))
+ .route("/assets/coa-symbol.svg",get(||async{([(header::CONTENT_TYPE,"image/svg+xml")],include_str!("../static/site/coa-symbol.svg"))}))
  .route("/assets/language.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/language.js"))}))
  .route("/assets/demo.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/demo.js"))}))
  .route("/api/evals/rag",get(rag_evaluation_results))
@@ -684,7 +685,7 @@ mod tests {
                         reached.wait().await;
                         release.acquire().await.unwrap().forget();
                         active.fetch_sub(1,Ordering::SeqCst);
-                        json!([{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":question,"top_k":3}).to_string()}])
+                        json!([{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":question,"top_k":3,"search_goal":"Begintijden opzoeken"}).to_string()}])
                     };
                     Json(json!({"status":"completed","model":"gpt-6.1-sol","output":output,"usage":{"input_tokens":100,"output_tokens":30}}))
                 }
@@ -817,6 +818,41 @@ mod tests {
         provider.abort();
     }
     #[tokio::test]
+    async fn eval_catalog_stays_readable_and_reports_local_run_permission() {
+        use tower::ServiceExt;
+        let app = Arc::new(test_state(
+            meedoen_retrieval::corpus::CorpusId::BaselineFive,
+        ));
+        for (header, expected) in [
+            (None, true),
+            (Some(("x-real-ip", "203.0.113.5")), false),
+            (Some(("x-forwarded-for", "203.0.113.5")), false),
+            (Some(("forwarded", "for=203.0.113.5")), false),
+        ] {
+            let mut request = axum::http::Request::builder()
+                .extension(ConnectInfo(
+                    "127.0.0.1:43210".parse::<SocketAddr>().unwrap(),
+                ))
+                .uri("/api/evals/rag/catalog");
+            if let Some((name, value)) = header {
+                request = request.header(name, value);
+            }
+            let response = router(app.clone())
+                .oneshot(request.body(axum::body::Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), 128 * 1024)
+                .await
+                .unwrap();
+            let catalog: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(catalog["can_run"], expected);
+            assert_eq!(catalog["evals"].as_array().unwrap().len(), 3);
+            assert_eq!(catalog["embedding_models"][0]["available"], true);
+        }
+    }
+
+    #[tokio::test]
     async fn learning_site_routes_share_navigation_and_only_expose_curated_assets() {
         use tower::ServiceExt;
         let corpus = meedoen_retrieval::corpus::CorpusId::ExpandedTen;
@@ -826,6 +862,7 @@ mod tests {
             "/resultaten/",
             "/techniek/",
             "/assets/site.css",
+            "/assets/coa-symbol.svg",
             "/assets/results.js",
             "/assets/language.js",
             "/assets/demo.js",

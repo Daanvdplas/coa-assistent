@@ -285,7 +285,12 @@ impl EvalJobs {
     }
 }
 
-pub(super) async fn catalog(Extension(jobs): Extension<Arc<EvalJobs>>) -> Json<Value> {
+pub(super) async fn catalog(
+    Extension(jobs): Extension<Arc<EvalJobs>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+) -> Json<Value> {
+    let can_run = require_local(peer, &headers).is_ok();
     let questions = serde_json::from_str::<Value>(include_str!(
         "../../evals/shared/datasets/legacy/questions.json"
     ))
@@ -320,7 +325,7 @@ pub(super) async fn catalog(Extension(jobs): Extension<Arc<EvalJobs>>) -> Json<V
     }).collect();
     let models:Vec<_>=ModelChoice::all().iter().map(|model|json!({"id":model.id(),"label":model.spec().label,"repository":model.spec().repository,"dimensions":model.spec().dimensions,"available":true,"cached":model.cached(&jobs.cache)})).collect();
     Json(
-        json!({"schema_version":1,"evals":evaluations,"methods":[{"id":"dense","label":"Op betekenis","uses_embeddings":true},{"id":"bm25","label":"Op woorden","uses_embeddings":false},{"id":"hybrid_rrf","label":"Combinatie op volgorde","uses_embeddings":true},{"id":"hybrid_weighted","label":"Gewogen combinatie","uses_embeddings":true}],"embedding_models":models,"default_method":"dense","default_embedding_model":"minilm-multilingual"}),
+        json!({"schema_version":1,"can_run":can_run,"evals":evaluations,"methods":[{"id":"dense","label":"Op betekenis","uses_embeddings":true},{"id":"bm25","label":"Op woorden","uses_embeddings":false},{"id":"hybrid_rrf","label":"Combinatie op volgorde","uses_embeddings":true},{"id":"hybrid_weighted","label":"Gewogen combinatie","uses_embeddings":true}],"embedding_models":models,"default_method":"dense","default_embedding_model":"minilm-multilingual"}),
     )
 }
 pub(super) async fn start(

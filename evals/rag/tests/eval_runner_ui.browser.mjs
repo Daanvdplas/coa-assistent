@@ -42,6 +42,7 @@ const goals = [
   { id: 'location', description: 'Waar de activiteit plaatsvindt', alternatives: [[expectedSource(sources.location)]] },
 ];
 const catalog = {
+  can_run: true,
   schema_version: 1,
   evals: ['garden-time-location', 'indoor-tuesday', 'two-activities'].map(id => ({ id, title: id === 'garden-time-location' ? 'Tijd en plaats' : id === 'indoor-tuesday' ? 'Een passende activiteit' : 'Meerdere bronstukken', question: `Vaste vraag ${id}?`, expected_goals: goals })),
   methods: [{ id: 'dense', label: 'Op betekenis', uses_embeddings: true }, { id: 'bm25', label: 'Op woorden', uses_embeddings: false }],
@@ -56,10 +57,13 @@ function completed(body, status = 'failed') {
 async function fixture(options = {}) {
   const page = await browser.newPage({ viewport: options.mobile ? { width: 375, height: 812 } : { width: 1280, height: 900 } });
   page.setDefaultTimeout(5000);
-  const starts = []; const headers = []; let polls = 0; let sessions = 0; let cancelled = false;
+  const starts = []; const headers = []; const mutations = []; let polls = 0; let sessions = 0; let cancelled = false;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname.startsWith('/api/') && !['GET', 'HEAD'].includes(request.method())) mutations.push(request.method() + ' ' + new URL(request.url()).pathname);
+  });
   await page.route('**/api/session', route => { sessions++; return route.fulfill({json:{session_id:'test-session'}}); });
   await page.route('**/api/evals/rag', route => route.fulfill({ json: { schema_version: 1, source: 'promptfoo', sources: {}, evaluations: [] } }));
-  await page.route('**/api/evals/rag/catalog', route => route.fulfill({ json: options.catalog || catalog }));
+  await page.route('**/api/evals/rag/catalog', route => route.fulfill({ json: typeof options.catalog === 'function' ? options.catalog() : options.catalog || catalog }));
   await page.route('**/api/evals/rag/runs', async route => {
     headers.push(route.request().headers()['x-session-id']);
     const body = route.request().postDataJSON(); starts.push(body);
@@ -74,8 +78,48 @@ async function fixture(options = {}) {
     await route.fulfill({ json: options.result ? options.result(starts.at(-1)) : completed(starts.at(-1)) });
   });
   await page.goto(base + '/resultaten/');
-  return { page, starts, headers, get cancelled() {return cancelled;}, get sessions() { return sessions; }, get polls() { return polls; } };
+  return { page, starts, headers, mutations, get cancelled() {return cancelled;}, get sessions() { return sessions; }, get polls() { return polls; } };
 }
+test('public or missing execution permission stays read-only while historical results remain readable', async () => {
+  const missing = {...catalog}; delete missing.can_run;
+  for (const payload of [{...catalog, can_run: false}, missing, {...catalog, can_run: 'true'}]) {
+    const flow = await fixture({catalog: payload});
+    try {
+      const {page} = flow;
+      const card = page.locator('#eval-garden-time-location'); await card.waitFor(); await card.locator('summary').first().click();
+      await page.locator('#eval-catalog-status').getByText('Zoektests kun je alleen lokaal starten.', {exact: true}).waitFor();
+      assert.equal(await card.locator('.eval-start').isDisabled(), true);
+      assert.equal(await card.locator('.eval-stop').isDisabled(), true);
+      await card.getByLabel('Zoekmethode').selectOption('bm25');
+      assert.equal(await card.locator('.eval-start').isDisabled(), true);
+      for (const button of await card.locator('.eval-start,.eval-stop').all()) {
+        await button.evaluate(button => { button.disabled = false; button.dispatchEvent(new MouseEvent('click', {bubbles: true})); });
+      }
+      await page.locator('#saved-evaluations>summary').click();
+      await page.locator('#historical-comparison>summary').click();
+      await page.locator('#results-app').waitFor({state: 'visible'});
+      assert.ok(await page.locator('#model-summary>tr').count() > 0);
+      assert.equal(flow.sessions, 0); assert.equal(flow.starts.length, 0); assert.equal(flow.cancelled, false);
+      assert.deepEqual(flow.mutations, []);
+    } finally { await flow.page.close(); }
+  }
+});
+test('a stale stop handler cannot cancel after execution permission is withdrawn', async () => {
+  let allowed = true;
+  const flow = await fixture({catalog: () => ({...catalog, can_run: allowed}), longRunning: true});
+  try {
+    const {page} = flow;
+    const card = page.locator('#eval-garden-time-location'); await card.waitFor(); await card.locator('summary').first().click();
+    await card.locator('.eval-start').click(); await card.locator('.eval-stop').waitFor({state: 'visible'});
+    const staleStop = await card.locator('.eval-stop').elementHandle();
+    allowed = false;
+    await page.locator('#eval-catalog-retry').evaluate(button => button.dispatchEvent(new MouseEvent('click', {bubbles: true})));
+    await page.locator('#eval-catalog-status').getByText('Zoektests kun je alleen lokaal starten.', {exact: true}).waitFor();
+    await staleStop.evaluate(button => { button.disabled = false; button.dispatchEvent(new MouseEvent('click', {bubbles: true})); });
+    assert.equal(flow.cancelled, false);
+    assert.deepEqual(flow.mutations, ['POST /api/session', 'POST /api/evals/rag/runs']);
+  } finally { await flow.page.close(); }
+});
 test('three collapsed tests only run on click and retain results after reopening', async () => {
   const flow = await fixture(); const { page, starts } = flow;
   try {

@@ -27,12 +27,15 @@
       label { display:block; font-size:.9375rem; font-weight:650; margin-bottom:8px; }
       textarea { display:block; width:100%; min-width:0; min-height:120px; resize:vertical; padding:14px 16px; background:var(--surface); border:1px solid var(--muted); border-radius:2px; margin-bottom:16px; }
       textarea::placeholder { color:var(--muted); opacity:1; }
+      .example-questions { display:flex; flex-wrap:wrap; align-items:center; gap:0 24px; margin:-8px 0 12px; }
+      .demo-main .example-question { display:inline-flex; align-items:center; min-height:44px; max-width:100%; padding:8px 0; border:0; border-radius:2px; background:transparent; font-size:.875rem; font-weight:400; text-align:start; white-space:normal; overflow-wrap:anywhere; text-decoration:none; color:var(--ink); }
+      .demo-main .example-question:not(:disabled):hover { background:var(--surface); color:var(--heading); }
+      @media(max-width:650px) { .example-questions { flex-direction:column; align-items:stretch; gap:0; margin-top:-8px; } .demo-main .example-question { width:100%; justify-content:flex-start; } }
       .form-actions { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; }
       .method-field { flex:0 1 240px; min-width:0; }
       .method-field select { width:100%; min-height:48px; background:var(--surface); border-color:var(--muted); border-radius:2px; padding:10px 14px; }
       .toolbar { display:flex; }
       .toolbar button { white-space:nowrap; }
-      .run-method { font-size:.875rem; margin:0 0 16px; }
       #status { margin:20px 0 0; font-size:.9375rem; }
       #status:empty { display:none; }
       #result { margin-top:40px; }
@@ -43,49 +46,70 @@
       #source { margin-bottom:24px; }
       #source-heading { font-size:1rem; font-weight:650; line-height:1.4; margin:0 0 10px; }
       #source-sections { display:flex; flex-wrap:wrap; gap:1px; border:1px solid var(--line); background:var(--line); }
-      #source .source-document { flex:1 1 calc(25% - 1px); min-width:min(100%,10.5rem); margin:0; padding:0; border:0; background:var(--surface); }
-      #source .source-document>summary { display:flex; align-items:center; justify-content:flex-start; gap:8px; min-height:44px; padding:0 14px; font-size:.9375rem; font-weight:500; overflow-wrap:anywhere; cursor:pointer; list-style:none; }
-      #source .source-document>summary::-webkit-details-marker { display:none; }
-      #source .source-document>summary::after { content:"+"; order:-1; flex-shrink:0; width:14px; font-size:1rem; color:var(--muted); }
-      #source .source-document[open]>summary::after { content:"−"; }
-      #source .source-document:not([open]):hover { background:var(--paper); }
-      #source .source-document[open] { flex-basis:100%; order:1; padding:0 16px 16px; }
-      #source .source-document[open]>summary { padding-inline:0; font-weight:650; }
-      #source .source-document>small { display:none; margin-top:4px; }
-      #source .source-document[open]>small { display:block; }
-      #source .source-section { border-top:1px solid var(--line); margin-top:16px; padding-top:4px; }
-      #source .source-section p { white-space:pre-wrap; font-size:.9375rem; margin-bottom:0; }
-      #tool-details { border-top:1px solid var(--line); padding:16px 0; }
-      #tool-details>summary { min-height:32px; cursor:pointer; font-weight:650; }
-      .search-action { padding:28px 0 16px; }
-      .search-action + .search-action { border-top:2px solid var(--line); margin-top:24px; }
-      .demo-main .search-action-heading { font-size:1.375rem; font-weight:700; margin:0 0 12px; }
-      .demo-main .search-query { font-size:1.125rem; font-weight:600; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; margin:0 0 24px; }
-      .retrieved { max-width:76ch; padding:16px 0; border-top:1px solid var(--line); font-size:.9375rem; }
-      .retrieved h4 { font-size:.9375rem; font-weight:650; line-height:1.4; margin:0 0 8px; }
-      .retrieved small { margin-top:12px; }
+      #source .source-document { display:flex; align-items:center; justify-content:flex-start; gap:8px; flex:1 1 calc(25% - 1px); min-width:min(100%,10.5rem); min-height:44px; margin:0; padding:0 14px; border:0; border-radius:0; background:var(--surface); font-size:.9375rem; font-weight:500; text-align:start; overflow-wrap:anywhere; }
+      #source .source-document::before { content:"+"; flex-shrink:0; width:14px; font-size:1rem; color:var(--muted); }
+      #source .source-document[aria-expanded="true"] { background:var(--accent-soft); color:var(--heading); font-weight:650; }
+      #source .source-document[aria-expanded="true"]::before { content:"−"; }
+      #source .source-document:not([aria-expanded="true"]):hover { background:var(--paper); }
+      #source .source-document:focus-visible { position:relative; z-index:1; outline-offset:-3px; }
+      .activity-document { margin-top:24px; padding:24px; border:1px solid var(--line); background:var(--surface); scroll-margin-top:16px; }
+      .activity-document-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
+      .demo-main .activity-document-title { font-size:1.25rem; line-height:1.3; color:var(--heading); margin:0 0 6px; }
+      .activity-document small { display:block; font-size:.8125rem; }
+      .demo-main .source-close { flex:none; min-height:44px; padding:4px 8px; margin-top:-8px; border-color:transparent; background:transparent; font-size:.875rem; text-decoration:underline; text-underline-offset:3px; }
+      .source-document-sections { display:grid; grid-template-columns:minmax(0,1fr); gap:24px 32px; }
+      .source-section { min-width:0; }
+      .source-section h4 { font-size:1rem; font-weight:650; line-height:1.35; margin:0 0 6px; color:var(--heading); }
+      .source-section p { white-space:pre-wrap; font-size:.9375rem; line-height:1.55; margin:0; overflow-wrap:anywhere; }
+      @media(min-width:760px) { .source-document-sections { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+      @media(max-width:650px) { .activity-document { padding:16px; } .activity-document-header { gap:8px; } .demo-main .source-close { padding-inline:4px; } }
+      .result-section { border-top:1px solid var(--line); padding-top:24px; margin-top:32px; }
+      .result-heading { display:flex; align-items:center; gap:4px; margin:0 0 16px; }
+      .demo-main .result-heading h2 { margin:0; }
+      .demo-main .info-trigger { display:inline-flex; align-items:center; justify-content:center; flex:none; width:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; }
+      .info-trigger span { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:1px solid var(--muted); border-radius:50%; font-size:.75rem; font-weight:500; line-height:1; color:var(--muted); }
+      .info-popover { position:fixed; inset:auto; margin:0; width:min(28rem,calc(100vw - 32px)); padding:12px 16px; border:1px solid var(--line); background:var(--surface); color:var(--ink); font-size:.9375rem; line-height:1.55; }
+      .search-actions { margin:0; padding:0; list-style:none; }
+      .search-action + .search-action { margin-top:12px; }
+      .search-step>summary { display:flex; align-items:flex-start; gap:12px; list-style:none; cursor:pointer; min-height:44px; padding:10px 0; font-size:.9375rem; font-weight:400; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+      .search-step>summary::-webkit-details-marker { display:none; }
+      .search-step>summary::before { content:""; flex:none; width:7px; height:7px; margin:7px 3px 0; border-right:1px solid currentColor; border-bottom:1px solid currentColor; transform:rotate(-45deg); }
+      .search-step[open]>summary::before { transform:rotate(45deg); }
+      .retrieved { max-width:76ch; font-size:.9375rem; }
+      .retrieved + .retrieved { margin-top:24px; }
+      .search-step>.retrieved { margin-inline-start:22px; }
+      .demo-main .retrieved h3 { font-size:.9375rem; font-weight:600; line-height:1.5; margin:0 0 8px; }
+      .retrieved blockquote { margin:0 0 8px; }
+      .retrieved small { margin:8px 0 0; }
+      .search-step>.error,.search-step>.muted { margin-inline-start:22px; }
       .error { color:var(--error); }
       [hidden] { display:none !important; }
       @media(max-width:650px) { main { padding:28px 16px 32px; } .site-nav.demo-nav { gap:8px 12px; } .demo-main h1 { font-size:2rem; margin-bottom:24px; } .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
-      @media(max-width:360px) { .source-document { padding-inline:6px; } .source-document summary,.source-document summary::after { font-size:.875rem; } .source-document summary { gap:4px; } }
-      @media(max-width:650px) { .demo-nav .demo-name { flex-basis:100%; } main.demo-main>h1 { font-size:1.75rem; margin-bottom:16px; } #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document>summary { min-height:48px; padding-inline:8px; gap:6px; } #source .source-document[open] { flex-basis:100%; } }
-      @media(max-width:360px) { #source .source-document>summary { font-size:.875rem; padding-inline:6px; gap:4px; } }
+      @media(max-width:650px) { .demo-nav .demo-name { flex-basis:100%; } main.demo-main>h1 { font-size:1.75rem; margin-bottom:16px; } #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document { min-height:48px; padding-inline:8px; gap:6px; } }
+      @media(max-width:360px) { #source .source-document { font-size:.875rem; padding-inline:6px; gap:4px; } }
     </style>
 
-  <link rel="stylesheet" href="/assets/site.css?v=20261110-grouped-header">
-<script src="/assets/language.js?v=20261110-grouped-header" defer></script>
-<script src="/assets/demo.js?v=20261110-grouped-header" defer></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
+<script src="/assets/language.js?v=20261117-public-demo" defer></script>
+<script src="/assets/demo.js?v=20261117-visible-evidence" defer></script>
 </head>
-  <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name" data-i18n="brand">COA Assistent</span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
+  <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main">
       <h1 data-i18n="questionTitle">Vind een activiteit die past</h1>
       <section id="source" aria-labelledby="source-heading">
         <h2 id="source-heading" data-i18n="activities">Activiteiten</h2>
         <div id="source-sections"></div>
+        <section id="activity-document" class="activity-document" aria-labelledby="activity-document-title" hidden></section>
       </section>
       <form id="form">
         <label for="question" data-i18n="questionLabel">Stel de COA assistent een vraag</label>
         <textarea id="question" class="run-control" maxlength="1000" required placeholder="Welke activiteiten zijn er op dinsdag?"></textarea>
+        <div class="example-questions" role="group" aria-labelledby="example-heading">
+          <span id="example-heading" class="sr-only" data-i18n="exampleHeading">Probeer een voorbeeld</span>
+          <button class="example-question run-control" type="button" data-example="exampleLookupQuestion" data-i18n="exampleLookupLabel">Waar en wanneer kan ik tuinieren?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Welke buitenactiviteit eindigt vóór 11.00 uur?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Binnen om 14.00 uur: gratis en materiaal aanwezig</button>
+        </div>
         <div class="form-actions">
         <div class="method-field">
           <label for="retrieval-method" data-i18n="retrievalMethod">Zoekmethode</label>
@@ -102,14 +126,25 @@
       <p id="status" role="status"></p>
       <section id="result" hidden aria-label="Uitvoering en antwoord">
         <h2 id="result-title" data-i18n="answer">Het antwoord</h2>
-        <p id="run-method" class="run-method muted" hidden></p>
         <div class="answer-panel"><p id="answer" class="answer"></p></div>
-        <details id="tool-details">
-          <summary data-i18n="results">Bekijk de resultaten</summary>
-          <div id="tools"></div>
-        </details>
+        <section id="answer-sources" class="result-section" aria-labelledby="answer-sources-heading" hidden>
+          <div class="result-heading">
+            <h2 id="answer-sources-heading" data-i18n="answerSources">Gebruikte bronnen</h2>
+            <button type="button" class="info-trigger" popovertarget="answer-sources-info" aria-controls="answer-sources-info" aria-expanded="false" aria-label="Uitleg over gebruikte bronnen" data-info-label="answerSourcesInfoLabel"><span aria-hidden="true">i</span></button>
+          </div>
+          <p id="answer-sources-info" class="info-popover" popover="auto" data-i18n="answerSourcesInfo">Deze bronpassages heeft de assistent bij zijn antwoord aangehaald.</p>
+          <div id="citations"></div>
+        </section>
+        <section id="tool-details" class="result-section" aria-labelledby="search-actions-heading" hidden>
+          <div class="result-heading">
+            <h2 id="search-actions-heading">Zoekacties</h2>
+            <button type="button" class="info-trigger" popovertarget="search-actions-info" aria-controls="search-actions-info" aria-expanded="false" aria-label="Uitleg over zoekacties" data-info-label="searchActionsInfoLabel"><span aria-hidden="true">i</span></button>
+          </div>
+          <p id="search-actions-info" class="info-popover" popover="auto" data-i18n="searchActionsInfo">Dit zijn de zoekvragen en de bronstukken die terugkwamen. Een gevonden bronstuk hoeft niet in het antwoord te zijn aangehaald.</p>
+          <ol id="tools" class="search-actions"></ol>
+        </section>
       </section>
     </main>
 
-  <footer class="site-footer"><span data-i18n="projectNotice">Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan.</span> <a href="https://github.com/Daanvdplas/meedoenbalie-rag-learning" data-i18n="code">Bekijk de code</a>.</footer></body>
+  <footer class="site-footer"><span data-i18n="projectNotice">Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan. Gebruik geen persoonsgegevens. Je vraag en opgehaalde bronpassages worden verwerkt door OpenAI; bij de publieke demo loopt het verkeer via Cloudflare.</span> <a href="https://github.com/Daanvdplas/meedoenbalie-rag-learning" data-i18n="code">Bekijk de code</a>.</footer></body>
 </html>
