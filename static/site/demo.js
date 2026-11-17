@@ -78,8 +78,26 @@
     block.append(document.createTextNode(text.slice(cursor)));
     return block;
   }
+  function positionOpenInfo() {
+    document.querySelectorAll(".info-trigger").forEach(button => {
+      const info = el(button.getAttribute("popovertarget"));
+      if (!info.matches(":popover-open")) return;
+      const trigger = button.getBoundingClientRect();
+      const panel = info.getBoundingClientRect();
+      info.style.left = Math.max(16, Math.min(trigger.left, window.innerWidth - panel.width - 16)) + "px";
+      info.style.top = Math.max(16, Math.min(trigger.bottom + 8, window.innerHeight - panel.height - 16)) + "px";
+    });
+  }
+  document.querySelectorAll(".info-trigger").forEach(button => {
+    const info = el(button.getAttribute("popovertarget"));
+    info.addEventListener("toggle", () => {
+      button.setAttribute("aria-expanded", String(info.matches(":popover-open")));
+      positionOpenInfo();
+    });
+  });
+  window.addEventListener("resize", positionOpenInfo);
+  window.addEventListener("scroll", positionOpenInfo, { passive: true });
   function showRun(run) {
-    const newRun = currentRun?.id !== run.id;
     currentRun = run;
     el("result").hidden = false;
     el("result-title").textContent = t(run.status === "failed" ? "failedTitle" : "answer");
@@ -100,10 +118,10 @@
     }
     el("citations").replaceChildren();
     for (const { section, quotes } of citedSections.values()) {
-      const evidence = node("details", undefined, "retrieved cited-source");
+      const evidence = node("article", undefined, "retrieved cited-source");
       evidence.dataset.source = section.source_id;
       evidence.dataset.section = section.id;
-      evidence.append(node("summary", sourceTitle(section.source_id) + " · " + heading(section.heading)));
+      evidence.append(node("h3", sourceTitle(section.source_id) + " · " + heading(section.heading)));
       for (const quote of quotes) {
         const passage = node("blockquote", quote);
         passage.lang = "nl";
@@ -114,21 +132,16 @@
     }
     el("answer-sources").hidden = !citedSections.size;
     el("tools").replaceChildren();
-    calls.forEach((call, index) => {
+    calls.forEach(call => {
       const item = node("li", undefined, "search-action");
       const step = node("details", undefined, "search-step");
-      const goal = typeof call.search_goal === "string" && call.search_goal.trim() ? call.search_goal : t("searchAction", { number: index + 1 });
-      const summary = node("summary", goal);
-      if (call.search_goal) summary.lang = run.context?.answer_language || "nl";
-      const query = node("p", call.query, "search-query");
-      query.setAttribute("aria-label", t("searchQuery"));
-      step.append(summary, query);
+      step.append(node("summary", call.query, "search-query"));
       (call.result?.hits || []).forEach(hit => {
-        const evidence = node("details", undefined, "retrieved");
+        const evidence = node("article", undefined, "retrieved");
         evidence.dataset.source = hit.section.source_id;
         evidence.dataset.section = hit.section.id;
         evidence.append(
-          node("summary", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
+          node("h3", sourceTitle(hit.section.source_id) + " · " + heading(hit.section.heading)),
           quotedPassage(hit.section.text, citations.filter(c => c.source_id === hit.section.source_id && c.source_date === hit.section.source_date && c.section_id === hit.section.id).map(c => c.quote)),
           node("small", t("published", { date: hit.section.source_date })),
         );
@@ -141,10 +154,6 @@
     });
     el("search-actions-heading").textContent = t("searchActionsCount", { count: calls.length });
     el("tool-details").hidden = !calls.length;
-    if (newRun) {
-      el("answer-sources").open = false;
-      el("tool-details").open = false;
-    }
   }
   function closeSourceDocument() {
     const trigger = document.querySelector('.source-document[aria-expanded="true"]');
@@ -189,9 +198,11 @@
     el("question").placeholder = t("questionPlaceholder");
     el("result").setAttribute("aria-label", t("resultLabel"));
     document.querySelectorAll("[data-example]").forEach(button => { button.title = t(button.dataset.example); });
+    document.querySelectorAll(".info-trigger").forEach(button => { button.setAttribute("aria-label", t(button.dataset.infoLabel)); });
     renderSourceLabels();
     renderStatus();
     if (currentRun) showRun(currentRun);
+    positionOpenInfo();
   }
   window.addEventListener("languagechange", renderLanguage);
   async function watch(run) {
@@ -225,6 +236,7 @@
   }
   el("form").addEventListener("submit", event => { event.preventDefault(); begin(); });
   el("question").addEventListener("input", () => {
+    document.querySelectorAll(".info-popover:popover-open").forEach(info => info.hidePopover());
     el("result").hidden = true;
     currentRun = null;
     message(null);

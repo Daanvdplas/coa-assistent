@@ -63,21 +63,24 @@
       .source-section p { white-space:pre-wrap; font-size:.9375rem; line-height:1.55; margin:0; overflow-wrap:anywhere; }
       @media(min-width:760px) { .source-document-sections { grid-template-columns:repeat(2,minmax(0,1fr)); } }
       @media(max-width:650px) { .activity-document { padding:16px; } .activity-document-header { gap:8px; } .demo-main .source-close { padding-inline:4px; } }
-      .answer-disclosure { border-top:1px solid var(--line); padding:4px 0; }
-      .answer-disclosure summary { display:flex; align-items:flex-start; gap:12px; list-style:none; cursor:pointer; min-height:44px; padding:10px 0; line-height:1.5; overflow-wrap:anywhere; }
-      .answer-disclosure summary::-webkit-details-marker { display:none; }
-      .answer-disclosure summary::before { content:""; flex:none; width:7px; height:7px; margin:7px 3px 0; border-right:1px solid currentColor; border-bottom:1px solid currentColor; transform:rotate(-45deg); }
-      .answer-disclosure details[open]>summary::before,.answer-disclosure[open]>summary::before { transform:rotate(45deg); }
-      .answer-disclosure>summary { font-size:.9375rem; font-weight:600; }
+      .result-section { border-top:1px solid var(--line); padding-top:24px; margin-top:32px; }
+      .result-heading { display:flex; align-items:center; gap:4px; margin:0 0 16px; }
+      .demo-main .result-heading h2 { margin:0; }
+      .demo-main .info-trigger { display:inline-flex; align-items:center; justify-content:center; flex:none; width:44px; min-height:44px; padding:0; border:0; border-radius:50%; background:transparent; }
+      .info-trigger span { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:1px solid var(--muted); border-radius:50%; font-size:.75rem; font-weight:500; line-height:1; color:var(--muted); }
+      .info-popover { position:fixed; inset:auto; margin:0; width:min(28rem,calc(100vw - 32px)); padding:12px 16px; border:1px solid var(--line); background:var(--surface); color:var(--ink); font-size:.9375rem; line-height:1.55; }
       .search-actions { margin:0; padding:0; list-style:none; }
-      .search-step,.cited-source { margin-inline-start:22px; }
-      .search-step>summary { font-size:.9375rem; font-weight:400; }
-      .demo-main .search-query { font-size:.9375rem; font-weight:400; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; margin:4px 0 8px 22px; }
+      .search-action + .search-action { margin-top:12px; }
+      .search-step>summary { display:flex; align-items:flex-start; gap:12px; list-style:none; cursor:pointer; min-height:44px; padding:10px 0; font-size:.9375rem; font-weight:400; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+      .search-step>summary::-webkit-details-marker { display:none; }
+      .search-step>summary::before { content:""; flex:none; width:7px; height:7px; margin:7px 3px 0; border-right:1px solid currentColor; border-bottom:1px solid currentColor; transform:rotate(-45deg); }
+      .search-step[open]>summary::before { transform:rotate(45deg); }
       .retrieved { max-width:76ch; font-size:.9375rem; }
+      .retrieved + .retrieved { margin-top:24px; }
       .search-step>.retrieved { margin-inline-start:22px; }
-      .retrieved>summary { font-size:.9375rem; font-weight:400; }
-      .retrieved blockquote { margin:4px 0 8px 22px; }
-      .retrieved small { margin:8px 0 12px 22px; }
+      .demo-main .retrieved h3 { font-size:.9375rem; font-weight:600; line-height:1.5; margin:0 0 8px; }
+      .retrieved blockquote { margin:0 0 8px; }
+      .retrieved small { margin:8px 0 0; }
       .search-step>.error,.search-step>.muted { margin-inline-start:22px; }
       .error { color:var(--error); }
       [hidden] { display:none !important; }
@@ -87,8 +90,8 @@
     </style>
 
   <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
-<script src="/assets/language.js?v=20261117-answer-evidence" defer></script>
-<script src="/assets/demo.js?v=20261117-answer-evidence" defer></script>
+<script src="/assets/language.js?v=20261117-visible-evidence" defer></script>
+<script src="/assets/demo.js?v=20261117-visible-evidence" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main">
@@ -124,14 +127,22 @@
       <section id="result" hidden aria-label="Uitvoering en antwoord">
         <h2 id="result-title" data-i18n="answer">Het antwoord</h2>
         <div class="answer-panel"><p id="answer" class="answer"></p></div>
-        <details id="answer-sources" class="answer-disclosure" hidden>
-          <summary data-i18n="answerSources">Bronnen bij dit antwoord</summary>
+        <section id="answer-sources" class="result-section" aria-labelledby="answer-sources-heading" hidden>
+          <div class="result-heading">
+            <h2 id="answer-sources-heading" data-i18n="answerSources">Gebruikte bronnen</h2>
+            <button type="button" class="info-trigger" popovertarget="answer-sources-info" aria-controls="answer-sources-info" aria-expanded="false" aria-label="Uitleg over gebruikte bronnen" data-info-label="answerSourcesInfoLabel"><span aria-hidden="true">i</span></button>
+          </div>
+          <p id="answer-sources-info" class="info-popover" popover="auto" data-i18n="answerSourcesInfo">Deze bronpassages heeft de assistent bij zijn antwoord aangehaald.</p>
           <div id="citations"></div>
-        </details>
-        <details id="tool-details" class="answer-disclosure" hidden>
-          <summary id="search-actions-heading">Zoekacties</summary>
+        </section>
+        <section id="tool-details" class="result-section" aria-labelledby="search-actions-heading" hidden>
+          <div class="result-heading">
+            <h2 id="search-actions-heading">Zoekacties</h2>
+            <button type="button" class="info-trigger" popovertarget="search-actions-info" aria-controls="search-actions-info" aria-expanded="false" aria-label="Uitleg over zoekacties" data-info-label="searchActionsInfoLabel"><span aria-hidden="true">i</span></button>
+          </div>
+          <p id="search-actions-info" class="info-popover" popover="auto" data-i18n="searchActionsInfo">Dit zijn de zoekvragen en de bronstukken die terugkwamen. Een gevonden bronstuk hoeft niet in het antwoord te zijn aangehaald.</p>
           <ol id="tools" class="search-actions"></ol>
-        </details>
+        </section>
       </section>
     </main>
 
