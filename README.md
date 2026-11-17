@@ -22,9 +22,20 @@ Open **http://127.0.0.1:8766/**. Zonder sleutel starten de website en de twaalf 
 
 Voor antwoorden: gebruik `OPENAI_API_KEY` in de serveromgeving, of zet de sleutel zelf in een **extern** bestand, bijvoorbeeld `~/.config/coa/openai-api-key`. Dat moet een regulier bestand van de huidige gebruiker zijn met rechten `0600`, zonder symlink of hardlink. Plak geen sleutel in chat, broncode, opdrachtargumenten of rapporten. De applicatie leest geen `.env` automatisch.
 
+Een echte API-aanroep vereist ook een vooraf ingesteld gebruiksbudget. Kies expliciet een positief aantal **fysieke API-pogingen** en zet dat in `COA_APPROVED_ATTEMPTS`; er is geen standaardbedrag of standaardaantal. Initialiseer het budget één keer in een eigen map met rechten `0700`:
+
 ```sh
-COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" cargo run --locked
+mkdir -m 700 "$HOME/.config/coa/demo-budget"
+cargo run --locked -- demo-budget init "$HOME/.config/coa/demo-budget/attempts.json" --max-attempts "${COA_APPROVED_ATTEMPTS:?Kies eerst een goedgekeurd aantal API-pogingen}"
 ```
+
+De initialisatie weigert een bestaand bestand en reset niets. Start daarna met hetzelfde bestand:
+
+```sh
+COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts.json" COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" cargo run --locked
+```
+
+Iedere fysieke API-poging wordt vóór verzending blijvend gereserveerd, ook als de provider later een fout geeft of de uitvoering wordt afgebroken. Eén vraag kan maximaal vijf pogingen gebruiken. Herstart vernieuwt de quota niet; een tweede server kan hetzelfde budget niet tegelijk openen. Ontbrekende, beschadigde, vervangen of onbeschrijfbare budgetstaat blokkeert nieuwe API-aanroepen. Het bestand bevat alleen schema, plafond en verbruik, geen vragen, antwoorden, netwerkadressen of sleutel. Het is geen token- of dollarboekhouding: stel voor publieke hosting daarnaast een eigen providerproject met een expliciet kostenplafond in. Stop de server voor een onmiddellijke lokale noodstop; al door de provider aangenomen werk kan nog kosten veroorzaken. De debug-only lokale mock vereist geen budget, maar controleert een ingesteld budget wel.
 
 De creditclaimdialoog, gecontroleerd op 10 november 2026, waarschuwt dat activering van het Pro-API-voordeel Codex via API-keys van de gekozen organisatie uitschakelt, ook bij gekocht tegoed. Gewone Responses API-calls en Codex via het abonnement blijven volgens die dialoog werken. Dit project gebruikt de gewone API; activatie en saldo zijn niet door deze implementatie gecontroleerd.
 
