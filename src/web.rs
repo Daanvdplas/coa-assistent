@@ -384,7 +384,12 @@ async fn rag_evaluation_results() -> Result<Json<Value>, ApiError> {
 fn rag_results_from_path(path: &std::path::Path) -> Result<Json<Value>, ApiError> {
     let bytes = match std::fs::read(path) {
         Ok(bytes) => bytes,
-        Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => {
+        Err(cause)
+            if matches!(
+                cause.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
+            ) =>
+        {
             include_bytes!("../evals/rag/site/promptfoo-results.json").to_vec()
         }
         Err(_) => return Err(error("Evaluatieresultaten zijn nog niet beschikbaar.")),
@@ -557,12 +562,24 @@ mod tests {
     }
     #[test]
     fn bundled_rag_results_survive_an_unavailable_source_checkout() {
+        use std::os::unix::fs::PermissionsExt;
         let missing =
             std::env::temp_dir().join(format!("coa-no-source-results-{}.json", std::process::id()));
         assert!(!missing.exists());
         let result = rag_results_from_path(&missing).unwrap();
         assert_eq!(result.0["source"], "promptfoo");
-        assert!(result.0["evaluations"].is_array());
+        assert_eq!(result.0["evaluations"].as_array().unwrap().len(), 7);
+
+        std::fs::write(&missing, b"unreadable source checkout").unwrap();
+        std::fs::set_permissions(&missing, std::fs::Permissions::from_mode(0o000)).unwrap();
+        assert_eq!(
+            std::fs::read(&missing).unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        let unreadable = rag_results_from_path(&missing);
+        std::fs::set_permissions(&missing, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::remove_file(&missing).unwrap();
+        assert_eq!(unreadable.unwrap().0, result.0);
     }
 
     #[test]
