@@ -11,6 +11,8 @@ use std::{
     sync::Mutex,
 };
 
+pub(crate) const POLICY_VERSION: u8 = 2;
+
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 struct State {
@@ -94,7 +96,7 @@ fn read_state(file: &mut File) -> io::Result<State> {
     file.take(4097).read_to_end(&mut bytes)?;
     let state: State = serde_json::from_slice(&bytes)?;
     if bytes.len() > 4096
-        || state.schema_version != 1
+        || state.schema_version != POLICY_VERSION
         || state.max_attempts == 0
         || state.attempts > state.max_attempts
     {
@@ -160,7 +162,7 @@ pub fn cli(args: &[String]) -> io::Result<()> {
         .custom_flags(libc::O_NOFOLLOW)
         .open(path)?;
     let bytes = serde_json::to_vec(&State {
-        schema_version: 1,
+        schema_version: POLICY_VERSION,
         max_attempts: maximum.unwrap(),
         attempts: 0,
     })?;
@@ -257,7 +259,7 @@ mod tests {
         budget.reserve().unwrap();
         let old = directory.0.join("old.json");
         fs::rename(&path, &old).unwrap();
-        let replacement = br#"{"schema_version":1,"max_attempts":3,"attempts":0}"#;
+        let replacement = br#"{"schema_version":2,"max_attempts":3,"attempts":0}"#;
         fs::write(&path, replacement).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
         assert!(budget.reserve().is_err());
@@ -278,8 +280,9 @@ mod tests {
         for content in [
             "",
             "{broken",
-            r#"{"schema_version":1,"max_attempts":0,"attempts":0}"#,
-            r#"{"schema_version":1,"max_attempts":1,"attempts":2}"#,
+            r#"{"schema_version":1,"max_attempts":1,"attempts":0}"#,
+            r#"{"schema_version":2,"max_attempts":0,"attempts":0}"#,
+            r#"{"schema_version":2,"max_attempts":1,"attempts":2}"#,
         ] {
             fs::write(&path, content).unwrap();
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
@@ -287,7 +290,7 @@ mod tests {
         }
         fs::write(
             &path,
-            r#"{"schema_version":1,"max_attempts":1,"attempts":0}"#,
+            r#"{"schema_version":2,"max_attempts":1,"attempts":0}"#,
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();

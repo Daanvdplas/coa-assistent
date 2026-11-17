@@ -689,7 +689,7 @@ mod tests {
                     Json(json!({"status":"completed","model":"gpt-6.1-sol","output":output,"usage":{"input_tokens":100,"output_tokens":30}}))
                 }
             }
-        }));
+        })).route("/v1/responses/input_tokens",post(||async{Json(json!({"object":"response.input_tokens","input_tokens":1}))}));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let provider = tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
