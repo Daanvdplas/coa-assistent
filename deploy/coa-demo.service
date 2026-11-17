@@ -11,11 +11,11 @@ WorkingDirectory=/var/lib/coa-demo
 Environment=COA_PORT=8766
 Environment=COA_TRUSTED_PROXY_IP=127.0.0.1
 Environment=COA_OPENAI_API_KEY_FILE=/var/lib/coa-demo/openai-api-key
-Environment=COA_DEMO_BUDGET_FILE=/var/lib/coa-demo/budget/attempts.json
+Environment=COA_DEMO_BUDGET_FILE=/var/lib/coa-demo/budget/attempts-v2.json
 Environment=LD_LIBRARY_PATH=/opt/coa-demo/current/lib
 UnsetEnvironment=OPENAI_API_KEY COA_RESPONSES_TEST_URL COA_RESPONSES_TEST_TIMEOUT_MS
 ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/openai-api-key
-ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/budget/attempts.json
+ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/budget/attempts-v2.json
 ExecStart=/opt/coa-demo/current/bin/meedoen-retrieval serve
 Restart=on-failure
 RestartSec=5

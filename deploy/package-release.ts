@@ -57,7 +57,7 @@ function packageRelease(binary: string, output: string): void {
     for (const library of dependencies.filter((entry) => entry.bundled)) {
       copy(library.path, `lib/${library.name}`, 0o644);
     }
-    for (const name of ["Caddyfile", "coa-demo.service", "caddy-override.conf", "public.env.example"]) {
+    for (const name of ["Caddyfile", "Caddyfile.quick-tunnel", "Caddyfile.quick-tunnel.app", "coa-demo.service", "coa-demo-tunnel.service", "caddy-override.conf", "public.env.example"]) {
       copy(join("deploy", name), `config/${name}`, 0o644);
     }
     copy("docs/public-deployment.md", "DEPLOYMENT.md", 0o644);

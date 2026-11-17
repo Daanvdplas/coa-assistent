@@ -38,7 +38,7 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
         assert.equal(child.exitCode, null, "packaged runtime exited during warmup");
         try {
           const response = await fetch(`http://127.0.0.1:${port}/api/source`);
-          if (response.ok) return await response.json() as { runtime_ready: boolean; sources: unknown[]; as_of: string };
+          if (response.ok) return await response.json() as { runtime_ready: boolean; sources: unknown[]; as_of: string; model_configuration: Record<string, unknown> };
         } catch { /* The model is still loading; no answer endpoint is called. */ }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -55,10 +55,17 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
     const initialization = spawnSync(binary, ["demo-budget", "init", budget, "--max-attempts", "1"], { cwd: directory, env: environment, encoding: "utf8" });
     assert.equal(initialization.status, 0, "test-only quota initialization must work");
     const original = await readFile(budget);
+    assert.equal(JSON.parse(original.toString()).schema_version, 2, "the release must require the input-bound policy");
     const repeated = spawnSync(binary, ["demo-budget", "init", budget, "--max-attempts", "2"], { cwd: directory, env: environment, encoding: "utf8" });
     assert.notEqual(repeated.status, 0, "reinitialization must not reset the cap");
     assert.deepEqual(await readFile(budget), original);
-    assert.equal((await source()).runtime_ready, true, "a valid budget enables the configured service");
+    const available = await source();
+    assert.equal(available.runtime_ready, true, "a valid budget enables the configured service");
+    assert.equal(available.model_configuration.budget_policy_version, 2);
+    assert.equal(available.model_configuration.max_input_tokens_per_request, 300000);
+    assert.equal(available.model_configuration.max_input_token_preflights, 5);
+    assert.equal(available.model_configuration.max_provider_requests, 5);
+    assert.equal(available.model_configuration.max_output_tokens_per_request, 4096);
     assert.deepEqual(await readFile(budget), original, "starting the service cannot spend or reset a reservation");
   } finally {
     await rm(directory, { recursive: true, force: true });
