@@ -14,6 +14,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.remove(0)
     };
     match command.as_str() {
+        "demo-budget" => {
+            meedoen_retrieval::demo_budget::cli(&args)?;
+            return Ok(());
+        }
         "lock-exec" => {
             std::process::exit(operator_lock::run(&args)?);
         }

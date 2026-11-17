@@ -17,6 +17,8 @@ pub(super) struct BoundedTransport {
     pub client: reqwest::Client,
     pub endpoint: reqwest::Url,
     pub state: Arc<Mutex<RunState>>,
+    pub budget: Option<Arc<crate::demo_budget::AttemptBudget>>,
+    pub offline: bool,
 }
 impl BoundedTransport {
     fn failure(&self, error: &'static str) -> Error {
@@ -43,6 +45,14 @@ impl BoundedTransport {
                 return Err(self.failure("tool: Het maximum aantal modelverzoeken is bereikt."));
             }
             state.requests += 1;
+        }
+        match &self.budget {
+            Some(budget) => budget.reserve().map_err(|error| self.failure(error))?,
+            None if !self.offline => {
+                return Err(self
+                    .failure("budget: Stel eerst het gebruiksbudget voor de antwoordservice in."));
+            }
+            None => {}
         }
         let (parts, body) = request.into_parts();
         let mut response = self

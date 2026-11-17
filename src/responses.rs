@@ -36,6 +36,7 @@ pub struct ResponsesRunner {
     search: Search,
     timeout: Duration,
     offline: bool,
+    budget: Option<Arc<crate::demo_budget::AttemptBudget>>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +74,7 @@ impl ResponsesRunner {
         let client = Client::builder()
             .default_headers(headers)
             .redirect(reqwest::redirect::Policy::none())
+            .retry(reqwest::retry::never())
             .connect_timeout(Duration::from_secs(10))
             .timeout(TIMEOUT)
             .build()
@@ -84,6 +86,7 @@ impl ResponsesRunner {
             search,
             timeout: TIMEOUT,
             offline,
+            budget: None,
         })
     }
     pub fn from_env(search: Search) -> Result<Self, String> {
@@ -107,6 +110,7 @@ impl ResponsesRunner {
                     .ok_or("runtime: Ongeldige testdeadline.")?;
                 runner.timeout = Duration::from_millis(milliseconds);
             }
+            runner.budget = configured_budget(false)?;
             return Ok(runner);
         }
         let key = match std::env::var("OPENAI_API_KEY")
@@ -120,7 +124,9 @@ impl ResponsesRunner {
                 read_key(Path::new(&path))?
             }
         };
-        Self::new(key, ENDPOINT, search)
+        let mut runner = Self::new(key, ENDPOINT, search)?;
+        runner.budget = configured_budget(true)?;
+        Ok(runner)
     }
     pub fn configuration(&self) -> Value {
         json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v1","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
@@ -153,6 +159,21 @@ impl ResponsesRunner {
     ) -> Result<Value, String> {
         rig_runtime::run(self, query, top_k, corpus, language, method).await
     }
+}
+
+fn configured_budget(
+    required: bool,
+) -> Result<Option<Arc<crate::demo_budget::AttemptBudget>>, String> {
+    let Some(path) = std::env::var_os("COA_DEMO_BUDGET_FILE") else {
+        return if required {
+            Err("budget: Stel eerst het gebruiksbudget voor de antwoordservice in.".into())
+        } else {
+            Ok(None)
+        };
+    };
+    crate::demo_budget::AttemptBudget::open(Path::new(&path))
+        .map(|budget| Some(Arc::new(budget)))
+        .map_err(|_| "budget: Het gebruiksbudget is niet beschikbaar of al in gebruik.".into())
 }
 
 fn validate_key(key: String) -> Result<String, String> {
@@ -290,6 +311,49 @@ mod tests {
                 crate::DemoSearchMethod::Bm25,
             )
             .await
+    }
+
+    #[tokio::test]
+    async fn every_physical_transport_attempt_requires_a_durable_slot() {
+        let (url, seen, task) = mock(vec![envelope(json!([call("unused", "tuinieren")]))]).await;
+        let mut runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        // Require the production guard while keeping all network traffic on loopback.
+        runner.offline = false;
+        assert!(run(&runner).await.unwrap_err().starts_with("budget:"));
+        assert!(seen.lock().unwrap().is_empty());
+
+        use std::os::unix::fs::PermissionsExt;
+        let mut identifier = [0u8; 8];
+        getrandom::fill(&mut identifier).unwrap();
+        let directory = std::env::temp_dir().join(format!(
+            "coa-tool-round-budget-{:x}",
+            u64::from_ne_bytes(identifier)
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.join("attempts.json");
+        crate::demo_budget::cli(&[
+            "init".into(),
+            path.to_str().unwrap().into(),
+            "--max-attempts".into(),
+            "1".into(),
+        ])
+        .unwrap();
+        runner.offline = true;
+        runner.budget = Some(Arc::new(
+            crate::demo_budget::AttemptBudget::open(&path).unwrap(),
+        ));
+        assert!(run(&runner).await.unwrap_err().starts_with("budget:"));
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            1,
+            "The second request inside the same tool loop needs its own durable slot"
+        );
+        let state: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(state["attempts"], 1);
+        drop(runner);
+        std::fs::remove_dir_all(directory).unwrap();
+        task.abort();
     }
 
     #[tokio::test]

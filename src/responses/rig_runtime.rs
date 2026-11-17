@@ -198,6 +198,8 @@ pub(super) async fn run(
         client: runner.client.clone(),
         endpoint: runner.endpoint.clone(),
         state: state.clone(),
+        budget: runner.budget.clone(),
+        offline: runner.offline,
     };
     let model = rig::Model::new(
         rig::providers::openai::responses_api::wire::Responses::new(runner.provider.clone(), MODEL)
