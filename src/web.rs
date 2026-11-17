@@ -818,6 +818,41 @@ mod tests {
         provider.abort();
     }
     #[tokio::test]
+    async fn eval_catalog_stays_readable_and_reports_local_run_permission() {
+        use tower::ServiceExt;
+        let app = Arc::new(test_state(
+            meedoen_retrieval::corpus::CorpusId::BaselineFive,
+        ));
+        for (header, expected) in [
+            (None, true),
+            (Some(("x-real-ip", "203.0.113.5")), false),
+            (Some(("x-forwarded-for", "203.0.113.5")), false),
+            (Some(("forwarded", "for=203.0.113.5")), false),
+        ] {
+            let mut request = axum::http::Request::builder()
+                .extension(ConnectInfo(
+                    "127.0.0.1:43210".parse::<SocketAddr>().unwrap(),
+                ))
+                .uri("/api/evals/rag/catalog");
+            if let Some((name, value)) = header {
+                request = request.header(name, value);
+            }
+            let response = router(app.clone())
+                .oneshot(request.body(axum::body::Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), 128 * 1024)
+                .await
+                .unwrap();
+            let catalog: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(catalog["can_run"], expected);
+            assert_eq!(catalog["evals"].as_array().unwrap().len(), 3);
+            assert_eq!(catalog["embedding_models"][0]["available"], true);
+        }
+    }
+
+    #[tokio::test]
     async fn learning_site_routes_share_navigation_and_only_expose_curated_assets() {
         use tower::ServiceExt;
         let corpus = meedoen_retrieval::corpus::CorpusId::ExpandedTen;

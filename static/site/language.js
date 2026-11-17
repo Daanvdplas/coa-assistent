@@ -8,8 +8,8 @@
     technical: ["Hoe het werkt", "How it works"],
     code: ["Bekijk de code", "View the code"],
     projectNotice: [
-      "Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan.",
-      "An independent learning project, not an internal COA plan. All data is fictional. Participation is voluntary; a staff member discusses options with the resident. The demo does not change records, send messages or register anyone."
+      "Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan. Gebruik geen persoonsgegevens. Je vraag en opgehaalde bronpassages worden verwerkt door OpenAI; bij de publieke demo loopt het verkeer via Cloudflare.",
+      "An independent learning project, not an internal COA plan. All data is fictional. Participation is voluntary; a staff member discusses options with the resident. The demo does not change records, send messages or register anyone. Do not enter personal data. OpenAI processes your question and retrieved source passages; traffic for the public demo passes through Cloudflare."
     ],
     projectShortNotice: [
       "Eigen leerproject, geïnspireerd door de COA-use case. Alle activiteiten zijn verzonnen.",
