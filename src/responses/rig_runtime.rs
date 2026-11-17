@@ -20,8 +20,13 @@ use std::{
     time::Instant,
 };
 
+pub(super) struct RecordedSearch {
+    call: ToolCall,
+    search_goal: String,
+}
+
 pub(super) struct RunState {
-    pub calls: Vec<ToolCall>,
+    pub calls: Vec<RecordedSearch>,
     pub ids: HashSet<String>,
     pub requests: usize,
     pub usage: Option<TokenUsage>,
@@ -77,6 +82,12 @@ impl SearchTool {
             .map_err(|_| BoundaryError("tool: Ongeldige zoekvraag."))?;
         crate::ranking::validate_top_k(arguments.top_k)
             .map_err(|_| BoundaryError("tool: Ongeldig aantal bronpassages."))?;
+        if arguments.search_goal.trim().is_empty()
+            || arguments.search_goal.chars().count() > 80
+            || arguments.search_goal.chars().any(char::is_control)
+        {
+            return Err(BoundaryError("tool: Ongeldig publiek zoekdoel."));
+        }
         if self
             .state
             .lock()
@@ -103,14 +114,17 @@ impl SearchTool {
             .lock()
             .map_err(|_| BoundaryError("runtime: De uitvoering is niet beschikbaar."))?
             .calls
-            .push(ToolCall {
-                server: "local".into(),
-                tool: "search_document".into(),
-                query: arguments.query,
-                top_k: arguments.top_k,
-                status: "completed".into(),
-                result: Some(result.clone()),
-                error: None,
+            .push(RecordedSearch {
+                search_goal: arguments.search_goal,
+                call: ToolCall {
+                    server: "local".into(),
+                    tool: "search_document".into(),
+                    query: arguments.query,
+                    top_k: arguments.top_k,
+                    status: "completed".into(),
+                    result: Some(result.clone()),
+                    error: None,
+                },
             });
         Ok(result)
     }
@@ -121,10 +135,10 @@ impl Tool for SearchTool {
     type Output = Value;
     type Error = BoundaryError;
     fn description(&self) -> String {
-        "Search only the fictional activity corpus. Missing availability and transport stay unknown. At most four searches.".into()
+        "Search only the fictional activity corpus. Supply search_goal as a short public task in the requested answer language, such as 'Begintijden opzoeken': state what information this call seeks, never private reasoning, conclusions, criteria satisfied or completeness claims. Missing availability and transport stay unknown. At most four searches.".into()
     }
     fn parameters(&self) -> Value {
-        json!({"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":1000},"top_k":{"type":"integer","minimum":1,"maximum":6}},"required":["query","top_k"],"additionalProperties":false})
+        json!({"type":"object","properties":{"query":{"type":"string","minLength":1,"maxLength":1000},"top_k":{"type":"integer","minimum":1,"maximum":6},"search_goal":{"type":"string","minLength":1,"maxLength":80,"description":"Short public information-seeking task for this call, not reasoning or a result; for example Begintijden opzoeken."}},"required":["query","top_k","search_goal"],"additionalProperties":false})
     }
     async fn call(
         &self,
@@ -253,8 +267,18 @@ pub(super) async fn run(
             .to_owned()
     })?;
     // Public output deliberately excludes Rig's private history and raw responses.
-    let calls = std::mem::take(&mut state.calls);
+    let (calls, search_goals): (Vec<_>, Vec<_>) = std::mem::take(&mut state.calls)
+        .into_iter()
+        .map(|record| (record.call, record.search_goal))
+        .unzip();
     let mut result = crate::codex::validate_retrieved_answer(calls, state.answer.take())?;
+    let public_calls = result["tool_calls"]
+        .as_array_mut()
+        .filter(|calls| calls.len() == search_goals.len())
+        .ok_or("output: Ongeldige zoekgeschiedenis.")?;
+    for (call, goal) in public_calls.iter_mut().zip(search_goals) {
+        call["search_goal"] = json!(goal);
+    }
     result["question"] = json!(query);
     result["id"] = json!(format!("api-{}", started.elapsed().as_nanos()));
     result["model"] = json!(MODEL);
@@ -373,12 +397,14 @@ mod tests {
             .execute(SearchArguments {
                 query: "tuinieren tijd".into(),
                 top_k: 3,
+                search_goal: "Begintijden opzoeken".into(),
             })
             .await
             .unwrap();
         let state = state.lock().unwrap();
         assert_eq!(state.calls.len(), 1);
-        assert_eq!(state.calls[0].result.as_ref(), Some(&result));
-        assert_eq!(state.calls[0].query, "tuinieren tijd");
+        assert_eq!(state.calls[0].call.result.as_ref(), Some(&result));
+        assert_eq!(state.calls[0].call.query, "tuinieren tijd");
+        assert_eq!(state.calls[0].search_goal, "Begintijden opzoeken");
     }
 }
