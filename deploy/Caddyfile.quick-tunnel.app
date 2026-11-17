@@ -25,6 +25,8 @@
 
 http://:9899 {
 	bind 127.0.0.1
+	header Content-Security-Policy "frame-ancestors 'none'"
+	header X-Frame-Options DENY
 	@read {
 		method GET HEAD
 		path / /demo /demo/ /techniek/ /resultaten/ /assets/* /api/source /api/session /api/evals/rag /api/evals/rag/catalog

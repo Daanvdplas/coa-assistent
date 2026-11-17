@@ -91,7 +91,10 @@ test(`${profile.name} proxy allows only public routes, replaces visitor headers 
       }
     }
     for (const path of ["/", "/demo", "/demo/", "/techniek/", "/resultaten/", "/assets/site.css", "/api/source", "/api/session", "/api/runs/r-123-1", "/api/evals/rag", "/api/evals/rag/catalog"]) {
-      assert.equal((await fetch(origin + path, { headers: profile.edgeHeaders })).status, 200, path);
+      const response = await fetch(origin + path, { headers: profile.edgeHeaders });
+      assert.equal(response.status, 200, path);
+      assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'", path);
+      assert.equal(response.headers.get("x-frame-options"), "DENY", path);
     }
     for (const path of ["/api/session", "/api/runs"]) {
       assert.equal((await fetch(origin + path, { method: "POST", body: "{}", headers: profile.edgeHeaders })).status, 200, path);

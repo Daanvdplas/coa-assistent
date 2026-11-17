@@ -354,12 +354,20 @@ async fn report(State(app): State<App>, headers: HeaderMap) -> Result<impl IntoR
         text,
     ))
 }
-async fn api_cache_policy(
+async fn response_policy(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     let private = request.uri().path().starts_with("/api/");
     let mut response = next.run(request).await;
+    for (name, value) in [
+        (header::CONTENT_SECURITY_POLICY, "frame-ancestors 'none'"),
+        (header::X_FRAME_OPTIONS, "DENY"),
+    ] {
+        response
+            .headers_mut()
+            .insert(name, axum::http::HeaderValue::from_static(value));
+    }
     if private {
         response.headers_mut().insert(
             header::CACHE_CONTROL,
@@ -422,7 +430,7 @@ fn router(app: App) -> Router {
  .route("/api/runs/{id}/judgement",post(judge)).route("/api/runs/{id}/criteria",post(reveal))
  .route("/api/runs/{id}/diagnosis",post(diagnose)).route("/api/report",get(report))
  .layer(DefaultBodyLimit::max(8192))
- .layer(axum::middleware::from_fn(api_cache_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
+ .layer(axum::middleware::from_fn(response_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
 }
 pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
     let corpus = index.corpus();
@@ -620,10 +628,15 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn api_responses_and_session_errors_must_not_be_cached() {
+    async fn responses_prevent_framing_and_api_responses_must_not_be_cached() {
         use tower::ServiceExt;
         let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
         for path in [
+            "/",
+            "/techniek/",
+            "/resultaten/",
+            "/demo",
+            "/assets/demo.js",
             "/api/source",
             "/api/session",
             "/api/runs/unknown",
@@ -642,12 +655,19 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(
-                response
-                    .headers()
-                    .get(header::CACHE_CONTROL)
-                    .and_then(|v| v.to_str().ok()),
-                Some("no-store")
+                response.headers()[header::CONTENT_SECURITY_POLICY],
+                "frame-ancestors 'none'"
             );
+            assert_eq!(response.headers()[header::X_FRAME_OPTIONS], "DENY");
+            if path.starts_with("/api/") {
+                assert_eq!(
+                    response
+                        .headers()
+                        .get(header::CACHE_CONTROL)
+                        .and_then(|v| v.to_str().ok()),
+                    Some("no-store")
+                );
+            }
         }
     }
     #[tokio::test]
