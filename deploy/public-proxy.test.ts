@@ -30,8 +30,13 @@ test("a public IP uses the public ACME short-lived profile rather than an intern
   assert.deepEqual(policy.issuers, [{ module: "acme", ca: "https://acme-v02.api.letsencrypt.org/directory", profile: "shortlived" }]);
 });
 
-test("real proxy exposes only the demo and read-only reports and replaces forged visitor headers", async () => {
-  const result = spawnSync(caddy, ["adapt", "--config", template.pathname, "--adapter", "caddyfile"], {
+const profiles: { name: string; file: URL; visitorIp: string; edgeHeaders: Record<string, string> }[] = [
+  { name: "public IP", file: template, visitorIp: "127.0.0.1", edgeHeaders: {} },
+  { name: "QuickTunnel app", file: new URL("./Caddyfile.quick-tunnel.app", import.meta.url), visitorIp: "203.0.113.42", edgeHeaders: { "CF-Connecting-IP": "203.0.113.42" } },
+];
+for (const profile of profiles) {
+test(`${profile.name} proxy allows only public routes, replaces visitor headers and redacts error requests`, async () => {
+  const result = spawnSync(caddy, ["adapt", "--config", profile.file.pathname, "--adapter", "caddyfile"], {
     env: { ...process.env, COA_PUBLIC_HOST: "127.0.0.1" }, encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);
@@ -78,7 +83,7 @@ test("real proxy exposes only the demo and read-only reports and replaces forged
   proxy.stderr.on("data", (chunk: Buffer) => { diagnostic += chunk.toString(); });
   try {
     for (let attempt = 0; ; attempt += 1) {
-      try { await fetch(`${origin}/api/source`); break; }
+      try { await fetch(`${origin}/api/source`, { headers: profile.edgeHeaders }); break; }
       catch {
         assert.equal(proxy.exitCode, null, diagnostic);
         assert(attempt < 100, `proxy did not start: ${diagnostic}`);
@@ -86,10 +91,10 @@ test("real proxy exposes only the demo and read-only reports and replaces forged
       }
     }
     for (const path of ["/", "/demo", "/demo/", "/techniek/", "/resultaten/", "/assets/site.css", "/api/source", "/api/session", "/api/runs/r-123-1", "/api/evals/rag", "/api/evals/rag/catalog"]) {
-      assert.equal((await fetch(origin + path)).status, 200, path);
+      assert.equal((await fetch(origin + path, { headers: profile.edgeHeaders })).status, 200, path);
     }
     for (const path of ["/api/session", "/api/runs"]) {
-      assert.equal((await fetch(origin + path, { method: "POST", body: "{}" })).status, 200, path);
+      assert.equal((await fetch(origin + path, { method: "POST", body: "{}", headers: profile.edgeHeaders })).status, 200, path);
     }
     const protectedPaths = ["/api/evals/rag/runs", "/api/evals/rag/runs/eval-123", "/api/runs/r-123-1/replay", "/api/runs/r-123-1/judgement", "/api/runs/r-123-1/criteria", "/api/runs/r-123-1/diagnosis", "/api/report", "/api/questions", "/.env", "/Cargo.toml"];
     const beforeDenied = requests.length;
@@ -101,13 +106,13 @@ test("real proxy exposes only the demo and read-only reports and replaces forged
     assert.equal(requests.length, beforeDenied, "denied requests must not reach the app");
     const response = await fetch(`${origin}/api/session`, {
       method: "POST", body: "{}",
-      headers: { "X-Real-IP": "198.51.100.99", "X-Forwarded-For": "198.51.100.88" },
+      headers: { ...profile.edgeHeaders, "X-Real-IP": "198.51.100.99", "X-Forwarded-For": "198.51.100.88" },
     });
     const forwarded = await response.json() as { headers: Record<string, string> };
-    assert.equal(forwarded.headers["x-real-ip"], "127.0.0.1");
+    assert.equal(forwarded.headers["x-real-ip"], profile.visitorIp);
     assert(!forwarded.headers["x-forwarded-for"]?.includes("198.51.100.88"));
     const privateSession = "synthetic-session-never-log-7fd9";
-    const failed = await fetch(`${origin}/api/source?failure=1`, { headers: { "X-Test-Session": privateSession } });
+    const failed = await fetch(`${origin}/api/source?failure=1`, { headers: { ...profile.edgeHeaders, "X-Test-Session": privateSession } });
     assert.equal(failed.status, 502);
     for (let attempt = 0; attempt < 100 && !diagnostic.includes('"status":502'); attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -121,3 +126,4 @@ test("real proxy exposes only the demo and read-only reports and replaces forged
     await rm(directory, { recursive: true, force: true });
   }
 });
+}

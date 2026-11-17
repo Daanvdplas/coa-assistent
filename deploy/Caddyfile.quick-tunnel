@@ -1,0 +1,23 @@
+# Temporary accountless tunnel origin. No application routes are enabled here.
+{
+	admin off
+	auto_https off
+	servers {
+		protocols h1
+	}
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request delete
+			}
+		}
+	}
+}
+
+http://:9899 {
+	bind 127.0.0.1
+	header Cache-Control no-store
+	header Retry-After 3600
+	respond "Deze demo wordt klaargezet. Er worden nog geen vragen verwerkt." 503
+}
