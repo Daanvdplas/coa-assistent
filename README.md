@@ -198,6 +198,8 @@ node --test evals/rag/scripts/model_trials.test.ts
 
 Lees de [privacygrenzen en open besluiten](docs/privacy-boundaries.md) voordat je gegevens of toegang uitbreidt.
 
+De [voorbereiding voor publieke hosting](docs/public-deployment.md) bevat het Linux-releasepakket, proxy-/serviceconfiguratie en de controles voor vrijgave, budgetbehoud, stoppen en rollback. Dit publiceert zelf geen dienst.
+
 Alle gegevens zijn verzonnen. Suggesties behouden bron en datum; ontbrekende of oude feiten blijven onbekend. Deelname is vrijwillig en een medewerker bespreekt opties met de bewoner. Geen dossierwijzigingen, berichten of aanmeldingen. De demo luistert alleen op localhost.
 
 Alle codewijzigingen gaan via branches en pull requests, met onafhankelijke beoordeling. Niet rechtstreeks naar `main` committen; alleen mergen met toestemming van de gebruiker.

@@ -1,0 +1,52 @@
+# Set COA_PUBLIC_HOST explicitly in /etc/coa-demo/public.env.
+# An unset value makes this configuration invalid; there is no catch-all site.
+{
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request delete
+			}
+		}
+	}
+}
+
+(coa_backend) {
+	reverse_proxy 127.0.0.1:8766 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+{$COA_PUBLIC_HOST} {
+	# Publicly trusted IP certificates need the explicit short-lived ACME profile.
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+			profile shortlived
+		}
+	}
+	@read {
+		method GET HEAD
+		path / /demo /demo/ /techniek/ /resultaten/ /assets/* /api/source /api/session /api/evals/rag /api/evals/rag/catalog
+	}
+	@run {
+		method GET HEAD
+		path_regexp run ^/api/runs/r-[0-9]+-[0-9]+$
+	}
+	@write {
+		method POST
+		path /api/session /api/runs
+	}
+	route {
+		handle @read {
+			import coa_backend
+		}
+		handle @run {
+			import coa_backend
+		}
+		handle @write {
+			import coa_backend
+		}
+		respond "Niet gevonden." 404
+	}
+}
