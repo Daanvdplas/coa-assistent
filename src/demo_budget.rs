@@ -69,13 +69,15 @@ impl AttemptBudget {
             return Err("budget: Het gebruiksbudget van deze demo is bereikt.");
         }
         locked.state.attempts += 1;
-        // Never refund uncertain attempts. A failed/partial write stops this
-        // runner; after a crash, invalid on-disk state also fails closed.
+        // Persist an empty record before overwriting: a short write must not
+        // combine new digits with an old JSON tail and reopen spent slots.
+        // Failed writes stop this runner; incomplete records block restart.
         let result = (|| -> io::Result<()> {
             let bytes = serde_json::to_vec(&locked.state)?;
+            locked.file.set_len(0)?;
+            locked.file.sync_all()?;
             locked.file.seek(SeekFrom::Start(0))?;
             locked.file.write_all(&bytes)?;
-            locked.file.set_len(bytes.len() as u64)?;
             locked.file.sync_all()
         })();
         if result.is_err() {

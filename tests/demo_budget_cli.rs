@@ -179,22 +179,30 @@ async fn failed_provider_attempts_remain_spent_after_crash_and_exhaustion_blocks
 }
 
 #[tokio::test]
-async fn a_durable_write_failure_blocks_the_physical_http_attempt() {
+async fn a_partial_write_cannot_reopen_the_allowance_after_restart() {
     if std::env::var_os("COA_BUDGET_TEST_CHILD").is_some() {
         let path = std::env::var_os("COA_DEMO_BUDGET_FILE").unwrap();
-        let maximum = fs::metadata(path).unwrap().len() as libc::rlim_t;
-        let limit = libc::rlimit {
-            rlim_cur: maximum,
-            rlim_max: maximum,
-        };
-        unsafe {
-            libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
-            assert_eq!(libc::setrlimit(libc::RLIMIT_FSIZE, &limit), 0);
+        let restarting = std::env::var("COA_BUDGET_TEST_RESTART").as_deref() == Ok("1");
+        if !restarting {
+            // Stop inside 99 -> 100. Overwriting without first removing the old
+            // tail produces valid JSON with the lower counter 19.
+            let maximum = (fs::metadata(&path).unwrap().len() - 2) as libc::rlim_t;
+            let limit = libc::rlimit {
+                rlim_cur: maximum,
+                rlim_max: maximum,
+            };
+            unsafe {
+                libc::signal(libc::SIGXFSZ, libc::SIG_IGN);
+                assert_eq!(libc::setrlimit(libc::RLIMIT_FSIZE, &limit), 0);
+            }
         }
         let runner = meedoen_retrieval::responses::ResponsesRunner::from_env(std::sync::Arc::new(
             |_, _, _| Err("No search expected".into()),
-        ))
-        .unwrap();
+        ));
+        if restarting && runner.is_err() {
+            return;
+        }
+        let runner = runner.unwrap();
         let error = runner
             .run(
                 "Wanneer tuinieren?",
@@ -205,6 +213,11 @@ async fn a_durable_write_failure_blocks_the_physical_http_attempt() {
             )
             .await
             .unwrap_err();
+        assert!(
+            !restarting,
+            "A partial write reopened the allowance after restart: {}",
+            fs::read_to_string(path).unwrap()
+        );
         assert!(error.starts_with("budget:"));
         return;
     }
@@ -227,7 +240,7 @@ async fn a_durable_write_failure_blocks_the_physical_http_attempt() {
     let path = directory.join("attempts.json");
     fs::write(
         &path,
-        br#"{"schema_version":1,"max_attempts":10,"attempts":9}"#,
+        br#"{"schema_version":1,"max_attempts":150,"attempts":99}"#,
     )
     .unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
@@ -248,31 +261,34 @@ async fn a_durable_write_failure_blocks_the_physical_http_attempt() {
     let server = tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
-    let output = tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        tokio::process::Command::new(std::env::current_exe().unwrap())
-            .args([
-                "--exact",
-                "a_durable_write_failure_blocks_the_physical_http_attempt",
-                "--nocapture",
-            ])
-            .env("COA_BUDGET_TEST_CHILD", "1")
-            .env("COA_DEMO_BUDGET_FILE", &path)
-            .env("COA_RESPONSES_TEST_URL", &url)
-            .env_remove("COA_RESPONSES_TEST_TIMEOUT_MS")
-            .env_remove("OPENAI_API_KEY")
-            .env_remove("COA_OPENAI_API_KEY_FILE")
-            .kill_on_drop(true)
-            .output(),
-    )
-    .await
-    .unwrap()
-    .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    for restarting in ["0", "1"] {
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "a_partial_write_cannot_reopen_the_allowance_after_restart",
+                    "--nocapture",
+                ])
+                .env("COA_BUDGET_TEST_CHILD", "1")
+                .env("COA_BUDGET_TEST_RESTART", restarting)
+                .env("COA_DEMO_BUDGET_FILE", &path)
+                .env("COA_RESPONSES_TEST_URL", &url)
+                .env_remove("COA_RESPONSES_TEST_TIMEOUT_MS")
+                .env_remove("OPENAI_API_KEY")
+                .env_remove("COA_OPENAI_API_KEY_FILE")
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
     assert_eq!(requests.load(Ordering::SeqCst), 0);
     server.abort();
     fs::remove_dir_all(directory).unwrap();
