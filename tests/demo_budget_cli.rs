@@ -45,7 +45,7 @@ fn budget_initialization_requires_an_explicit_cap_and_never_resets_existing_stat
     let state: serde_json::Value = serde_json::from_slice(&original).unwrap();
     assert_eq!(
         state,
-        serde_json::json!({"schema_version":1,"max_attempts":3,"attempts":0})
+        serde_json::json!({"schema_version":2,"max_attempts":3,"attempts":0})
     );
     assert_eq!(fs::metadata(&path).unwrap().mode() & 0o777, 0o600);
     assert!(
@@ -110,23 +110,37 @@ async fn failed_provider_attempts_remain_spent_after_crash_and_exhaustion_blocks
         .unwrap();
     assert!(output.status.success());
     let requests = Arc::new(AtomicUsize::new(0));
+    let counts = Arc::new(AtomicUsize::new(0));
+    let counted = counts.clone();
     let second_started = Arc::new(tokio::sync::Notify::new());
     let received = requests.clone();
     let signal = second_started.clone();
-    let app = Router::new().route(
-        "/v1/responses",
-        post(move || {
-            let received = received.clone();
-            let signal = signal.clone();
-            async move {
-                if received.fetch_add(1, Ordering::SeqCst) == 1 {
-                    signal.notify_one();
-                    std::future::pending::<()>().await;
+    let app = Router::new()
+        .route(
+            "/v1/responses",
+            post(move || {
+                let received = received.clone();
+                let signal = signal.clone();
+                async move {
+                    if received.fetch_add(1, Ordering::SeqCst) == 1 {
+                        signal.notify_one();
+                        std::future::pending::<()>().await;
+                    }
+                    StatusCode::INTERNAL_SERVER_ERROR
                 }
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        }),
-    );
+            }),
+        )
+        .route(
+            "/v1/responses/input_tokens",
+            post(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+                async {
+                    axum::Json(
+                        serde_json::json!({"object":"response.input_tokens","input_tokens":1}),
+                    )
+                }
+            }),
+        );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -173,6 +187,11 @@ async fn failed_provider_attempts_remain_spent_after_crash_and_exhaustion_blocks
             "Failed requests must reserve durably before sending HTTP"
         );
         assert_eq!(requests.load(Ordering::SeqCst), expected);
+        assert_eq!(
+            counts.load(Ordering::SeqCst),
+            expected,
+            "Exhaustion must also prevent free metadata traffic"
+        );
     }
     server.abort();
     fs::remove_dir_all(directory).unwrap();
@@ -240,22 +259,36 @@ async fn a_partial_write_cannot_reopen_the_allowance_after_restart() {
     let path = directory.join("attempts.json");
     fs::write(
         &path,
-        br#"{"schema_version":1,"max_attempts":150,"attempts":99}"#,
+        br#"{"schema_version":2,"max_attempts":150,"attempts":99}"#,
     )
     .unwrap();
     fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
     let requests = Arc::new(AtomicUsize::new(0));
+    let counts = Arc::new(AtomicUsize::new(0));
+    let counted = counts.clone();
     let received = requests.clone();
-    let app = Router::new().route(
-        "/v1/responses",
-        post(move || {
-            let received = received.clone();
-            async move {
-                received.fetch_add(1, Ordering::SeqCst);
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        }),
-    );
+    let app = Router::new()
+        .route(
+            "/v1/responses",
+            post(move || {
+                let received = received.clone();
+                async move {
+                    received.fetch_add(1, Ordering::SeqCst);
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
+            }),
+        )
+        .route(
+            "/v1/responses/input_tokens",
+            post(move || {
+                counted.fetch_add(1, Ordering::SeqCst);
+                async {
+                    axum::Json(
+                        serde_json::json!({"object":"response.input_tokens","input_tokens":1}),
+                    )
+                }
+            }),
+        );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -290,6 +323,7 @@ async fn a_partial_write_cannot_reopen_the_allowance_after_restart() {
         );
     }
     assert_eq!(requests.load(Ordering::SeqCst), 0);
+    assert_eq!(counts.load(Ordering::SeqCst), 0);
     server.abort();
     fs::remove_dir_all(directory).unwrap();
 }

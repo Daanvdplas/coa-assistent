@@ -25,6 +25,8 @@ const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_RESPONSE_BYTES: usize = 512 * 1024;
 const MAX_HISTORY_BYTES: usize = 1024 * 1024;
 const MAX_OUTPUT_TOKENS: usize = 4096;
+const MAX_INPUT_TOKENS: u64 = 300_000;
+const MAX_COUNT_BYTES: usize = 16 * 1024;
 const MOCK_KEY: &str = "coa-local-test-key";
 pub type Search = Arc<dyn Fn(&str, usize, DemoSearchMethod) -> Result<Value, String> + Send + Sync>;
 
@@ -129,7 +131,7 @@ impl ResponsesRunner {
         Ok(runner)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v1","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v1","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -272,12 +274,32 @@ mod tests {
     fn final_answer() -> Value {
         json!({"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":json!({"text":"Dinsdag van 10 tot 12 uur.","citations":[{"source_id":"ACT-TUIN-001","source_date":"2026-10-20","section_id":"S2","quote":"Iedere dinsdag van 10.00 tot 12.00 uur."}],"unknowns":[]}).to_string(),"annotations":[]}]})
     }
+    fn count_stub<S: Clone + Send + Sync + 'static>() -> axum::routing::MethodRouter<S> {
+        post(|| async { Json(json!({"object":"response.input_tokens","input_tokens":1})) })
+    }
     async fn mock(
         responses: Vec<Value>,
     ) -> (String, Arc<Mutex<Vec<Value>>>, tokio::task::JoinHandle<()>) {
-        type Script = (Arc<Mutex<VecDeque<Value>>>, Arc<Mutex<Vec<Value>>>);
+        let (url, seen, _, task) = mock_with_counts(responses, None).await;
+        (url, seen, task)
+    }
+    async fn mock_with_counts(
+        responses: Vec<Value>,
+        counts: Option<Vec<Value>>,
+    ) -> (
+        String,
+        Arc<Mutex<Vec<Value>>>,
+        Arc<Mutex<Vec<Value>>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        type Script = (
+            Arc<Mutex<VecDeque<Value>>>,
+            Arc<Mutex<Vec<Value>>>,
+            Arc<Mutex<Option<VecDeque<Value>>>>,
+            Arc<Mutex<Vec<Value>>>,
+        );
         async fn respond(
-            State((script, seen)): State<Script>,
+            State((script, seen, _, _)): State<Script>,
             Json(body): Json<Value>,
         ) -> Json<Value> {
             seen.lock().unwrap().push(body);
@@ -289,17 +311,34 @@ mod tests {
                     .expect("no unexpected provider requests"),
             )
         }
+        async fn count(
+            State((_, _, script, seen)): State<Script>,
+            Json(body): Json<Value>,
+        ) -> Json<Value> {
+            seen.lock().unwrap().push(body);
+            Json(match script.lock().unwrap().as_mut() {
+                Some(script) => script.pop_front().expect("no unexpected count requests"),
+                None => json!({"object":"response.input_tokens","input_tokens":1}),
+            })
+        }
         let seen = Arc::new(Mutex::new(Vec::new()));
+        let count_seen = Arc::new(Mutex::new(Vec::new()));
         let script = Arc::new(Mutex::new(responses.into()));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let app = Router::new()
             .route("/v1/responses", post(respond))
-            .with_state((script, seen.clone()));
+            .route("/v1/responses/input_tokens", post(count))
+            .with_state((
+                script,
+                seen.clone(),
+                Arc::new(Mutex::new(counts.map(Into::into))),
+                count_seen.clone(),
+            ));
         let task = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
-        (endpoint, seen, task)
+        (endpoint, seen, count_seen, task)
     }
     async fn run(runner: &ResponsesRunner) -> Result<Value, String> {
         runner
@@ -311,6 +350,136 @@ mod tests {
                 crate::DemoSearchMethod::Bm25,
             )
             .await
+    }
+
+    #[tokio::test]
+    async fn preflight_counts_the_exact_replayed_input_and_blocks_an_oversized_second_turn() {
+        let first = envelope(json!([
+            {"type":"reasoning","id":"rs_count","summary":[],"encrypted_content":"synthetic-encrypted-private"},
+            call("one", "tuinieren tijd")
+        ]));
+        let (url, seen, counts, task) = mock_with_counts(
+            vec![first, envelope(json!([final_answer()]))],
+            Some(vec![
+                json!({"object":"response.input_tokens","input_tokens":300000}),
+                json!({"object":"response.input_tokens","input_tokens":300001}),
+            ]),
+        )
+        .await;
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        assert!(
+            run(&runner).await.is_err(),
+            "An oversized count must stop before generating the next turn"
+        );
+        let requests = seen.lock().unwrap();
+        let counted = counts.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(counted.len(), 2);
+        for key in [
+            "model",
+            "input",
+            "instructions",
+            "tools",
+            "text",
+            "reasoning",
+            "tool_choice",
+            "parallel_tool_calls",
+        ] {
+            assert_eq!(
+                counted[0].get(key),
+                requests[0].get(key),
+                "Count and generation differ for {key}"
+            );
+        }
+        assert!(
+            counted[1]
+                .to_string()
+                .contains("synthetic-encrypted-private")
+        );
+        assert!(
+            counted[1]["input"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["type"] == "function_call_output")
+        );
+        assert_eq!(requests[0]["service_tier"], "default");
+        assert_eq!(requests[0]["max_output_tokens"], 4096);
+        assert_eq!(requests[0]["prompt_cache_options"]["ttl"], "30m");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn failed_or_untrusted_counts_never_start_generation_or_expose_private_diagnostics() {
+        for count in [
+            Value::Null,
+            json!({"object":"wrong","input_tokens":1}),
+            json!({"object":"response.input_tokens","input_tokens":0}),
+            json!({"object":"response.input_tokens","input_tokens":-1}),
+            json!({"object":"response.input_tokens","input_tokens":1.0}),
+            json!({"object":"response.input_tokens","input_tokens":"1"}),
+            json!({"object":"response.input_tokens","input_tokens":1,"unexpected":"private-count-detail"}),
+        ] {
+            let (url, generations, counts, task) =
+                mock_with_counts(vec![], Some(vec![count])).await;
+            let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+            let error = run(&runner).await.unwrap_err();
+            assert!(generations.lock().unwrap().is_empty());
+            assert_eq!(counts.lock().unwrap().len(), 1);
+            assert!(!error.contains("private-count-detail"));
+            task.abort();
+        }
+        use axum::{http::StatusCode, response::IntoResponse};
+        for (status, body) in [
+            (StatusCode::UNAUTHORIZED, "private-count-key".to_owned()),
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                "private-count-key".to_owned(),
+            ),
+            (
+                StatusCode::TEMPORARY_REDIRECT,
+                "private-count-key".to_owned(),
+            ),
+            (StatusCode::OK, "{\"private-count-key\":".to_owned()),
+            (
+                StatusCode::OK,
+                format!(
+                    "{}{}",
+                    json!({"object":"response.input_tokens","input_tokens":1}),
+                    " ".repeat(MAX_COUNT_BYTES)
+                ),
+            ),
+        ] {
+            let generations = Arc::new(AtomicUsize::new(0));
+            let seen = generations.clone();
+            let app = Router::new()
+                .route(
+                    "/v1/responses/input_tokens",
+                    post(move || {
+                        let body = body.clone();
+                        async move { (status, body).into_response() }
+                    }),
+                )
+                .route(
+                    "/v1/responses",
+                    post(move || {
+                        seen.fetch_add(1, Ordering::SeqCst);
+                        async { StatusCode::INTERNAL_SERVER_ERROR }
+                    }),
+                );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+            let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+            let error = run(&runner).await.unwrap_err();
+            assert_eq!(generations.load(Ordering::SeqCst), 0);
+            assert!(
+                !error.contains("private-count-key")
+                    && !error.contains(MOCK_KEY)
+                    && !error.contains("127.0.0.1")
+            );
+            task.abort();
+        }
     }
 
     #[tokio::test]
@@ -491,29 +660,31 @@ mod tests {
         use axum::body::{Body, Bytes};
         use axum::response::Response;
         for large in [true, false] {
-            let app = Router::new().route(
-                "/v1/responses",
-                post(move || async move {
-                    let payload = if large {
-                        format!(
-                            "{{\"private-provider-body\":\"{}\"}}",
-                            "x".repeat(MAX_RESPONSE_BYTES)
-                        )
-                    } else {
-                        "{\"private-provider-body\":".to_owned()
-                    };
-                    let chunks: Vec<Result<Bytes, std::io::Error>> = payload
-                        .as_bytes()
-                        .chunks(4096)
-                        .map(|chunk| Ok(Bytes::copy_from_slice(chunk)))
-                        .collect();
-                    let stream = futures_util::stream::iter(chunks);
-                    Response::builder()
-                        .header("content-type", "application/json")
-                        .body(Body::from_stream(stream))
-                        .unwrap()
-                }),
-            );
+            let app = Router::new()
+                .route(
+                    "/v1/responses",
+                    post(move || async move {
+                        let payload = if large {
+                            format!(
+                                "{{\"private-provider-body\":\"{}\"}}",
+                                "x".repeat(MAX_RESPONSE_BYTES)
+                            )
+                        } else {
+                            "{\"private-provider-body\":".to_owned()
+                        };
+                        let chunks: Vec<Result<Bytes, std::io::Error>> = payload
+                            .as_bytes()
+                            .chunks(4096)
+                            .map(|chunk| Ok(Bytes::copy_from_slice(chunk)))
+                            .collect();
+                        let stream = futures_util::stream::iter(chunks);
+                        Response::builder()
+                            .header("content-type", "application/json")
+                            .body(Body::from_stream(stream))
+                            .unwrap()
+                    }),
+                )
+                .route("/v1/responses/input_tokens", count_stub());
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
             let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -679,12 +850,14 @@ mod tests {
             StatusCode::TOO_MANY_REQUESTS,
             StatusCode::INTERNAL_SERVER_ERROR,
         ] {
-            let app = Router::new().route(
-                "/v1/responses",
-                post(move || async move {
-                    (status, "synthetic-api-key private provider diagnostics").into_response()
-                }),
-            );
+            let app = Router::new()
+                .route(
+                    "/v1/responses",
+                    post(move || async move {
+                        (status, "synthetic-api-key private provider diagnostics").into_response()
+                    }),
+                )
+                .route("/v1/responses/input_tokens", count_stub());
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
             let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -715,8 +888,8 @@ mod tests {
         let location = format!("http://{}/stolen", listener.local_addr().unwrap());
         let destination_task =
             tokio::spawn(async move { axum::serve(listener, destination).await.unwrap() });
-        let app =
-            Router::new().route(
+        let app = Router::new()
+            .route(
                 "/v1/responses",
                 post(move || {
                     let location = location.clone();
@@ -724,7 +897,8 @@ mod tests {
                         (StatusCode::TEMPORARY_REDIRECT, [("location", location)]).into_response()
                     }
                 }),
-            );
+            )
+            .route("/v1/responses/input_tokens", count_stub());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -749,32 +923,56 @@ mod tests {
         let first_response = Arc::new(tokio::sync::Notify::new());
         let release_first = first_response.clone();
         let (request_started, mut requests) = tokio::sync::mpsc::unbounded_channel();
+        let count_started = request_started.clone();
+        let release_count = Arc::new(tokio::sync::Notify::new());
+        let count_release = release_count.clone();
+        let free_counts = Arc::new(AtomicUsize::new(0));
+        let counted = free_counts.clone();
         let count = Arc::new(AtomicUsize::new(0));
         let seen = count.clone();
-        let app = Router::new().route(
-            "/v1/responses",
-            post(move || {
-                let seen = seen.clone();
-                let first_response = first_response.clone();
-                let request_started = request_started.clone();
-                async move {
-                    let request = seen.fetch_add(1, Ordering::SeqCst);
-                    request_started.send(request).unwrap();
-                    if request == 0 {
-                        first_response.notified().await;
-                        Json(envelope(json!([call("one", "tuinieren")])))
-                    } else {
-                        std::future::pending::<()>().await;
-                        unreachable!()
+        let app = Router::new()
+            .route(
+                "/v1/responses",
+                post(move || {
+                    let seen = seen.clone();
+                    let first_response = first_response.clone();
+                    let request_started = request_started.clone();
+                    async move {
+                        let request = seen.fetch_add(1, Ordering::SeqCst);
+                        request_started.send(request).unwrap();
+                        if request == 0 {
+                            first_response.notified().await;
+                            Json(envelope(json!([call("one", "tuinieren")])))
+                        } else {
+                            std::future::pending::<()>().await;
+                            unreachable!()
+                        }
                     }
-                }
-            }),
-        );
+                }),
+            )
+            .route(
+                "/v1/responses/input_tokens",
+                post(move || {
+                    let counted = counted.clone();
+                    let count_started = count_started.clone();
+                    let count_release = count_release.clone();
+                    async move {
+                        if counted.fetch_add(1, Ordering::SeqCst) == 0 {
+                            count_started.send(usize::MAX).unwrap();
+                            count_release.notified().await;
+                        }
+                        Json(json!({"object":"response.input_tokens","input_tokens":1}))
+                    }
+                }),
+            );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
         let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
         let mut execution = tokio::spawn(async move { run(&runner).await });
+        assert_eq!(requests.recv().await, Some(usize::MAX));
+        tokio::time::advance(Duration::from_secs(30)).await;
+        release_count.notify_one();
         for request in 0..2 {
             let started = tokio::select! {
                 started = requests.recv() => started,
@@ -784,10 +982,11 @@ mod tests {
             };
             assert_eq!(started, Some(request));
             if request == 0 {
-                tokio::time::advance(Duration::from_secs(60)).await;
+                tokio::time::advance(Duration::from_secs(30)).await;
                 release_first.notify_one();
             }
         }
+        assert_eq!(free_counts.load(Ordering::SeqCst), 2);
         tokio::time::advance(Duration::from_secs(59)).await;
         assert!(!execution.is_finished());
         tokio::time::advance(Duration::from_secs(2)).await;

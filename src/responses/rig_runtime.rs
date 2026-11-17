@@ -229,7 +229,7 @@ pub(super) async fn run(
         )
         .provider_option(rig::providers::openai::extension::OpenAiOptions::new().store(false))
         .max_tokens(MAX_OUTPUT_TOKENS as u64)
-        .additional_params(json!({"service_tier":"default"}))
+        .additional_params(json!({"service_tier":"default","prompt_cache_options":{"ttl":"30m"}}))
         .output_schema_raw(schema)
         .output_mode(OutputMode::Native)
         .record_content_telemetry(false)

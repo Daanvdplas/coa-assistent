@@ -22,20 +22,22 @@ Open **http://127.0.0.1:8766/**. Zonder sleutel starten de website en de twaalf 
 
 Voor antwoorden: gebruik `OPENAI_API_KEY` in de serveromgeving, of zet de sleutel zelf in een **extern** bestand, bijvoorbeeld `~/.config/coa/openai-api-key`. Dat moet een regulier bestand van de huidige gebruiker zijn met rechten `0600`, zonder symlink of hardlink. Plak geen sleutel in chat, broncode, opdrachtargumenten of rapporten. De applicatie leest geen `.env` automatisch.
 
-Een echte API-aanroep vereist ook een vooraf ingesteld gebruiksbudget. Kies expliciet een positief aantal **fysieke API-pogingen** en zet dat in `COA_APPROVED_ATTEMPTS`; er is geen standaardbedrag of standaardaantal. Initialiseer het budget één keer in een eigen map met rechten `0700`:
+Een echte API-aanroep vereist ook een vooraf ingesteld gebruiksbudget. Kies expliciet een positief aantal **modelpogingen** en zet dat in `COA_APPROVED_ATTEMPTS`; er is geen standaardbedrag of standaardaantal. Eén poging bevat een gratis invoertelling en hoogstens één betaald modelrequest. Initialiseer het budget één keer in een eigen map met rechten `0700`:
 
 ```sh
 mkdir -m 700 "$HOME/.config/coa/demo-budget"
-cargo run --locked -- demo-budget init "$HOME/.config/coa/demo-budget/attempts.json" --max-attempts "${COA_APPROVED_ATTEMPTS:?Kies eerst een goedgekeurd aantal API-pogingen}"
+cargo run --locked -- demo-budget init "$HOME/.config/coa/demo-budget/attempts-v2.json" --max-attempts "${COA_APPROVED_ATTEMPTS:?Kies eerst een goedgekeurd aantal modelpogingen}"
 ```
 
 De initialisatie weigert een bestaand bestand en reset niets. Start daarna met hetzelfde bestand:
 
 ```sh
-COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts.json" COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" cargo run --locked
+COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" cargo run --locked
 ```
 
-Iedere fysieke API-poging wordt vóór verzending blijvend gereserveerd, ook als de provider later een fout geeft of de uitvoering wordt afgebroken. Eén vraag kan maximaal vijf pogingen gebruiken. Herstart vernieuwt de quota niet; een tweede server kan hetzelfde budget niet tegelijk openen. Ontbrekende, beschadigde, vervangen of onbeschrijfbare budgetstaat blokkeert nieuwe API-aanroepen. Het bestand bevat alleen schema, plafond en verbruik, geen vragen, antwoorden, netwerkadressen of sleutel. Het is geen token- of dollarboekhouding: stel voor publieke hosting daarnaast een eigen providerproject met een expliciet kostenplafond in. Stop de server voor een onmiddellijke lokale noodstop; al door de provider aangenomen werk kan nog kosten veroorzaken. De debug-only lokale mock vereist geen budget, maar controleert een ingesteld budget wel.
+Iedere modelpoging wordt vóór de invoertelling blijvend gereserveerd, ook als die telling of de provider later een fout geeft of de uitvoering wordt afgebroken. Eén vraag kan maximaal vijf pogingen gebruiken. Herstart vernieuwt de quota niet; een tweede server kan hetzelfde budget niet tegelijk openen. Ontbrekende, beschadigde, vervangen of onbeschrijfbare budgetstaat blokkeert nieuwe API-aanroepen. Het bestand bevat alleen schema, plafond en verbruik, geen vragen, antwoorden, netwerkadressen of sleutel. De verplichte **schemaversie 2** hoort bij maximaal 300.000 gecontroleerde inputtokens, 4096 outputtokens, Sol, Standard en cache-TTL `30m`. De oude versie-1-reader weigert versie 2; nieuwe code weigert versie 1. Bestaande budgetten worden niet automatisch geconverteerd, opnieuw uitgegeven of gereset. Stop de server voor een lokale noodstop; al door de provider aangenomen werk kan nog kosten veroorzaken. De debug-only lokale mock vereist geen budgetbestand, maar voert de invoertelling wel uit en controleert een ingesteld budget.
+
+Vóór ieder modelrequest telt OpenAI exact de volledige input, inclusief instructies, tools, antwoordschema en herhaalde context. Een onbekende, ongeldige of te grote telling stopt vóór generatie; er is geen schatting of terugval. De [input-token-counting API](https://help.openai.com/en/articles/4936856-understanding-and-counting-tokens), bijgewerkt circa **5 november 2026**, is gratis. Voor een expliciete uitgifte van 50 pogingen geeft het hoogste toepasselijke [Standard-tarief](https://developers.openai.com/api/docs/pricing), bijgewerkt **17 november 2026**, de conservatieve berekening `(300.000 × $5 + 4096 × $15) / 1.000.000 × 50 = $78,072`; één totale buffer van 20% geeft **$93,6864**. Dit is geen facturatieledger of accountbrede garantie: de berekening betreft deze demo onder die gecontroleerde model-/prijsvoorwaarden. Verander model, tier, cachebeleid, tokenlimiet of tarieven alleen na herberekening. Gebruik een grotere uitgifte nooit met een oudere release zonder deze inputcontrole.
 
 De creditclaimdialoog, gecontroleerd op 10 november 2026, waarschuwt dat activering van het Pro-API-voordeel Codex via API-keys van de gekozen organisatie uitschakelt, ook bij gekocht tegoed. Gewone Responses API-calls en Codex via het abonnement blijven volgens die dialoog werken. Dit project gebruikt de gewone API; activatie en saldo zijn niet door deze implementatie gecontroleerd.
 
@@ -43,7 +45,7 @@ Rig 0.46.0 bestuurt de model- en toolstappen. De bestaande lokale zoekfunctie, b
 
 Een andere lokale poort kan met `COA_PORT=8767`. De eerste start downloadt ongeveer 235 MB modelbestanden naar `.model-cache/` in de werkmap; de server start nadat MiniLM is geladen. Embeddings en beide zoekmethoden draaien lokaal. De vraag en gevonden passages gaan voor het antwoord naar OpenAI. `store: false` schakelt Responses-opslag uit, maar is geen belofte van Zero Data Retention of afwezigheid van veiligheidslogs. Gebruik alleen verzonnen gegevens.
 
-De webdemo laat **tien verschillende bezoekers werkelijk tegelijk** een modelvraag verwerken. Per sessie kan één vraag lopen. Een elfde gelijktijdige vraag krijgt HTTP 429 met een korte melding; er is geen verborgen seriële wachtrij. Een hele uitvoering duurt maximaal 120 seconden en bevat maximaal vier zoekacties en vijf API-requests, zonder automatische retries. Een API-request mag maximaal 4096 outputtokens bevatten, inclusief reasoning. Een provider kan daarnaast eigen limieten opleggen.
+De webdemo laat **tien verschillende bezoekers werkelijk tegelijk** een modelvraag verwerken. Per sessie kan één vraag lopen. Een elfde gelijktijdige vraag krijgt HTTP 429 met een korte melding; er is geen verborgen seriële wachtrij. Een hele uitvoering duurt maximaal 120 seconden en bevat maximaal vier zoekacties, vijf modelrequests en vijf gratis invoertellingen, zonder automatische retries. Iedere telling en generatie delen die ene deadline. Een modelrequest mag maximaal 300.000 inputtokens en 4096 outputtokens bevatten, inclusief reasoning. Een provider kan daarnaast eigen limieten opleggen.
 
 ### Bescherming tegen herhaald gebruik
 
