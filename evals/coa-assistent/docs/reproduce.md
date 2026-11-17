@@ -20,7 +20,7 @@ Open `voorbeeld.html` in je browser. Deze zes handgemaakte rendererchecks blijve
 
 ## 2. Controleer de keten met twee bekende vragen
 
-Hiervoor zijn een aangemelde, compatibele Codex-runtime en de lokale embeddingbestanden nodig; zie de [startinstructies](../../../README.md#starten). MiniLM maakt embeddings lokaal. Antwoorden en afzonderlijke beoordelingen gebruiken OpenAI via Codex en kunnen usage verbruiken. `--live` is daarom verplicht.
+Hiervoor zijn een aangemelde, compatibele Codex-runtime en de lokale embeddingbestanden nodig; zie de [startinstructies](../../../docs/LOCAL_SETUP.md#werking-en-configuratie). MiniLM maakt embeddings lokaal. Antwoorden en afzonderlijke beoordelingen gebruiken OpenAI via Codex en kunnen usage verbruiken. `--live` is daarom verplicht.
 
 Voor een nieuw zelfstandig traject kies je een eigen map. Bij hervatten gebruik je de **bestaande map en hetzelfde ledger**; dat is de budgetregistratie. Uitvoerbestanden krijgen een nieuwe naam en worden niet overschreven.
 
@@ -33,7 +33,7 @@ cargo run --locked -- experiment run --live --cases P01,P06 --arms agentic_dense
 
 Dit is de gedeelde smoke: twee bekende vragen met Codex en directe context, maximaal vier generaties. Iedere poging reserveert vooraf een sessie. Eén gezamenlijk ledger begrenst het traject op 40 generaties, 56 beoordelingen en een venster van vier uur; mislukte pogingen tellen mee. Er loopt één sessie tegelijk, maximaal 120 seconden. Een modelsessie kan intern meerdere providerrequests bevatten. De afzonderlijke MCP-zoekcalls staan wel in de trace.
 
-Een verlopen venster stopt het werk. Vernieuw het ledger niet om de tellers te omzeilen. Alleen een expliciet toegestane voortzetting mag het bestaande venster verlengen; de [audit en sessieplafonds blijven behouden](../../../README.md#reproduceerbare-experimenten).
+Een verlopen venster stopt het werk. Vernieuw het ledger niet om de tellers te omzeilen. Alleen een expliciet toegestane voortzetting mag het bestaande venster verlengen; de [audit en sessieplafonds blijven behouden](../../../docs/LOCAL_SETUP.md#reproduceerbare-experimenten).
 
 ## 3. Rond de pilot af en vergelijk daarna zes vragen
 
