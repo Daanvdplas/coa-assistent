@@ -2,6 +2,7 @@
   "name": "coa-evaluations",
   "private": true,
   "scripts": {
+    "test:demo:ui": "node --test tests/demo_ui.browser.ts",
     "eval:rag": "node evals/rag/scripts/run_promptfoo.mjs",
     "eval:rag:live": "node evals/rag/scripts/run_promptfoo.mjs --live",
     "test:rag": "node --test evals/rag/promptfoo/tests/*.test.ts evals/rag/scripts/*.test.ts evals/rag/promptfoo/tests/config.test.cjs evals/rag/scripts/test_promptfoo_export.mjs evals/rag/scripts/test_promptfoo_regrade.mjs evals/rag/scripts/test_promptfoo_runner.mjs",

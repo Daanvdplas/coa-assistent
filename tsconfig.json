@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["evals/**/*.ts", "deploy/**/*.ts"]
+  "include": ["evals/**/*.ts", "deploy/**/*.ts", "tests/**/*.ts"]
 }
