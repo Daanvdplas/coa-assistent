@@ -97,11 +97,61 @@
   });
   window.addEventListener("resize", positionOpenInfo);
   window.addEventListener("scroll", positionOpenInfo, { passive: true });
+  function tableAt(lines, start) {
+    const cells = line => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
+    const headers = cells(lines[start]);
+    const separator = cells(lines[start + 1] || "");
+    if (headers.length < 2 || separator.length !== headers.length || !separator.every(cell => /^:?-{3,}:?$/.test(cell))) return null;
+    let next = start + 2;
+    while (next < lines.length && lines[next].includes("|")) next++;
+    const rows = lines.slice(start + 2, next).map(cells);
+    return rows.length && rows.every(row => row.length === headers.length) ? { headers, rows, next } : null;
+  }
+  function renderAnswer(text) {
+    const answer = el("answer");
+    answer.replaceChildren();
+    const lines = text.split("\n");
+    const listItem = line => /^\s*[-*]\s+/.test(line);
+    for (let index = 0; index < lines.length;) {
+      if (!lines[index].trim()) { index++; continue; }
+      const comparison = tableAt(lines, index);
+      if (comparison) {
+        const region = node("div", undefined, "answer-table");
+        region.tabIndex = 0;
+        region.setAttribute("role", "region");
+        region.setAttribute("aria-labelledby", "result-title");
+        const table = node("table"), head = node("thead"), heading = node("tr"), body = node("tbody");
+        for (const text of comparison.headers) {
+          const cell = node("th", text);
+          cell.scope = "col";
+          heading.append(cell);
+        }
+        head.append(heading);
+        for (const cells of comparison.rows) {
+          const row = node("tr");
+          for (const text of cells) row.append(node("td", text));
+          body.append(row);
+        }
+        table.append(head, body);
+        region.append(table);
+        answer.append(region);
+        index = comparison.next;
+      } else if (listItem(lines[index])) {
+        const list = node("ul");
+        while (index < lines.length && listItem(lines[index])) list.append(node("li", lines[index++].replace(/^\s*[-*]\s+/, "")));
+        answer.append(list);
+      } else {
+        const start = index++;
+        while (index < lines.length && lines[index].trim() && !listItem(lines[index]) && !tableAt(lines, index)) index++;
+        answer.append(node("p", lines.slice(start, index).join("\n")));
+      }
+    }
+  }
   function showRun(run) {
     currentRun = run;
     el("result").hidden = false;
     el("result-title").textContent = t(run.status === "failed" ? "failedTitle" : "answer");
-    el("answer").textContent = run.status === "failed" ? t(failureKey(run.error)) : run.result?.answer?.text || t("pendingAnswer");
+    renderAnswer(run.status === "failed" ? t(failureKey(run.error)) : run.result?.answer?.text || t("pendingAnswer"));
     el("answer").lang = run.result?.answer?.text ? run.context?.answer_language || "nl" : language();
     el("answer").classList.toggle("error", run.status === "failed");
     const citations = run.result?.answer?.citations || [];
@@ -135,7 +185,7 @@
     calls.forEach(call => {
       const item = node("li", undefined, "search-action");
       const step = node("details", undefined, "search-step");
-      step.append(node("summary", call.query, "search-query"));
+      step.append(node("summary", call.tool === "read_sources" ? t("readSources") + ": " + call.query : call.query, "search-query"));
       (call.result?.hits || []).forEach(hit => {
         const evidence = node("article", undefined, "retrieved");
         evidence.dataset.source = hit.section.source_id;

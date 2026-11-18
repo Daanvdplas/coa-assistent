@@ -6,6 +6,7 @@
     brand: ["COA Assistent", "COA Assistant"],
     demo: ["Demo", "Demo"],
     technical: ["Hoe het werkt", "How it works"],
+    readSources: ["Bronnen lezen", "Read sources"],
     code: ["Bekijk de code", "View the code"],
     projectNotice: [
       "Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan. Gebruik geen persoonsgegevens. Je vraag en opgehaalde bronpassages worden verwerkt door OpenAI; bij de publieke demo loopt het verkeer via Cloudflare.",
