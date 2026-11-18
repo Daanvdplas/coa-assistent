@@ -6,61 +6,51 @@
   <title>How it works · COA Assistent</title>
   <link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand">
   <style>
-    .how-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;list-style:none;padding:0;margin:24px 0 12px}
-    .how-flow li{border-top:2px solid var(--heading);padding:12px 0;margin:0}.how-flow strong,.how-flow span{display:block}.how-flow span{font-size:.9rem;margin-top:5px}
-    .how-example{border-left:2px solid var(--heading);padding-left:18px;margin:20px 0}.how-example blockquote{margin:8px 0;font-size:1.15rem;max-width:58ch}.how-example cite{font-style:normal;font-size:.85rem;color:var(--muted)}
-    .technical-summary details> :not(summary){margin-left:14px;margin-right:14px}.technical-summary pre{overflow:auto;font-size:.85rem;line-height:1.65;padding:12px;background:var(--surface)}.technical-summary code{font-size:.9em}.technical-summary .how-end{margin-top:30px}
-    @media(max-width:650px){.technical-summary .how-flow{padding-left:0;gap:10px}.how-flow strong{font-size:.9rem}.how-flow span{font-size:.8rem}.how-example{padding-left:12px}}
+    .embedding-lesson{max-width:720px}.embedding-lesson h1{max-width:19ch}.embedding-lesson section{margin:36px 0}.embedding-lesson h2{font-size:1.5rem;margin:0 0 10px}.embedding-lesson figure{margin:18px 0}.embedding-lesson figcaption{font-size:.78rem;color:var(--muted);margin-top:8px}.embedding-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.embedding-tile{border:1px solid var(--line);padding:12px 14px;min-width:0}.embedding-tile small,.embedding-input small{display:block;color:var(--muted);font-size:.8rem;margin-bottom:5px}.embedding-tile p{margin:0}.embedding-numbers{font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace;white-space:nowrap}.embedding-converter{text-align:center;margin:10px 0;font-size:.9rem}.embedding-converter span{display:block}.meaning-map{position:relative;height:190px;border-bottom:1px solid var(--line)}.meaning-point{position:absolute;font-size:1rem;line-height:1.35;padding-top:16px}.meaning-point::before{content:"";position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;background:var(--heading)}.meaning-question{left:5%;top:14%;max-width:56%}.meaning-garden{left:28%;top:58%}.meaning-bicycle{left:73%;top:62%;max-width:26%;color:var(--muted)}.meaning-bicycle::before{background:var(--muted)}.embedding-input{padding:14px;border-left:2px solid var(--heading)}.embedding-input p{margin:0 0 10px}.embedding-input p:last-child{margin:0}.answer-flow{display:grid;grid-template-columns:minmax(0,1fr) 24px minmax(0,1.3fr);gap:10px;align-items:center;margin-top:18px}.answer-model{font-weight:650}.answer-card{padding:12px 14px;border:1px solid var(--heading)}.answer-card p{margin:0}.answer-card small{display:block;font-size:.78rem;margin-top:7px;color:var(--muted)}.search-again{font-size:.87rem;color:var(--muted);margin:12px 0 0}.lesson-recap{border-top:1px solid var(--line);padding-top:20px}.embedding-lesson .lesson-links{font-size:.9rem;margin-top:24px}@media(max-width:450px){.embedding-pair{gap:8px}.embedding-tile{padding:10px}.embedding-tile p{font-size:.9rem}.embedding-numbers{font-size:.75rem}.answer-flow{grid-template-columns:minmax(0,.8fr) 16px minmax(0,1.2fr);gap:7px}.answer-card{padding:10px}.answer-card p{font-size:.9rem}}
   </style>
 </head>
 <body>
 <nav class="site-nav" aria-label="Main navigation">
   <span class="site-brand"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span>COA Assistent</span></span>
-  <a href="/">Demo</a>
-  <a href="/techniek/" aria-current="page">How it works</a>
+  <a href="/">Demo</a><a href="/techniek/" aria-current="page">How it works</a>
 </nav>
 <main class="site-main">
-<article class="technical-summary">
-  <header><h1>Search first. Then answer.</h1><p>The assistant retrieves text from twelve fictional activities before answering. You can inspect the passages that support its answer.</p></header>
-  <ol class="how-flow" aria-label="From question to answer">
-    <li><strong>1. You ask a question</strong><span>About a time, location or language support, for example.</span></li>
-    <li><strong>2. The assistant searches</strong><span>A local search function retrieves passages. It can search again.</span></li>
-    <li><strong>3. You check the source</strong><span>The answer shows quotes with the activity and source date.</span></li>
-  </ol>
-
-  <section aria-labelledby="en-example">
-    <h2 id="en-example">Where and when can I garden?</h2>
-    <p>This question needs two pieces of text: the time and location of the same activity. The search function passes retrieved text to the answer model. That model can make a more focused search if something is missing.</p>
-    <div class="how-example"><p>The fictional gardening source records the time in Dutch:</p><blockquote lang="nl">Iedere dinsdag van 10.00 tot 12.00 uur.</blockquote><cite>Gardening · section S2 · source date 20 October 2026</cite></div>
-    <p>That means Tuesday, 10:00–12:00. An initial search may miss the address. Searching again can help, but does not guarantee a complete answer. Missing information should remain unknown. An old number of free places does not establish availability today.</p>
-    <details><summary>How does search find the text?</summary><p>The twelve documents contain 72 sections. Each keeps its activity, heading and source date. MiniLM locally turns the text into a list of numbers: an <em>embedding</em>. Meaning-based search compares these with the search query's numbers, so related words can lead to the same passage.</p><p>The demo also offers word-based search with BM25. It considers matching words and how distinctive they are. Neither search score is a probability that an answer is correct. Search can return related text even when the requested fact is missing.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/lib.rs">The local index and both search routes in the code</a>.</p></details>
+<article class="embedding-lesson">
+  <header><h1>How does a question find the right text?</h1><p>You ask about working with plants. The activity is called gardening. The assistant finds related text, then gives it to the model that writes the answer.</p></header>
+  <section aria-labelledby="numbers-heading">
+    <h2 id="numbers-heading">1. Turn the text and question into numbers</h2>
+    <p>A small model turns each source passage and your question into a list of numbers, called an <em>embedding</em>. Both use the same model, so their numbers can be compared.</p>
+    <figure aria-label="The same embedding model turns an activity passage and a question into comparable lists of numbers">
+      <div class="embedding-pair"><div class="embedding-tile"><small>Activity text</small><p>Gardening: we grow vegetables and flowers.</p></div><div class="embedding-tile"><small>Your question</small><p>When can I work with plants?</p></div></div>
+      <div class="embedding-converter"><span aria-hidden="true">↓</span>Same embedding model<span aria-hidden="true">↓</span></div>
+      <div class="embedding-pair"><div class="embedding-tile"><small>Text’s numbers</small><p class="embedding-numbers">[0.2, 0.8, …]</p></div><div class="embedding-tile"><small>Question’s numbers</small><p class="embedding-numbers">[0.3, 0.7, …]</p></div></div>
+      <figcaption>Simplified example. Numbers and map positions are made up to show the idea.</figcaption>
+    </figure>
   </section>
-
-  <section aria-labelledby="en-answer">
-    <h2 id="en-answer">What does the assistant check?</h2>
-    <p>Sol writes the answer using retrieved text. The application then checks that each quote occurs exactly in an actual retrieved passage from the right activity, section and date. You can inspect those passages and the searches that were performed.</p>
-    <p>A valid quote establishes where the words came from. It does not prove every conclusion or show that all suitable activities were found. A staff member checks the sources and discusses the options with the resident.</p>
-    <details><summary>How do the model and search function work together?</summary><p>The Rust app uses Rig to call Sol through the OpenAI Responses API. The model has one tool: <code>search_document</code>. It calls the local Rust search function directly. The first search is required; the model can then make focused follow-up searches.</p><pre>Question → Rig and Sol → local search
-                         ↓ source passages
-             Sol → answer → quote validation</pre><p>A question may use at most four searches and five model attempts within 120 seconds. Before each attempt, OpenAI counts the complete input. An unknown count or more than 300,000 input tokens blocks generation. A persistent budget limits the total number of attempts.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/responses/rig_runtime.rs">The model and search loop</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/codex.rs#L570">The shared citation check</a>.</p></details>
+  <section aria-labelledby="near-heading">
+    <h2 id="near-heading">2. Find text with a similar meaning</h2>
+    <p>Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. The search uses this similarity to pick passages and return their original text.</p>
+    <figure>
+      <div class="meaning-map" role="img" aria-label="Illustrative meaning map: the question about growing vegetables is close to gardening and farther from bicycle repair.">
+        <span class="meaning-point meaning-question">When can I work with plants?</span>
+        <span class="meaning-point meaning-garden">Gardening</span>
+        <span class="meaning-point meaning-bicycle">Bicycle repair</span>
+      </div>
+    </figure>
   </section>
-
-  <section aria-labelledby="en-data">
-    <h2 id="en-data">What stays local, and what leaves?</h2>
-    <p>Source sections, embeddings and search computation stay on the server. OpenAI processes your question and retrieved passages to write an answer. Public-demo traffic passes through Cloudflare. Use fictional information only.</p>
-    <p>Questions and answers live temporarily in server memory. Inactive sessions expire after thirty minutes when cleanup next runs. That does not automatically remove data held by external services. The demo does not update resident records, send messages or register anyone. Participation remains the resident's choice.</p>
-    <details><summary>The server and the separate evaluations</summary><p>The ordinary demo keeps its index in RAM, without a database. Model files are cached locally. One Rust program serves the website and calls the search function; the web route starts no Codex or MCP processes. OpenAI receives text, not embedding vectors.</p><p>The separate CLI and model experiments do use Codex with a read-only MCP search tool. Evaluation tools use TypeScript and promptfoo. Optional SQLite storage and additional search methods belong to those experiments, not the ordinary web demo.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/runtime-report.md">Public runtime report</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/CODEBASE_GUIDE.md">Architecture and code paths</a>.</p></details>
+  <section aria-labelledby="answer-heading">
+    <h2 id="answer-heading">3. Give the found text to the answer model</h2>
+    <p>The answer model receives your question and the passages found by the search. It sees ordinary text, not the lists of numbers. It uses that text to write an answer with sources.</p>
+    <figure aria-label="The answer model receives the question and a source passage, then writes an answer with a source date">
+      <div class="embedding-input"><small>Your question</small><p>When can I work with plants?</p><small>Found passage · Gardening</small><p>Every Tuesday from 10:00 to 12:00.</p></div>
+      <div class="answer-flow"><div class="answer-model">Answer model</div><span aria-hidden="true">→</span><div class="answer-card"><p>Gardening runs on Tuesday, 10:00–12:00.</p><small>Source: Gardening · 20 October 2026</small></div></div>
+      <p class="search-again">↶ Missing a detail? The model can ask the search for another passage.</p>
+    </figure>
   </section>
-
-  <section aria-labelledby="en-evidence">
-    <h2 id="en-evidence">What do we know about quality?</h2>
-    <p>Retrieval evaluations check whether the required source passages were actually found: a time and location for one valid activity, for example. That differs from checking the written answer. Answer quality has not yet been validated against human reference judgments.</p>
-    <p>Saved comparisons use earlier source sets and the Codex route. They do not measure the current Rig demo's quality. The Rig route was checked with three fictional questions on twelve sources; one address was missed. Working software does not mean every source fact is found.</p>
-    <details><summary>What exactly do the evaluations measure?</summary><p>Expected source combinations stay outside the search index and model input. Fixed code scores them afterwards. When several activities are valid, a complete combination for one activity counts; the time of one and location of another do not form a valid combination.</p><p>Local tests with mock models also check citation errors, bounded usage, session isolation and ten concurrent questions. They do not prove current OpenAI capacity. Provenance, completeness and answer quality remain separate properties.</p><p><a href="/resultaten/">View saved results</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/evals/README.md">Evaluation guide</a>.</p></details>
-  </section>
-  <p class="how-end"><a href="/">Back to the demo</a></p>
+  <p class="lesson-recap">This is RAG: find relevant text, then use it to answer. A source helps you check an answer; it does not guarantee that every conclusion is right.</p>
+  <p class="lesson-links"><a href="/">Try the demo</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/code-tour.html">Explore the code</a></p>
 </article>
 </main>
-<footer class="site-footer">An independent learning project inspired by the COA use case. All activities are fictional. <a href="https://github.com/Daanvdplas/coa-assistent">View the code</a>.</footer>
+<footer class="site-footer">An independent learning project. All activities and example details are fictional.</footer>
 </body>
 </html>
