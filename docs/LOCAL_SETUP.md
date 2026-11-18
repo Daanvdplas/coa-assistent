@@ -18,7 +18,8 @@ cd coa-assistent
 From the repository, explicitly remove inherited provider and budget configuration for this process:
 
 ```sh
-env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE cargo run --locked
+env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE \
+  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS cargo run --locked
 ```
 
 Open **http://127.0.0.1:8766/** when the server is ready. You can read the twelve fictional sources, technical explanation and saved results; new answers are unavailable. Do not start local evaluation jobs as part of this preview. The first launch builds Rust and downloads approximately 235 MB of MiniLM files to `.model-cache/` in the working directory. Later launches reuse them. Keep the terminal open; **Ctrl+C** stops the server.
@@ -67,7 +68,7 @@ Initialization refuses an existing file. Keep this file across restarts, updates
 Substitute the approved external paths if they differ:
 
 ```sh
-env -u OPENAI_API_KEY \
+env -u OPENAI_API_KEY -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
   COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" \
   COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" \
   cargo run --locked
