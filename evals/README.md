@@ -2,6 +2,8 @@
 
 The website's `/resultaten/` page starts with three separate local retrieval tests (P01/T02/T05), using real search-method and embedding selection. They use the current twelve-document dataset `demo-12-20261118`, promptfoo and independently reviewed source criteria; full matrices, model trials and historical runs remain separate. Start with [RAG evaluations](rag/README.md).
 
+The separate `/benchmark/` page plans and runs the existing suites and compares durable results. The current profile contains the preserved seventeen development cases plus the reviewed complete-list regression. RAG and the current Rig assistant have separate selectors and all-evals actions; native Codex protocols remain separately labelled. It shares only **Evals | Benchmark** navigation with `/resultaten/`; the demo and explanation retain their own presentation. See the [benchmark procedure](benchmark/README.md).
+
 All evaluation code, datasets, guides and saved results live here, grouped by what they measure:
 
 - [RAG with promptfoo](rag/README.md): are the required sources found, with which strategy and how much search work? Its [provider/assertion guide](rag/promptfoo/README.md) and [procedure index](rag/README.md#procedures-and-metric-definitions) cover the retained protocols.

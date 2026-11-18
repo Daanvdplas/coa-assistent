@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '../../..');
 const METHODS = ['dense', 'bm25', 'hybrid_rrf', 'hybrid_weighted'];
 const PROFILES = ['documents_sections', 'documents_activities', 'sqlite_sections', 'sqlite_activities'];
 const DEMO = 'demo-12-20261118';
+const REGRESSION = 'regression-12-20261118';
 const DATASETS = ['legacy', 'independent-20261103', 'expanded-10-20261105', 'strengthened-10-20261106'];
 const BASE = { mode: 'local', method: 'dense', profile: 'documents_sections', top_k: 3, candidate_k: 30, context_token_limit: 1200, selection: 'sections', apply_filters: false, mmr: false, rrf_k: 60, vector_weight: 0.7, mmr_lambda: 0.7, model: 'gpt-6.1-sol', filters: {} };
 function read(relative) {
@@ -18,7 +19,7 @@ function read(relative) {
 }
 function questions(dataset) {
   if (dataset === 'garden') return read('evals/rag/datasets/garden/questions.json').map(row => ({ dataset, case_id: row.id, question: row.text }));
-  if (![...DATASETS, DEMO].includes(dataset)) throw new Error('Unknown dataset');
+  if (![...DATASETS, DEMO, REGRESSION].includes(dataset)) throw new Error('Unknown dataset');
   const base = `evals/shared/datasets/${dataset}/`;
   const inputs = dataset === 'independent-20261103' ? new Map(read(base + 'user-query-inputs.json').cases.map(row => [row.case_id, row.filters])) : null;
   return (dataset === 'legacy' ? ['questions.json', 'heldout-questions.json'] : ['questions.json']).flatMap(name => read(base + name).cases.map(row => ({ dataset, case_id: row.id, question: row.question, ...(inputs ? { filters: inputs.get(row.id) || {} } : {}) })));
@@ -32,9 +33,10 @@ function testCase(input, config, suite, repeat = 1) {
 }
 function selected(value) { return value ? new Set(value.split(',').map(part => part.trim()).filter(Boolean)) : null; }
 function suitesFor(suite, dataset) {
+  if (dataset === REGRESSION && !['all-local', 'retrieval', 'quality'].includes(suite)) throw new Error('The twelve-source regression supports retrieval and quality; use assistant-rig for the current assistant');
   if (dataset === DEMO && !['all-local', 'retrieval', 'quality', 'agentic', 'browser'].includes(suite))
     throw new Error('This historical suite has a fixed source protocol; select retrieval, quality, agentic or browser for the twelve-document dataset');
-  return suite === 'all-local' ? (dataset === DEMO ? ['retrieval', 'quality'] : ['garden', 'retrieval', 'quality', 'compact']) : [suite];
+  return suite === 'all-local' ? ([DEMO, REGRESSION].includes(dataset) ? ['retrieval', 'quality'] : ['garden', 'retrieval', 'quality', 'compact']) : [suite];
 }
 function buildConfig(env = process.env) {
   const suite = env.COA_PROMPTFOO_SUITE || 'retrieval';
@@ -53,12 +55,12 @@ function buildConfig(env = process.env) {
   } else if (suite === 'garden') {
     tests = questions('garden').flatMap(input => ['dense', 'keyword_overlap'].map(method => testCase(input, { mode: 'garden', method }, suite)));
   } else if (suite === 'retrieval') {
-    tests = (env.COA_PROMPTFOO_DATASET === DEMO ? [DEMO] : DATASETS).flatMap(dataset => questions(dataset).flatMap(input => METHODS.flatMap(method => PROFILES.map(profile => testCase(input, { method, profile }, suite)))));
+    tests = ([DEMO, REGRESSION].includes(env.COA_PROMPTFOO_DATASET) ? [env.COA_PROMPTFOO_DATASET] : DATASETS).flatMap(dataset => questions(dataset).flatMap(input => METHODS.flatMap(method => PROFILES.map(profile => testCase(input, { method, profile }, suite)))));
   } else if (suite === 'quality') {
     const inputs = read('evals/shared/datasets/independent-20261103/user-query-inputs.json').cases;
     const filters = new Map(inputs.map(row => [row.case_id, row.filters]));
     const variants = METHODS.flatMap(method => [ ...PROFILES.map(profile => ({ method, profile })), { method, selection: 'activity_expansion' }, { method, top_k: 6 }, { method, selection: 'activity_expansion', apply_filters: true } ]);
-    tests = (env.COA_PROMPTFOO_DATASET === DEMO ? [DEMO] : ['legacy', 'independent-20261103']).flatMap(dataset => questions(dataset).flatMap(input => variants.filter(config => !config.apply_filters || dataset === 'independent-20261103').map(config => testCase(input, { ...config, filters: config.apply_filters && dataset === 'independent-20261103' ? filters.get(input.case_id) || {} : {} }, suite))));
+    tests = ([DEMO, REGRESSION].includes(env.COA_PROMPTFOO_DATASET) ? [env.COA_PROMPTFOO_DATASET] : ['legacy', 'independent-20261103']).flatMap(dataset => questions(dataset).flatMap(input => variants.filter(config => !config.apply_filters || dataset === 'independent-20261103').map(config => testCase(input, { ...config, filters: config.apply_filters && dataset === 'independent-20261103' ? filters.get(input.case_id) || {} : {} }, suite))));
   } else if (suite === 'agentic') {
     const selection = env.COA_PROMPTFOO_DATASET === DEMO ? questions(DEMO).map(row => ({dataset_id:DEMO,case_id:row.case_id})) : read('evals/rag/datasets/presentation-selection.json').cases;
     tests = selection.flatMap(row => {

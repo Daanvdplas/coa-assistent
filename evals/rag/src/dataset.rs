@@ -97,6 +97,18 @@ pub fn bundled_questions() -> Result<QuestionCatalog, String> {
     questions_from_inputs(&QUESTION_INPUTS, false)
 }
 
+#[cfg(test)]
+mod regression_tests {
+    #[test]
+    fn exhaustive_activity_regression_binds_twelve_sources_without_loading_gold() {
+        let dataset = super::load("regression-12-20261118").unwrap();
+        assert_eq!(dataset.corpus(), crate::corpus::CorpusId::DemoTwelve);
+        assert_eq!(dataset.catalog.cases.len(), 1);
+        assert_eq!(dataset.catalog.cases[0].id, "IND26-01");
+        assert_eq!(dataset.catalog.identity.as_of, "2026-11-13");
+    }
+}
+
 pub const INDEPENDENT_QUESTIONS: &str =
     include_str!("../../shared/datasets/independent-20261103/questions.json");
 pub const INDEPENDENT_EXPECTATIONS: &str =
@@ -143,11 +155,42 @@ pub const DEMO_SELECTION: &str =
 const DEMO_FROZEN: &str = include_str!("../../shared/datasets/demo-12-20261118/FROZEN.json");
 const DEMO_FROZEN_SHA256: &str = "cbb8ee60a00a79d5df863d5cbcce9dc7d7aec88b0b65b3b4640410ad2c1ac576";
 
+pub const REGRESSION_ID: &str = "regression-12-20261118";
+pub const REGRESSION_QUESTIONS: &str =
+    include_str!("../../shared/datasets/regression-12-20261118/questions.json");
+pub const REGRESSION_EXPECTATIONS: &str =
+    include_str!("../../shared/datasets/regression-12-20261118/expectations.json");
+pub const REGRESSION_DETAILS: &str =
+    include_str!("../../shared/datasets/regression-12-20261118/reference-details.json");
+const REGRESSION_FROZEN: &str =
+    include_str!("../../shared/datasets/regression-12-20261118/FROZEN.json");
+const REGRESSION_FROZEN_SHA256: &str =
+    "83d76d3ea98f5e429cfc66d8a58fc29866eef585d3d626b20c01c10934653bc5";
+
+pub(super) fn verify_regression_artifact(name: &str, text: &str) -> Result<(), String> {
+    verify_twelve_artifact(
+        REGRESSION_ID,
+        name,
+        text,
+        REGRESSION_FROZEN,
+        REGRESSION_FROZEN_SHA256,
+    )
+}
+
 pub(super) fn verify_demo_artifact(name: &str, text: &str) -> Result<(), String> {
+    verify_twelve_artifact(DEMO_ID, name, text, DEMO_FROZEN, DEMO_FROZEN_SHA256)
+}
+fn verify_twelve_artifact(
+    id: &str,
+    name: &str,
+    text: &str,
+    frozen: &str,
+    frozen_sha256: &str,
+) -> Result<(), String> {
     let freeze: serde_json::Value =
-        serde_json::from_str(DEMO_FROZEN).map_err(|error| error.to_string())?;
+        serde_json::from_str(frozen).map_err(|error| error.to_string())?;
     let corpus = crate::corpus::CorpusId::DemoTwelve;
-    if crate::manifest::hash(DEMO_FROZEN.as_bytes()) != DEMO_FROZEN_SHA256
+    if crate::manifest::hash(frozen.as_bytes()) != frozen_sha256
         || freeze["review"]["approved"] != true
         || freeze["reference_date"] != corpus.as_of()
         || freeze["integrity"]["corpus_sha256"] != corpus.sha256()
@@ -157,7 +200,7 @@ pub(super) fn verify_demo_artifact(name: &str, text: &str) -> Result<(), String>
                 .into(),
         );
     }
-    let path = format!("evals/shared/datasets/{DEMO_ID}/{name}");
+    let path = format!("evals/shared/datasets/{id}/{name}");
     let digest = crate::manifest::hash(text.as_bytes());
     let matched = freeze["integrity"]["artifacts"]
         .as_array()
@@ -172,7 +215,9 @@ pub(super) fn verify_demo_artifact(name: &str, text: &str) -> Result<(), String>
 }
 
 pub(super) fn source_dataset_id(id: &str) -> Option<&'static str> {
-    if id == DEMO_ID {
+    if id == REGRESSION_ID {
+        Some(REGRESSION_ID)
+    } else if id == DEMO_ID {
         Some(DEMO_ID)
     } else {
         ten_source_dataset_id(id)
@@ -242,7 +287,7 @@ pub struct QuestionDataset {
 
 impl QuestionDataset {
     pub fn corpus(&self) -> crate::corpus::CorpusId {
-        if self.id == DEMO_ID {
+        if self.id == DEMO_ID || self.id == REGRESSION_ID {
             crate::corpus::CorpusId::DemoTwelve
         } else if ten_source_dataset_id(&self.id).is_some() {
             crate::corpus::CorpusId::ExpandedTen
@@ -305,6 +350,12 @@ pub fn load(id: &str) -> Result<QuestionDataset, String> {
                 query_inputs,
                 query_inputs_sha256: Some(crate::manifest::hash(USER_INPUTS.as_bytes())),
             })
+        }
+        REGRESSION_ID => {
+            verify_regression_artifact("questions.json",REGRESSION_QUESTIONS)?;
+            let mut catalog=questions_for_corpus(&[REGRESSION_QUESTIONS],false,crate::corpus::CorpusId::DemoTwelve)?;
+            catalog.identity.limitation="One reused twelve-document development regression with independently source-reviewed expectations; not a blind holdout or human calibration".into();
+            Ok(QuestionDataset{id:id.into(),catalog,query_inputs:Default::default(),query_inputs_sha256:None})
         }
         DEMO_ID => {
             verify_demo_artifact("questions.json", DEMO_QUESTIONS)?;

@@ -35,6 +35,7 @@ const DATASETS = new Set([
   "strengthened-10-20261106",
   "garden",
   "demo-12-20261118",
+  "regression-12-20261118",
 ]);
 function requireCondition(
   condition: unknown,
@@ -925,7 +926,7 @@ export function measure(
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       envelope.dataset_id,
     ),
-    envelope.dataset_id === "demo-12-20261118",
+    ["demo-12-20261118", "regression-12-20261118"].includes(envelope.dataset_id),
   );
   const [hits, seeds, config, calls] = observations(
     envelope,
@@ -1111,7 +1112,7 @@ function compactAssert(envelope: Envelope, variables: Variables): Grade {
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       variables.dataset,
     ),
-    variables.dataset === "demo-12-20261118",
+    ["demo-12-20261118", "regression-12-20261118"].includes(variables.dataset),
   );
   for (const hit of full.hits)
     requireCondition(

@@ -30,7 +30,7 @@ fn reject(status: StatusCode, code: &str, message: &str) -> ApiError {
         retry_after: None,
     }
 }
-fn require_origin(headers: &HeaderMap, allowed: &[String]) -> Result<(), ApiError> {
+pub(super) fn require_origin(headers: &HeaderMap, allowed: &[String]) -> Result<(), ApiError> {
     let origin = headers
         .get("origin")
         .and_then(|value| value.to_str().ok())
@@ -56,7 +56,7 @@ fn require_origin(headers: &HeaderMap, allowed: &[String]) -> Result<(), ApiErro
         ))
     }
 }
-fn require_local(peer: SocketAddr, headers: &HeaderMap) -> Result<(), ApiError> {
+pub(super) fn require_local(peer: SocketAddr, headers: &HeaderMap) -> Result<(), ApiError> {
     if !peer.ip().is_loopback()
         || [
             "forwarded",
@@ -411,7 +411,7 @@ fn still_owned(process: &OwnedProcess, current: &[OwnedProcess]) -> bool {
         actual.pid == process.pid && actual.started == process.started && actual.running
     })
 }
-async fn stop(child: &mut tokio::process::Child, pid: u32) {
+pub(super) async fn stop(child: &mut tokio::process::Child, pid: u32) {
     let owned = descendants(pid);
     let current = processes();
     for process in owned

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Benchmark · COA Assistent</title>
+    <link rel="stylesheet" href="/assets/site.css?v=20261118" />
+    <link rel="stylesheet" href="/assets/benchmark.css?v=20261118" />
+    <script type="module" src="/assets/benchmark.js?v=20261118"></script>
+  </head>
+  <body>
+    <nav class="site-nav eval-nav" aria-label="Evaluaties">
+      <span class="site-brand"
+        ><img
+          class="coa-symbol"
+          src="/assets/coa-symbol.svg"
+          width="40"
+          height="40"
+          alt=""
+          aria-hidden="true"
+        /><span>COA Assistent</span></span
+      >
+      <a href="/resultaten/">Evals</a>
+      <a href="/benchmark/" aria-current="page">Benchmark</a>
+    </nav>
+    <main class="site-main benchmark-main">
+      <header class="benchmark-heading">
+        <h1>Benchmark</h1>
+        <button id="new-benchmark" type="button" hidden>
+          Nieuwe benchmark
+        </button>
+      </header>
+      <p id="page-status" role="status">Benchmarks laden…</p>
+      <button id="retry-benchmarks" type="button" hidden>Opnieuw laden</button>
+
+      <form id="benchmark-planner" hidden aria-label="Nieuwe benchmark">
+        <div class="benchmark-planner-heading">
+          <h2>Nieuwe benchmark</h2>
+          <button id="close-planner" type="button" hidden>
+            Sluit selectie
+          </button>
+        </div>
+        <div class="benchmark-field">
+          <label for="benchmark-dataset">Vraagset</label
+          ><select id="benchmark-dataset"></select>
+        </div>
+        <fieldset>
+          <legend>Evaluaties</legend>
+          <div class="benchmark-presets">
+            <button id="select-rag" type="button">Alle RAG-evals</button>
+            <button id="select-assistant" type="button">
+              Alle assistent-evals
+            </button>
+            <button id="select-local" type="button">Alle lokale proeven</button
+            ><button id="select-all" type="button">Alle proeven</button>
+          </div>
+          <div id="benchmark-suites" class="benchmark-suite-groups"></div>
+        </fieldset>
+        <details id="benchmark-settings">
+          <summary>Instellingen</summary>
+          <div class="benchmark-settings-grid">
+            <fieldset>
+              <legend>Zoekmethoden</legend>
+              <div id="benchmark-methods" class="benchmark-choices"></div>
+            </fieldset>
+            <fieldset>
+              <legend>Bronindeling en opslag</legend>
+              <div id="benchmark-profiles" class="benchmark-choices"></div>
+            </fieldset>
+            <fieldset id="embedding-options">
+              <legend>Embeddingmodellen · browserproeven</legend>
+              <div id="benchmark-embeddings" class="benchmark-choices"></div>
+            </fieldset>
+            <fieldset id="assistant-options" hidden>
+              <legend>Assistentaanpakken</legend>
+              <div id="benchmark-arms" class="benchmark-choices"></div>
+            </fieldset>
+            <fieldset id="case-options" class="benchmark-wide">
+              <legend>Vragen</legend>
+              <div class="benchmark-presets">
+                <button id="select-cases" type="button">Alle vragen</button>
+              </div>
+              <div
+                id="benchmark-cases"
+                class="benchmark-choices benchmark-case-choices"
+              ></div>
+            </fieldset>
+            <div class="benchmark-field">
+              <label for="benchmark-repeats">Herhalingen</label
+              ><input
+                id="benchmark-repeats"
+                type="number"
+                min="1"
+                max="3"
+                value="1"
+                required
+              />
+            </div>
+          </div>
+        </details>
+        <fieldset id="model-authorization" hidden>
+          <legend>Modelgebruik</legend>
+          <div id="model-phase-field" class="benchmark-field" hidden>
+            <label for="model-phase">Modelvergelijking</label>
+            <select id="model-phase">
+              <option value="pilot">Pilot · vier sessies</option>
+              <option value="remaining">
+                Overige sessies · na goedkeuring
+              </option>
+            </select>
+          </div>
+          <label class="benchmark-choice"
+            ><input id="allow-models" type="checkbox" /><span
+              >Modelgebruik toestaan</span
+            ></label
+          >
+          <div id="model-limits" class="benchmark-limit-fields" hidden>
+            <div id="model-sessions-field" class="benchmark-field">
+              <label for="model-sessions">Maximaal aantal sessies</label
+              ><input id="model-sessions" type="number" min="1" step="1" />
+            </div>
+            <div id="model-attempts-field" class="benchmark-field" hidden>
+              <label for="model-attempts">Maximaal aantal modelpogingen</label
+              ><input id="model-attempts" type="number" min="1" step="1" />
+            </div>
+            <div class="benchmark-field">
+              <label for="model-seconds"
+                >Maximale uitvoeringsduur (seconden)</label
+              ><input id="model-seconds" type="number" min="1" step="1" />
+            </div>
+          </div>
+          <p id="model-costs">
+            Een Codexsessie kan meerdere modelverzoeken gebruiken. Kosten
+            onbekend.
+          </p>
+        </fieldset>
+        <div id="benchmark-plan" aria-live="polite"></div>
+        <p id="plan-status" role="status"></p>
+        <button
+          id="start-benchmark"
+          type="submit"
+          class="benchmark-primary"
+          disabled
+        >
+          Start benchmark
+        </button>
+      </form>
+
+      <section id="benchmark-history" hidden aria-label="Uitvoeringen">
+        <div class="benchmark-history-controls">
+          <div class="benchmark-field">
+            <label for="benchmark-run">Uitvoering</label
+            ><select id="benchmark-run"></select>
+          </div>
+          <div class="benchmark-field">
+            <label for="benchmark-baseline">Vergelijk met</label
+            ><select id="benchmark-baseline">
+              <option value="">Geen referentie</option>
+            </select>
+          </div>
+        </div>
+        <div class="benchmark-progress">
+          <p id="run-status" role="status"></p>
+          <button id="discuss-benchmark" type="button">
+            Bespreek in Codex
+          </button>
+          <button id="stop-benchmark" type="button" hidden>
+            Stop benchmark
+          </button>
+        </div>
+        <p id="handoff-status" role="status"></p>
+        <div id="handoff-fallback" class="benchmark-field" hidden>
+          <label for="codex-handoff">Overdracht naar Codex</label
+          ><textarea id="codex-handoff" readonly rows="5"></textarea>
+        </div>
+        <p id="comparison-status" role="status"></p>
+        <div id="benchmark-groups"></div>
+      </section>
+      <noscript
+        >JavaScript is nodig om benchmarks uit te voeren en te
+        vergelijken.</noscript
+      >
+    </main>
+  </body>
+</html>

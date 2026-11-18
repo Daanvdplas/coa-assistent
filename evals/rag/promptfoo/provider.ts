@@ -89,6 +89,7 @@ export function question(dataset: string, caseId: string): string {
       "expanded-10-20261105",
       "strengthened-10-20261106",
       "demo-12-20261118",
+      "regression-12-20261118",
     ].includes(dataset)
   )
     paths = ["evals/shared/datasets/" + dataset + "/questions.json"];

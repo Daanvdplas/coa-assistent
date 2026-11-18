@@ -47,7 +47,7 @@ pub fn run(plan: &ExperimentPlan, options: &RunOptions) -> Result<RunSummary, St
     }
     let dataset_ids: &[&str] =
         if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::DemoTwelve.sha256() {
-            &[super::dataset::DEMO_ID]
+            &[super::dataset::DEMO_ID, super::dataset::REGRESSION_ID]
         } else if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::ExpandedTen.sha256() {
             &[super::dataset::EXPANDED_ID, super::dataset::STRENGTHENED_ID]
         } else {

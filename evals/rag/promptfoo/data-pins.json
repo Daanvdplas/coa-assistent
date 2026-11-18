@@ -43,6 +43,11 @@
     "evals/shared/datasets/demo-12-20261118/questions.json": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
     "evals/shared/datasets/demo-12-20261118/reference-details.json": "d469a6d74162da3399e2e1b1a19fbce7461dd86ca94b9ee98f8edf955075645f",
     "fixtures/demo-12-20261113/activity-011.md": "1dcfabc4d81092a377167a9bb37fd59b7fcca91582339a6c8cd6566e2bfce9d5",
-    "fixtures/demo-12-20261113/activity-012.md": "1386cc26897a9dccb0ca719d8a860ad0c3f1c59543e1ce84560d4b846d0f7bce"
+    "fixtures/demo-12-20261113/activity-012.md": "1386cc26897a9dccb0ca719d8a860ad0c3f1c59543e1ce84560d4b846d0f7bce",
+    "evals/shared/datasets/regression-12-20261118/questions.json": "8617f69d3c1b4984d3534695f58d7d62b592f4e47837ea31e573a6bccb33afe7",
+    "evals/shared/datasets/regression-12-20261118/expectations.json": "b19dd13348378a7b9388df1a33239690db134a09649c1dc2cc3fdb7ad9e591c3",
+    "evals/shared/datasets/regression-12-20261118/reference-details.json": "f62639cf39f33c8675ce0a873a22225c3e411bcc88af19950b631c12163203c2",
+    "evals/shared/datasets/regression-12-20261118/presentation-selection.json": "5acd8d66211593270c0bc31e7ac8074aa6e3daaa21cbd5cbfdd3bf399d8b3ff6",
+    "evals/shared/datasets/regression-12-20261118/FROZEN.json": "83d76d3ea98f5e429cfc66d8a58fc29866eef585d3d626b20c01c10934653bc5"
   }
 }

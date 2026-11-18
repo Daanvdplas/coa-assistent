@@ -1,0 +1,188 @@
+{
+  "schema_version": "1",
+  "dataset_version": "regression-12-20261118-v1",
+  "questions_sha256": "9e68066ff92444dfb9c0eb9974b35876cada5f69264ac33e2f7ee149f5114434",
+  "evaluation_only_canary": "regression-12-20261118-evaluation-only",
+  "review_note": "Exactly two qualifying activities were independently checked against all twelve sources. Ten support goals require eight unique sections; exclusions are recorded separately. Incomplete evidence or an incomplete/wrong answer must fail. Labels are AI-reviewed, not human calibrated.",
+  "cases": [
+    {
+      "case_id": "IND26-01",
+      "facts": [
+        {
+          "id": "bike-work",
+          "description": "Bij Fietsen opknappen knap je oude fietsen op, bijvoorbeeld banden plakken en eenvoudige reparaties.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S1"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "bike-time",
+          "description": "Fietsen opknappen is dinsdag van 14.00 tot 16.00 uur.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "bike-indoor",
+          "description": "De fietsactiviteit is binnen in Werkplaats De Werkbank.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "bike-free",
+          "description": "De fietsactiviteit is gratis.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "bike-materials",
+          "description": "Gereedschap en reparatiemateriaal voor de fietsactiviteit zijn aanwezig.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-work",
+          "description": "Het Taalcafé oefent Nederlands via gesprekken over dagelijkse onderwerpen en korte taalspelletjes.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S1"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-time",
+          "description": "Het Taalcafé is woensdag van 14.00 tot 15.30 uur.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-indoor",
+          "description": "Het Taalcafé zit binnen in Leeszaal Het Woordhuis.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-free",
+          "description": "Het Taalcafé is gratis.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-materials",
+          "description": "Kaartjes, papier en pennen zijn aanwezig in het Taalcafé.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [
+        "Binnen, start om 14.00 uur, gratis en materiaal aanwezig zijn alle vier harde voorwaarden."
+      ],
+      "forbidden_claims": [
+        "Een van de twee passende activiteiten weglaten.",
+        "Een andere activiteit als passend bij alle vier voorwaarden toevoegen.",
+        "Actuele vrije plekken bevestigen."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5"
+        }
+      ]
+    }
+  ]
+}
