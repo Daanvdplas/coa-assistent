@@ -1,15 +1,15 @@
-# Het lokale evaluatierapport
+# Local evaluation report
 
-Begin met de [eenvoudige uitleg van het testframework](framework.html): één vraag, vooraf vastgelegd bewijs en wat de score wel en niet betekent.
+Start with the [visual framework explanation](framework.html): one question, predeclared evidence and what a score means.
 
-Het rapport is voor de maker en mensen die zonder technische logs willen begrijpen wat retrieval wel en niet vindt. De vorm volgt de activiteiten-demo: rustig Nederlands, compacte vergelijking, kleuren voor antwoord en bronbewijs, technische details pas na uitklappen.
+The report helps readers inspect retrieval without technical logs. Its existing interface is Dutch, with compact comparisons, status colors and expandable detail. This English documentation does not translate functional report templates or preserved source text.
 
-`experiment report --input resultaten.jsonl --output rapport.html` maakt één zelfstandig HTML-bestand. Meerdere JSONL-bestanden kunnen als kommagescheiden lijst mee. Deze opdracht gebruikt geen model of netwerk. Open het HTML-bestand daarna rechtstreeks in je browser. Voor een preview kun je alleen de map met HTML serveren; budgetregistraties en logs horen buiten die map.
+`experiment report --input resultaten.jsonl --output rapport.html` creates one standalone HTML file. Multiple inputs can be comma-separated. It uses no model or network. Open the file directly in a browser; if serving a preview, expose only the HTML directory and keep ledgers/logs elsewhere.
 
-`evals/coa-assistent/fixtures/report-example.jsonl` bevat zes handgemaakte rendererchecks, geen gemeten RAG-resultaten. De banner blijft zichtbaar. De echte generatie- en beoordelaarstatus en hun herkomst blijven afzonderlijk zichtbaar. Een voorbeeldbeoordeling telt nooit als een echt positief kwaliteitsoordeel. Menselijke ijking is voor nu uitgesteld.
+`evals/coa-assistent/fixtures/report-example.jsonl` contains six handmade renderer checks, not measured RAG results. Its banner stays visible. Generation/judge statuses and provenance remain distinct; example grades cannot count as real quality evidence. Human calibration is deferred.
 
-Bewijsdekking, voorlopig AI-oordeel en efficiëntie blijven apart. `1 van 2 (0,50)` betekent dat bewijs voor één van twee benodigde feiten aanwezig is. De antwoordbeoordelaar controleert of de feiten ook juist gebruikt worden. Zijn oordeel kan een harde fout niet herstellen. Bij onbesliste criteria toont het rapport zowel de beoordeelde noemer als het aantal onbesliste criteria.
+Evidence coverage, provisional AI judgment and efficiency are separate. `1 van 2 (0,50)` means support for one of two required facts. The answer judge checks whether the facts are used correctly and cannot repair a hard failure. Undecided criteria retain both the judged denominator and undecided count.
 
-Voorbeelden, ontwikkeling, pilot en vooraf apart gehouden vragen worden niet samengevoegd in één vergelijking. Alleen opgeslagen uitvoeringen tellen mee; een ontbrekend artifact wordt geen nulmeting. Time-outs, annuleringen en overgeslagen uitvoeringen blijven zichtbaar. Een directe-contextaanpak zoekt niet: nul zoekacties en ‘context vooraf aangeboden’ zijn daar normaal.
+Examples, development, pilot and predeclared comparison questions are not merged into one benchmark. Only saved runs count; a missing artifact is not a zero measurement. Timeouts, cancellations and skipped runs remain visible. Direct context performs no searches, so zero searches and “context supplied in advance” are expected.
 
-De renderer valideert dataset-, vraag- en criteriumhashes en berekent meetwaarden opnieuw. Lege, foutieve of dubbele artifacts leveren een foutmelding op en vervangen geen bestaand rapport. Tekst wordt als tekst ge-escaped; het HTML bevat geen externe fonts, CDN of fetch-code. Filters werken ook als het bestand rechtstreeks vanaf schijf wordt geopend.
+The renderer validates dataset/question/criterion hashes and recomputes metrics. Empty, invalid or duplicate artifacts cause an error without replacing an existing report. Text is escaped; HTML has no external fonts, CDN or fetch code. Filters work when opened directly from disk. A readable HTML report is not a signed attestation.

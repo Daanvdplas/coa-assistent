@@ -1,31 +1,29 @@
-# Meetlat voor de activiteitenproef
+# Activity-evaluation dataset
 
-De twaalf gevallen in `evals/shared/datasets/legacy/questions.json` zijn een instrumentpilot op vijf fictieve documenten, geen bewijs voor algemene RAG-kwaliteit. P01–P06 zijn al bekende ontwikkelgevallen. P07–P12 verbreden de pilot over fietsen, taal, koken, wandelen en ontbrekend aanbod. Er zijn nog geen ongeziene uitvoeringen of menselijke referentieoordelen vastgelegd.
+The twelve cases in `evals/shared/datasets/legacy/questions.json` are an instrument pilot over five fictional documents, not evidence of general RAG quality. P01–P06 are known development cases; P07–P12 broaden the pilot across bicycles, language, cooking, walking and absent activities. No human reference judgments have been recorded. See [shared datasets](../../shared/README.md) for later versions, including the revised P06; the original v1 remains preserved.
 
-## Input en verwachtingen
+## Inputs and protected expectations
 
-`questions.json` bevat vragen, versie, referentiedatum en exacte bronhashes. Alleen de vraagtekst mag naar de generator; familie, split en type zijn evaluatiemetadata. `expectations.json` bevat afzonderlijk de betekeniscriteria en een testcanary. Het wordt nooit geïndexeerd of aan de antwoordgenerator aangeboden. De afzonderlijke beoordelaar mag criteria pas na generatie ontvangen. Een gecontroleerde test van de echte requestgrens volgt in de runner; deze datasetvalidator alleen bewijst die grens niet.
+`questions.json` contains question text, version, reference date and exact source hashes. Only the question text goes to the generator; family, split and type are evaluation metadata. `expectations.json` separately contains meaning criteria and a test canary. It is never indexed or offered to the answer generator. The separate judge may receive criteria only after generation. Dataset validation alone does not prove the request boundary; runner tests check it.
 
-De corpusfingerprint gebruikt dezelfde exacte UTF-8-documenten en scheiding als de bestaande indexmanifest. `questions_sha256` is de SHA-256 van compacte UTF-8-JSON in de veldvolgorde van het versie-1-`QuestionSet`-schema. Daardoor veranderen vragen en metadata de binding met de verwachtingen, maar witruimte in het JSON-bestand niet. Veranderde bronbytes of referentiedatum vereisen een nieuwe datasetversie en review; oude resultaten blijven bij hun oude manifest.
+The corpus fingerprint uses the index manifest's exact UTF-8 documents and separators. `questions_sha256` hashes compact UTF-8 JSON in version-1 `QuestionSet` field order: question/metadata changes alter its binding to expectations, JSON-file whitespace does not. Changed source bytes or reference dates require a new dataset version and review; old results keep their original manifest.
 
-## Betekenis van bewijs
+## Evidence semantics
 
-Een feit heeft een beschrijving, geen verplichte antwoordzin. Binnen één `evidence_alternatives`-groep zijn alle secties nodig (AND); iedere volledige alternatieve groep mag het feit dragen (OR). Secties hebben altijd document-ID én sectie-ID: het S2 van tuinieren is niet het S2 van fietsen.
+A fact has a description, not a required answer sentence. Every section in one `evidence_alternatives` group is required (AND); any complete alternative group can support the fact (OR). A section is identified by both document and section ID.
 
-Een expliciete onbekende kan bewijs hebben: de wandelbron zegt bijvoorbeeld letterlijk dat rolstoeltoegankelijkheid niet beschreven is. Bij ophalen voor tuinieren of badminton op zaterdag bestaat geen positieve bewijssectie. Dat staat uitdrukkelijk als `kind: unknown` met lege alternatieven en een verplicht onbekend antwoord. Zo'n ontbrekende noemer is geen retrievalscore nul. Bestaat verwacht bewijs wel maar wordt het niet opgehaald, dan is de dekking nul.
+An explicit unknown can have source support: the walking source says wheelchair access is not described. Where no positive source exists, such as gardening transport or Saturday badminton, `kind: unknown` has empty alternatives and requires an honest unknown answer. No positive denominator means N/A, not zero retrieval. Existing expected evidence that is not retrieved gives zero coverage.
 
-`relevant_sections` bevat secties die de gevraagde feiten of concrete voorwaarden direct ondersteunen, inclusief bruikbaar uitsluitingsbewijs. Bij de volledige dinsdaglijst zijn alle vijf dagsecties relevant voor het controleren welke activiteiten wel en niet passen. Voor P06 is de relevantielijst bewust niet volledig: precision is daar N.v.t. Voor de overige gevallen is de lijst over alle dertig secties nagelopen; de onafhankelijke reviewer controleert die labels. De waardering blijft een expliciete taakgebonden annotatie, geen objectieve eigenschap van de passage.
+`relevant_sections` includes direct support for facts/conditions and useful exclusion evidence. For a complete Tuesday list, all five day sections help establish matches and exclusions. Relevance labels are task annotations, not intrinsic passage properties. Precision/recall need complete labels; fact coverage can use incomplete relevance annotations. Use the current dataset's flags rather than assuming historical label completeness.
 
-## Menselijke ijking
+## Human calibration and the AI reference
 
-Open `human-review.html` in deze map. Het blad bevat acht handgemaakte kandidaatantwoorden met exacte bronfragmenten, geen live modelresultaten en geen voorgesteld oordeel. H01–H04 zijn voor het ontwikkelen van de rubric; H05–H08 controleren de beoordelaar afzonderlijk. Goed kan ook een terecht onbekend antwoord of noodzakelijke verduidelijking zijn. Beoordeling nodig betekent dat de menselijke beoordelaar niet voldoende kan beslissen.
+[human-review.html](human-review.html) contains eight handmade candidate answers and exact source excerpts, not live model output or suggested labels. H01–H04 develop the rubric; H05–H08 check the judge separately. A correct unknown or necessary clarification can be good. “Needs review” means the person cannot decide sufficiently.
 
-De knop kopieert de zelf gekozen labels naar JSON om in de chat terug te sturen. Er is geen opslag of netwerkverzoek. De lege `human_label`-velden in `human-review.json` blijven leeg totdat een echte mens de labels aanlevert. AI-consensus is geen menselijke ijking. De kleine ijkset bewijst nog geen betrouwbare beoordelaar voor andere onderwerpen.
+The worksheet copies chosen labels to JSON without storage or a network request. `human_label` fields remain empty until a real person supplies them. Human calibration is deferred. Separate `ai-reference.json` contains provisional source-grounded references from another AI agent, checked against case IDs, source text and the worksheet fingerprint. `origin: ai_agent` and `human_calibration: false` remain explicit. Agreement measures agreement with that AI reference, not human validation or reliability on other topics. The original worksheet and human fields remain unchanged.
 
-De gebruiker heeft menselijke ijking voor nu uitgesteld. `ai-reference.json` bevat daarom afzonderlijke, brongebonden voorlopige referenties van een andere AI-agent, gecontroleerd op case-ID's, broninhoud en worksheetfingerprint. `origin: ai_agent` en `human_calibration: false` blijven expliciet. Overeenstemming hiermee meet alleen overeenstemming met deze AI-referentie; inhoudelijke kwaliteitsoordelen blijven voorlopig. Het oorspronkelijke menselijke blad en de lege menselijke labels veranderen hierdoor niet.
+## Add evaluation questions
 
-## Nieuwe evaluatievragen
+A new unseen comparison needs separate question/expectation files, a version and independently reviewed criteria before execution. Keep a question family and its paraphrases in one split. Known misses cannot later become unseen cases. Record selection and freeze timing before running; do not change expectations to improve a poor score. Correct genuine label errors through an explained new version and preserve both results.
 
-Een ongeziene vergelijking krijgt eigen vraag- en verwachtingsbestanden, datasetversie en vooraf gereviewde criteria. Houd een vraagfamilie met alle parafrases in dezelfde split; bekende missers worden niet achteraf ongezien genoemd. Leg selectie, bevriesmoment en eventuele wijzigingen vast vóór uitvoering. Verander na een slechte score geen verwachtingen om de score te verhogen. Een geconstateerde labelfout krijgt een verklaarde nieuwe versie; beide resultaten blijven zichtbaar.
-
-Deze indeling past de principes van gescheiden vraagdekking en ijking toe; zij implementeert geen formele garantie van de volledige onderzoeksmethoden. Bronnen: [Coverage, Not Averages, ICML 6–11 juli 2026](https://proceedings.mlr.press/v306/klearman26a.html) en [How to Correctly Report LLM-as-a-Judge Evaluations, ICML 6–11 juli 2026](https://proceedings.mlr.press/v306/lee26bl.html).
+These are limited applications of coverage/calibration principles, not formal guarantees of the research methods. Sources: [Coverage, Not Averages](https://proceedings.mlr.press/v306/klearman26a.html) and [How to Correctly Report LLM-as-a-Judge Evaluations](https://proceedings.mlr.press/v306/lee26bl.html), ICML **6–11 July 2026**.

@@ -1,16 +1,10 @@
-# Een gekozen zoekvariant gebruiken met Codex
+# Use a selected retrieval configuration with Codex
 
-De lokale vergelijking (`lab run`) gebruikt geen Codex en geen AI-beoordelaar.
-Met `lab ask` kun je daarna één zoekmethode en één opslag-/structuurprofiel in
-een echte Codex-uitvoering gebruiken. Codex krijgt alleen de read-only zoektool.
-De gekozen instellingen en getypeerde filters staan vast tijdens de uitvoering;
-Codex mag maximaal vier zoekvragen maken, steeds met dezelfde gekozen top-k.
+The local comparison (`lab run`) uses no Codex or AI judge. `lab ask` then runs one search method and one storage/structure profile in a real Codex session with only the read-only search tool. Settings and typed filters remain fixed; Codex can make at most four search attempts with the same selected top-k. This is a CLI/evaluation route, separate from the Rig website. See the [runtime contract](codex.md).
 
-## Zelf uitvoeren
+## Run it
 
-Voer dit uit vanuit de repository. Er moet een aangemelde, bijpassende Codex-runtime
-beschikbaar zijn, zoals voor de bestaande demo. De bestaande `COA_CODEX_BIN` en
-`COA_CODEX_MODEL`-instellingen blijven bruikbaar. Er is geen nieuwe API-sleutel nodig.
+Use an authenticated, compatible Codex runtime and the existing `COA_CODEX_BIN`/`COA_CODEX_MODEL` settings where needed. No new API key is required for this route. Obtain explicit authorization for the model sessions before running:
 
 ```sh
 rag_output_dir=$(mktemp -d /tmp/coa-selected-rag.XXXXXX)
@@ -22,54 +16,22 @@ cargo run --locked --features sqlite -- lab ask --live \
   --max-generations 6 --max-seconds 1200
 ```
 
-De eerste opdracht maakt een begrensd budget: maximaal zes sessies in twintig
-minuten, één tegelijk, en maximaal 120 seconden per sessie. Gebruik hetzelfde
-ledger en dezelfde limieten voor vervolgvragen, met steeds een nieuw uitvoerbestand.
-Ook mislukte pogingen verbruiken een reservering. Een verlopen of beschadigd ledger
-wordt niet automatisch vernieuwd; bestaande resultaten worden nooit overschreven.
-Ctrl+C stopt de eigen subprocessen en bewaart de gereserveerde poging als geannuleerd.
-Ook runtime-startup valt binnen deze grens: de `--version`-probe wordt asynchroon
-uitgevoerd en bij timeout/annulering met zijn eigen subprocessgroep gestopt.
-Het controleren van grote uitvoerbare bestanden onderbreekt de deadline niet.
-Debug-builds optimaliseren alleen de bestaande SHA-256-implementatie, zodat deze
-integriteitscontrole de startup niet onnodig vertraagt. De hashwaarden en het
-releaseprofiel blijven hetzelfde.
-Deze aantallen zijn sessies, geen bekende aantallen provider-HTTP-requests.
+This creates a bounded ledger: at most six sessions in twenty minutes, one at a time, each at most 120 seconds. Reuse the same ledger and limits for subsequent questions, with a new output file each time. Failed attempts consume reservations; expired/corrupt ledgers are not renewed automatically. Ctrl+C stops owned subprocesses and keeps the reserved attempt as cancelled. These counts are **sessions**, not known provider HTTP-request counts.
 
-`--methods` accepteert precies één van `dense`, `bm25`, `hybrid_rrf` en
-`hybrid_weighted`. `--profiles` accepteert precies één van `documents_sections`,
-`documents_activities`, `sqlite_sections` en `sqlite_activities`.
-Voor alleen documenten kan de opdracht zonder `--features sqlite` worden gebouwd.
+Runtime startup is included in the deadline. The asynchronous `--version` probe owns a process group stopped on timeout/cancellation; executable hashing does not interrupt the deadline. Debug builds optimize only the existing SHA-256 implementation to avoid unnecessary startup delay; hash values and release settings remain unchanged.
 
-De geavanceerde instellingen van `lab plan` zijn ook beschikbaar: onder andere
-`--top-k 3`, `--selection activity_expansion`, `--mmr on` en `--context-limit 1200`.
-Getypeerde filters kunnen als JSON met `--query-filters` worden meegegeven;
-`--apply-filters on` activeert ze. Ze gelden voor alle vervolgzoekvragen in de sessie.
-Er wordt geen filter afgeleid uit een test-ID of uit verwachte antwoorden.
+`--methods` accepts exactly one of `dense`, `bm25`, `hybrid_rrf`, `hybrid_weighted`. `--profiles` accepts one of `documents_sections`, `documents_activities`, `sqlite_sections`, `sqlite_activities`. Document-only profiles can be built without `--features sqlite`.
 
-BM25 initialiseert geen embeddingmodel. Vector- en hybridvarianten gebruiken
-dezelfde lokale MiniLM en cache als `lab run`; de eerste voorbereiding kan
-modelbestanden downloaden. Draai de lokale vergelijking eerst om deze cache
-te vullen. `--model-cache` en `--sqlite-dir` kunnen expliciet worden ingesteld.
+Advanced `lab plan` options also apply, including `--top-k 3`, `--selection activity_expansion`, `--mmr on` and `--context-limit 1200`. Supply typed JSON filters with `--query-filters` and enable them with `--apply-filters on`; they apply to all follow-up searches. No filter is inferred from case IDs or expected answers.
 
-## Wat wordt bewaard en gecontroleerd?
+BM25 initializes no embedding model. Vector/hybrid methods share MiniLM and its cache with `lab run`; preparation can download model files. Warm the cache with the local comparison first if needed. `--model-cache` and `--sqlite-dir` can be explicit.
 
-Het aparte, versiegebonden live-JSONL-bestand bewaart de gekozen configuratie,
-budgetreservering, eventuele Codex-uitvoer en echte zoekacties met passages,
-componentrangen/scores, brondata, voorbereiding en gemeten zoektijden.
-BM25- of hybrid-scores worden niet als cosinusovereenkomst of zekerheid gelabeld.
-Ontbrekende tokenusage blijft onbekend.
+## Evidence and checks
 
-Harde controles binden de zoekacties aan de vaste configuratie en de oorspronkelijke
-secties. Citaten moeten letterlijk voorkomen in werkelijk aangeboden passages van
-het juiste document en de juiste brondatum. Veranderde broninhoud, verkeerde
-scoretypen, verzonnen toegepaste filters en gewijzigde contextboekhouding worden
-geweigerd. Stille terugval naar een andere zoekmethode is niet toegestaan.
+The versioned live JSONL records selected configuration, budget reservation, available Codex output and actual searches: passages, component ranks/scores, source dates, preparation and measured search times. BM25/hybrid scores are not labelled cosine similarity or confidence. Missing token usage remains unknown.
 
-Een geslaagde controle bewijst geen juist antwoord. `answer_quality_status` blijft
-`not_assessed`; de AI-beoordelaar blijft uit. De live-antwoordbestanden hebben een
-eigen schema en worden niet voorgesteld als retrieval-only rapporten.
+Hard checks bind searches to fixed settings and original sections. Quotes must appear exactly in offered passages from the same document and source date. Modified source text, wrong score kinds, invented applied filters or changed context accounting are rejected. Silent fallback to another method is forbidden.
 
-De SQLite-opslag en embeddings zijn lokaal. De vraag en geselecteerde toolinformatie
-gaan naar Codex via de bestaande aanmelding. Gebruik alleen fictieve informatie.
-Er worden geen dossiers aangepast, berichten verstuurd of deelnemers aangemeld.
+A passing check does not prove a correct answer. `answer_quality_status` remains `not_assessed`; the AI judge stays off. These files have their own live-answer schema and are not retrieval-only reports.
+
+SQLite storage and embeddings are local; the question and selected tool information go to Codex using the existing login. Use fictional information only. No records are changed, messages sent or participants enrolled.

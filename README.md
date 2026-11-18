@@ -1,28 +1,17 @@
 # COA Assistent
 
-COA Assistent helpt een medewerker om samen met een bewoner passende activiteiten te verkennen. Stel een vraag over twaalf verzonnen activiteiten en controleer de bronpassages bij het antwoord.
+COA Assistent helps a staff member explore suitable activities with a resident. Ask a question about twelve fictional activities, then check the source passages behind the answer.
 
-Dit is een onafhankelijk prototype, geen officieel COA-product. Gebruik alleen fictieve gegevens. Deelname blijft vrijwillig; de demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan.
+For example: “Which indoor activity can I join on Tuesday, and where and when does it take place?” The assistant searches the activity descriptions and may search again for missing details. Local multilingual embeddings or BM25 find passages; OpenAI Sol, through Rig, writes the answer. Each suggestion retains its source and date.
 
-## Hoe werkt het?
+This is an independent prototype, not an official COA product. Use fictional information only: questions and retrieved passages are sent to OpenAI. Participation remains voluntary; the staff member checks the evidence and discusses options with the resident. Missing or outdated information stays unknown. The demo changes no records, sends no messages and enrolls nobody.
 
-De Rust-app zoekt lokaal met meertalige embeddings of BM25. OpenAI Sol maakt via Rig een antwoord en kan gericht verderzoeken. Je ziet welke passages werkelijk zijn gevonden, met bron en datum. Een antwoord kan onvolledig zijn; de medewerker controleert de bronnen en bespreekt de opties met de bewoner.
+## Try it with your coding agent
 
-## Starten
+Clone or open this repository in your coding agent and ask:
 
-Vereist: macOS of Linux, Rust 1.97.1 via rustup en een eigen OpenAI API-sleutel met API-tegoed. Node.js en Codex zijn niet nodig voor de website.
+> Read AGENTS.md and help me run COA Assistent locally. First show the website and saved evaluations without making model calls. Before enabling new answers, ask me for the path to my own API key file and an explicit spending or model-attempt limit. Explain the expected cost and get my approval before spending anything.
 
-Kloon de repository en stel eenmalig je sleutel en een gebruiksgrens in volgens de [lokale setup](docs/LOCAL_SETUP.md#zelf-draaien-met-een-eigen-sleutel). Start daarna vanuit de projectmap:
+The website needs macOS or Linux and Rust 1.97.1. New answers also need your own OpenAI API key and API credit; Node.js and Codex are only needed for evaluation routes. The agent can check your environment and follow the [local setup](docs/LOCAL_SETUP.md). Keep the key outside chat and the repository.
 
-```sh
-env -u OPENAI_API_KEY \
-  COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" \
-  COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" \
-  cargo run --locked
-```
-
-Open [COA Assistent](http://127.0.0.1:8766/) of de [opgeslagen evaluaties](http://127.0.0.1:8766/resultaten/). De eerste start bouwt Rust en downloadt het lokale zoekmodel. Houd de terminal open; **Ctrl+C** stopt de server. Herstart met hetzelfde budgetbestand behoudt het verbruik.
-
-De vraag en gevonden passages gaan naar OpenAI. Iedere vraag kan meerdere betaalde modelpogingen gebruiken. Zonder sleutel en budget kun je met `cargo run --locked` de website en bronnen bekijken, maar geen nieuwe antwoorden maken.
-
-Configuratie, controles en grenzen staan in de [uitgebreide lokale setup](docs/LOCAL_SETUP.md). De [codegids](docs/code-tour.html) laat zien hoe de onderdelen samenwerken. Alle evaluaties staan in [evals/](evals/README.md): afzonderlijk voor bronretrieval en de volledige assistent. Bewaarde uitkomsten zijn geen menselijke kwaliteitsvalidatie.
+The [code tour](docs/code-tour.html) explains how the parts work together. The [runtime report](docs/runtime-report.md) records what was verified and what remains uncertain. [Evaluations](evals/README.md) distinguish retrieval from the complete assistant; saved results are not human validation of answer quality.

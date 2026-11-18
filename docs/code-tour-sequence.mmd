@@ -1,33 +1,25 @@
 sequenceDiagram
   participant B as Browser
-  participant H as Rust HTTP
-  participant R as CodexRunner
-  participant C as Codex CLI
-  participant O as OpenAI-model
-  participant M as stdio-MCP
-  participant I as MiniLM / RAM-index
-  B->>H: POST /api/runs (één vraag)
-  H->>H: RunStore::begin (pending, context)
-  H-->>B: run-ID (worker gaat verder)
-  H->>R: run(vraag, top_k)
-  R->>C: start begrensd child process met toolbeleid
-  C->>O: vraag + instructies
-  loop maximaal vier zoekacties
-    O-->>C: zoekopdracht
-    C->>M: search_document(query, top_k)
-    Note over M,I: Eerste zoekactie: eigen Index::load, daarna hergebruik
-    M->>I: search_with_top_k
-    I->>I: query-embedding + cosine over 30 secties
-    I-->>M: passages + bron-ID / datum / scores
-    M-->>C: JSON-RPC-resultaat
-    C->>O: gevonden tekst
-    Note over C,O: Zo nodig gerichter zoeken, geen extra gebruikersvraag
+  participant W as Rust web API / RunStore
+  participant R as Rig / bounded transport
+  participant O as OpenAI
+  participant I as Local search index
+  B->>W: POST /api/runs (question, language, method)
+  W->>W: Check session and limits; begin pending run
+  W-->>B: Run ID
+  loop At most 5 model attempts / 4 searches
+    R->>R: Reserve persistent attempt
+    R->>O: Count complete input
+    O-->>R: Input count (must be 1..300,000)
+    R->>O: Generate with original payload
+    O-->>R: Search request or final structured answer
+    opt Model requests a search
+      R->>I: Direct callback (query, top_k, fixed method)
+      I-->>R: Exact sections, source IDs and dates
+    end
   end
-  O-->>C: antwoord + citaten + onbekenden
-  C-->>R: CLI JSONL-events en eindantwoord
-  R->>R: parse_events: bron / datum / letterlijk citaat
-  R-->>H: gecontroleerde structuur of fout
-  H->>H: RunStore::complete (RAM)
-  B->>H: GET /api/runs/{id} (polling)
-  H-->>B: resultaat / fout
-  B->>B: showRun, optionele zoekdetails
+  R->>R: Validate quotes against retrieved sections
+  R-->>W: Validated answer and searches, or error
+  W->>W: Complete run in RAM
+  B->>W: GET /api/runs/{id}
+  W-->>B: Answer, citations and search trace, or error
