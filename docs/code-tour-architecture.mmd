@@ -1,15 +1,9 @@
-flowchart TB
-  subgraph local[Lokale machine]
-    B[Browser] -->|HTTP| H[Rust API]
-    H --> R[CodexRunner + validatie]
-    R -->|child process| C[Codex CLI]
-    H <--> S[RunStore in RAM]
-    C <-->|stdio MCP| M[meedoen mcp]
-    M <--> I[MiniLM + RAM-index]
-    D[Vijf bronbestanden] --> I
-  end
-  C <-->|vraag + opgehaalde tekst| O[OpenAI-modeldienst]
-  classDef remote fill:#fae6cc,stroke:#83541d,color:#30281f
-  classDef storage fill:#e4f0e8,stroke:#336b49,color:#203b2a
-  class O remote
-  class D,I,S storage
+flowchart LR
+  B[Browser] -->|question| W[Rust web API]
+  W --> R[Rig agent]
+  R <-->|model requests| O[OpenAI Sol]
+  R -->|direct search callback| I[Local MiniLM / BM25 index]
+  D[12 fictional documents / 72 sections] --> I
+  I -->|passages with source and date| R
+  R --> V[Quote and source validation]
+  V -->|answer and search trace| B

@@ -1,62 +1,54 @@
-# RAG-evaluaties met promptfoo
+# RAG evaluations with promptfoo
 
-Promptfoo bestuurt nu de RAG-vraagsets, configuratiematrix, herhalingen en assertions. De bestaande Rust-code voert alleen lokale zoekacties of een begrensde Codex-sessie uit. De beoordeling komt uit de nieuwe promptfoo-assertions; de oude native rapportlezers blijven beschikbaar voor historische bestanden.
+Promptfoo controls RAG cases, configuration matrices, repetitions and assertions. Existing Rust code performs local retrieval or bounded Codex sessions. Promptfoo assertions assess the evidence; native readers remain for historical records, whose scores are not relabelled as new promptfoo results.
 
-## Drie bronproeven in de browser
+## Three browser retrieval tests
 
-De pagina `/resultaten/` begint met drie vaste tests op de huidige twaalf activiteiten (72 secties), uit `demo-12-20261118`: P01 vraagt tijd en locatie van tuinieren; T02 vraagt een binnenactiviteit op dinsdag met tijd en adres; T05 vraagt de tijden en adressen van taalcafé en samen koken. De verwachtingen zijn opnieuw tegen deze twaalf bronnen gecontroleerd. T02 accepteert een volledig onderbouwde fietsoptie of atelieroptie. Eén klik voert één vraag/configuratie uit, niet de grote matrices hieronder. De oorspronkelijke vijf- en tienbronnenvraagsets en hun bewaarde resultaten blijven afzonderlijke historische versies.
+`/resultaten/` begins with P01 (gardening time/location), T02 (Tuesday indoors, time/address) and T05 (language café and cooking times/addresses). They use the current twelve activities, 72 sections and the separately reviewed `demo-12-20261118` source criteria; T02 accepts a complete bicycle or creative-workshop option. A click runs one question/configuration, not a full matrix.
 
-Dit browserprotocol gebruikt vaste top-k **5**, kandidaat-k 30, contextlimiet 1200 en `documents_sections`. Daardoor is de minimaal benodigde vierdelige bewijsset van T05 structureel mogelijk. Deze instellingen worden niet als herhaling van oude top-3-metingen gepresenteerd. Iedere run gebruikt de volledige twaalfbronnencorpus; verwachte sectie-ID’s worden geen zoekfilter of encoderinvoer. Dataset-, vraag-, criteria- en corpusidentiteit onderscheiden de nieuwe uitvoering van de oude metingen.
+This browser protocol fixes top-k **5**, candidate-k 30, context ceiling 1200 and `documents_sections`, allowing T05's minimum four-section evidence set. It is not a repeat of old top-3 measurements. All twelve documents are searched; expected section IDs are never filters or encoder inputs. Dataset, question, criteria and corpus identities distinguish this version from historical measurements.
 
-Kies dense, BM25, hybrid RRF of gewogen hybrid. Dense/hybrid gebruiken echt MiniLM meertalig of multilingual E5 Small uit de gedeelde [modelcatalogus](embedding-models.json). E5 krijgt `passage: ` voor documentinvoer en `query: ` voor vragen; MiniLM houdt zijn bestaande ongewijzigde invoer. Model/revisie, artifacthashes, prefixen, dimensies, werkelijke inputhashes en vectorhash blijven aan de run/cache gebonden. BM25 downloadt of laadt geen encoder en toont geen gebruikt embeddingmodel. De catalogus gebruikt het bestaande SDK-contract uit [fastembed-rs 7.1.2, uitgebracht 19 oktober 2026](https://github.com/Anush008/fastembed-rs/releases/tag/v7.1.2); er is geen bibliotheekupgrade of algemene modelranglijstclaim.
+Choose dense, BM25, hybrid RRF or weighted hybrid. Dense/hybrid genuinely use multilingual MiniLM or multilingual E5 Small from the [model catalog](embedding-models.json). E5 uses `passage: ` for documents and `query: ` for questions; MiniLM keeps its original unprefixed input. Model/revision, artifact hashes, prefixes, dimensions, actual input hashes and vector hashes bind the run/cache. BM25 loads/downloads no encoder and shows no used embedding model. The catalog uses the existing SDK contract from [fastembed-rs 7.1.2](https://github.com/Anush008/fastembed-rs/releases/tag/v7.1.2), released **19 October 2026**, without a dependency upgrade or general model-ranking claim.
 
-De lokale webworker start uitsluitend de promptfoo-`browser`-config, bestaande retrievalprovider en dezelfde bronassertions. Hij verwijdert model-API-/Codexinstellingen uit zijn childomgeving. Rawuitvoer en `browser-view.json` staan privé onder `results/local/browser/<run_id>/`; oude publieke snapshots worden niet overschreven. Niet gevonden verwachte bronnen blijven zichtbaar; overige hits krijgen zonder volledige labels geen label ‘fout’.
+The worker runs only promptfoo's fixed `browser` configuration, existing retrieval provider and source assertions. Model API/Codex settings are removed from its child environment. Raw output and `browser-view.json` remain private under `results/local/browser/<run_id>/`; public snapshots are not overwritten. Missing required support stays visible; unjudged hits are not automatically wrong.
 
-Starten/annuleren vereist een eigen geldige sessie, de lokale verbindingspeer en correcte Host/Origin; proxy-/forwardedrequests worden geweigerd. Er draait hoogstens één zware job tegelijk, zonder verborgen wachtrij. De aparte gratis zoektestlimiet is zestig starts per uur en vijf per minuut per netwerkadres. De bestaande API-demolimiet van tien modelvragen per uur blijft apart. Een job stopt na maximaal 300 seconden; annuleren ruimt ook bewezen eigen detached childprocessen op vóór de plek vrijkomt. Deze start-/stoproute is voor rechtstreeks lokaal gebruik; hosting valt buiten deze uitvoering.
+Starting/cancelling requires an owned session, a local connection and valid Host/Origin; forwarded/proxy requests are refused. One heavy job runs at a time without a queue, at most 300 seconds. Separate free-test limits are sixty starts/hour and five/minute per network address. Cancellation cleans up identified owned detached children before releasing capacity. Website model-question limits remain separate. This worker is for direct local use, not a supported public start endpoint.
 
-## Bestaande volledige suites
+## Full suites
 
-| Suite | Wat wordt gemeten? | Standaard |
+| Suite | Measurement | Default |
 | --- | --- | --- |
-| `garden` | MiniLM tegenover oorspronkelijke Jaccard-woordoverlap | 5 tuinvragen × 2 methoden |
-| `retrieval` | Vier zoekmethoden × vier opslag-/structuurprofielen | 50 vragen × 16 configuraties |
-| `quality` | De vastgelegde context-, top-k- en filtervarianten | 18 legacyvragen × 24 + 12 onafhankelijke vragen × 28 |
-| `agentic` | Codex met maximaal vier gerichte zoekacties | 10 geselecteerde vragen × 4 zoekmethoden |
-| `models` | Bronvolledigheid en zoekwerk van Sol/Luna | 10 vragen × 2 modellen × 3 herhalingen |
-| `compact` | Behoud van bronnen/metadata en exacte bytes bij de echte MCP-projectie | 1 bewaard T02-record; offline replay |
-| `compact-live` | De vastgelegde full/compact-Codexparen | 3 paren, expliciet live |
+| `garden` | MiniLM versus original Jaccard word overlap | 5 gardening questions × 2 methods |
+| `retrieval` | Four methods × four storage/structure profiles | 50 questions × 16 configurations |
+| `quality` | Fixed context, top-k and filter treatments | 18 legacy questions × 24 + 12 independent questions × 28 |
+| `agentic` | Codex with at most four focused search attempts | 10 selected questions × 4 methods |
+| `models` | Sol/Luna source completeness and search work | 10 questions × 2 models × 3 repetitions |
+| `compact` | Exact MCP projection, source/metadata preservation and byte counts | 1 saved T02 record; offline replay |
+| `compact-live` | Predeclared full/compact Codex pairs | 3 pairs, explicitly live |
 
-De oude 13-call-payloadmeting blijft historische herkomst; die ruwe inputbundel is niet aanwezig in deze checkout. De nieuwe standaardreplay gebruikt eerlijk één beschikbaar record en claimt geen nieuwe model-, kosten- of snelheidsmeting. [Historisch protocol](docs/compact-mcp.md).
+The historical thirteen-call payload measurement remains provenance; its raw input bundle is absent from this checkout. The default replay honestly uses one available record and makes no new model, cost or speed claim. See [compact MCP](docs/compact-mcp.md).
 
-## Lokaal uitvoeren
+## Run locally without answer models
 
-### De huidige twaalf documenten
+### Current twelve documents
 
-`demo-12-20261118` bevat zeventien ontwikkelvragen: tien aangepaste bekende vragen, vier nieuwe vragen over Schaken/Naaicafé en de drie browservragen. Referentiedatum blijft **13 november 2026**, passend bij de vastgelegde bronversie. Onafhankelijke agentreview van de bronverwachtingen bewijst geen menselijke ijking of gegenereerde antwoordkwaliteit.
+Select the independently agent-reviewed development/regression set (17 eval cases, reference date 13 November 2026):
 
 ```sh
 npm run eval:rag -- --suite all-local --dataset demo-12-20261118 --no-publish
 ```
 
-Deze keuze voert uitsluitend de toepasselijke lokale suites uit: `retrieval` (17 × 16 = 272 rijen) en `quality` (17 × 24 = 408 rijen). De contextvergelijking gebruikt de bestaande basis-, activiteituitbreidings- en top-k-6-varianten; er zijn geen ongecontroleerde gebruikersfilters toegevoegd. Overlappende basisrijen zijn geen nieuwe unieke vragen. Een kleine, volledig modelvrije selectie:
+This runs retrieval (272 rows) and context quality (408 rows). The bounded `agentic` route also accepts this dataset (68 planned sessions before filtering). Existing `garden`, `models`, `compact` and `compact-live` retain their frozen source protocols and reject this dataset. Without explicit dataset selection the historical matrices remain unchanged. A small model-free selection:
 
 ```sh
 npm run eval:rag -- --suite retrieval --dataset demo-12-20261118 --cases DEMO12-11,DEMO12-12 --methods bm25 --profiles documents_sections --no-publish
 ```
 
-Ook de begrensde `agentic`-route kan expliciet deze dataset kiezen (17 × 4 = 68 geplande sessies, of een kleine selectie). Dit is een nieuwe ontwikkelvergelijking, niet de historische veertigsessiestudie:
+### Preserved matrices
 
-```sh
-npm run eval:rag:live -- --suite agentic --dataset demo-12-20261118 --cases DEMO12-11 --methods dense --ledger evals/rag/results/local/demo12-ledger.json --max-generations 1 --max-seconds 180 --no-publish
-```
+Requires Rust, Node **22.22 or newer** and the local model cache. Promptfoo is pinned to **0.125.1**, published **25 October 2026** and checked **13 November 2026**: [official release package](https://www.npmjs.com/package/promptfoo/v/0.125.1).
 
-`garden`, `models`, `compact` en `compact-live` houden hun eigen vastgelegde bronnen/protocol. Zij weigeren de nieuwe dataset in plaats van resultaten stilzwijgend als twaalfbronnenmeting te presenteren. Zonder datasetkeuze blijven de bestaande CLI-matrices ongewijzigd. De browser gebruikt wel standaard de nieuwe twaalfbronnenversie.
-
-### Bestaande vastgelegde matrices
-
-Benodigd: Rust, Node 22.22 of nieuwer en de bestaande modelcache. Promptfoo is vastgezet op **0.125.1** (npm-publicatie 25 oktober 2026; gecontroleerd 13 november 2026). [Officiële versie](https://www.npmjs.com/package/promptfoo/v/0.125.1).
-
-Vanuit de repository:
+From the repository root:
 
 ```sh
 cargo build --locked --features sqlite
@@ -65,51 +57,58 @@ npm run test:rag
 npm run eval:rag -- --suite all-local
 ```
 
-`all-local` doet verse retrieval, maar geen Codex-generaties of AI-judging. Zonder datasetkeuze gebruikt het de bestaande vijf- en tienbronnenvraagsets plus de vaste tuin- en compactproef. De SQLite-feature is nodig voor alle zestien profielen. Een kleine selectie kan met:
+`all-local` performs fresh retrieval and offline compact projection without Codex generation or AI judgment. Without dataset selection it uses the preserved five-/ten-source datasets and fixed gardening/compact protocols. The twelve-source labels are reviewed development expectations, not human ground truth. All sixteen profiles require the SQLite feature. For a small selection:
 
 ```sh
 npm run eval:rag -- --suite retrieval --dataset legacy --cases T05,P05 --methods bm25 --profiles documents_sections
 ```
 
-Een bronassertie mag falen. T05 heeft bijvoorbeeld vier benodigde secties en kan bij top-k drie onvolledig zijn. Dat blijft een echte mislukte broncontrole, geen installatiefout of groen gemaakte drempel. Gevallen zonder positief bewijsdoel krijgen geen perfecte retrievalscore: bronkwaliteit blijft N/A en valt buiten de noemer. Antwoordkwaliteit wordt hier niet beoordeeld.
+A source assertion may fail legitimately: T05 needs four sections and can be incomplete at top-k three. This is an evidence miss, not an installation failure or a reason to lower the criterion. No positive goal means N/A and exclusion from the source-quality denominator, not perfect retrieval. Answer quality is not assessed.
 
-Nieuwe rawresultaten, native bewijsrecords, logs en promptfoo-opslag staan onder genegeerde `results/local/<run>/`. Telemetrie, delen, promptfoo-cache en automatische retries staan uit. Voorbereide lokale batches komen uitsluitend uit het precieze promptfoo-plan en hebben een nieuwe execution-ID, bron-/config-/runtimebinding en oorspronkelijke zoektijden. Ze zijn geen replay van oude scores.
+New raw results, native evidence, logs and promptfoo storage go under ignored `results/local/<run>/`. Telemetry, sharing, promptfoo cache and automatic retries are disabled. Prepared local batches derive only from the exact promptfoo plan, with a new execution ID and source/config/runtime identity; they are not replayed old scores.
 
-## Modelproeven blijven via Codex
+## Model trials use Codex
 
-Alleen `agentic`, `models` en `compact-live` starten Codex. Daarvoor zijn expliciet `--live`, een nieuw begrensd ledger en een sessie-/tijdplafond verplicht. De provider verwijdert API-keyinstellingen uit de childomgeving en heeft geen OpenAI-APIprovider of judge-fallback.
+Only `agentic`, `models` and `compact-live` start Codex. Obtain explicit usage authorization and supply `--live`, a bounded ledger and session/time ceilings. The provider removes API-key settings from the child environment and has no OpenAI API provider or judge fallback.
 
-Een voorbeeld van een bewuste kleine selectie:
+A deliberately small selection:
 
 ```sh
 npm run eval:rag:live -- --suite agentic --cases P01 --methods dense --ledger evals/rag/results/local/codex-ledger.json --max-generations 1 --max-seconds 180
 ```
 
-Bij hervatten hoort hetzelfde ledger; fouten en onzekere pogingen tellen mee en worden niet automatisch herhaald. Modelvergelijkingen hebben standaard drie herhalingen; een expliciete technische rookproef kan `--repeat 1` gebruiken zonder die als volledige benchmark te presenteren.
+Resume with the same ledger. Failed/uncertain attempts count and are not retried automatically. Model comparisons default to three repetitions; `--repeat 1` is a technical smoke check, not a complete benchmark.
 
-De volledige `models`-vergelijking behoudt de oorspronkelijke, afwisselende Sol/Luna-volgorde van zestig pogingen. Zij begint met vier vaste pilotpogingen en stopt daarna. `remaining` vereist een onafhankelijke `PILOT_APPROVED.json`, gebonden aan de exacte preregistratie en de vier bewaarde pogingen. Beide fasen gebruiken hetzelfde ledger en dezelfde ongewijzigde limieten; Codex/host, runtime, bronnen, embeddings en vectoridentiteit blijven gepind. Alleen de twee bewezen modelcontract-/antwoordfouten mogen als mislukte modeluitkomst doorgaan. Onzekere, authenticatie-, netwerk- en tracefouten stoppen de proef zonder retry.
+The full `models` protocol retains sixty alternating Sol/Luna attempts. It runs four fixed pilot slots and stops. The `remaining` phase needs independent `PILOT_APPROVED.json` bound to the exact preregistration and saved pilot. Both phases share one unchanged ledger/limits and pinned Codex/host, runtime, source, embedding and vector identity. Only proven model-output/contract failures may continue as failed model outcomes; uncertain, authentication, network and trace failures stop without retry.
 
 ```sh
 npm run eval:rag:live -- --suite models --phase pilot --ledger evals/rag/results/local/modelvergelijking/ledger.json --max-generations 60 --max-seconds 7200
 npm run eval:rag:live -- --suite models --phase remaining --approval evals/rag/results/local/modelvergelijking/PILOT_APPROVED.json --ledger evals/rag/results/local/modelvergelijking/ledger.json --max-generations 60 --max-seconds 7200
 ```
 
-Een afzonderlijke technische modelrookproef gebruikt expliciet `--phase smoke`, een caseselectie en `--repeat 1`, met maximaal acht sessies en 900 seconden. Dit vervangt de pilot of volledige vergelijking niet.
+A separate technical model smoke check requires `--phase smoke`, explicit cases and `--repeat 1`, capped at eight sessions/900 seconds. It does not replace the pilot/full comparison. Historical Python source pins remain unchanged; old pinned runs are not resumed under different code. The old `scripts/model_trials.ts run` is disabled; new trials use promptfoo. Saved historical results and reassessment remain available.
 
+## Read or reassess saved results
 
-## Eigen resultaatpagina
+Below the local tests, the separately opened archive reads the public allowlist projection `site/promptfoo-results.json`: run IDs, datasets, settings, assertion states/reasons, source hits, N/A and execution errors. The sixty older sessions remain unchanged expandable history. Local tests start no answer model.
 
-Onder de drie lokale bronproeven staat een afzonderlijk, pas bij openen geladen archief. Dat leest de publieke whitelistprojectie `site/promptfoo-results.json` en toont promptfoo-run-ID's, vraagsets, configuraties, assertionstatus, redenen, bronhits, N/A en uitvoeringsfouten. De oude zestig sessies blijven bytevast als uitklapbare historie. Browserproeven starten geen antwoordmodel; de nieuwe lokale startroute is geen publiek startendpoint.
+Export excludes full configuration, machine paths, audit files, credentials and private reasoning. Only intentionally selected source/test fields are shared. [Provider/assertion details](promptfoo/README.md) explain the contract.
 
-De exporter neemt geen volledige config, machinepaden, auditbestanden of interne reasoning over. Rawresultaten blijven lokaal. Alleen bron-/testgegevens die bewust voor de pagina geselecteerd zijn worden gedeeld. [Provider- en assertiondetails](promptfoo/README.md).
-
-Een gewijzigde assertion kan bestaande uitvoer opnieuw beoordelen zonder het model opnieuw te starten:
+Reassess an existing result without rerunning the model:
 
 ```sh
-node evals/rag/scripts/regrade_promptfoo_results.mjs evals/rag/results/local/<run>/<suite>.json evals/rag/results/local/<nieuwe-herbeoordeling>
+node evals/rag/scripts/regrade_promptfoo_results.mjs evals/rag/results/local/<run>/<suite>.json evals/rag/results/local/<new-assessment>
 ```
 
-Dat maakt een nieuwe promptfoo-grading-ID met de oorspronkelijke uitvoerings-ID, datum en rawhash. Codex-bewijs wordt opnieuw aan de oorspronkelijke native records en bytegebonden audit gekoppeld. De pagina noemt dit expliciet herbeoordeling; het is geen nieuwe retrieval- of modelmeting.
+This creates a new promptfoo grading ID retaining original execution ID, time and raw hash. Codex evidence is rebound to original native records and byte-linked audit. The page identifies reassessment; it is not a fresh retrieval/model measurement.
 
+## Procedures and metric definitions
 
-De bestanden `src/`, `datasets/`, `fixtures/` en de oudere handleidingen blijven de onderliggende uitvoerders, bronverwachtingen en historische meetdefinities documenteren. Het oude `scripts/model_trials.ts run` is uitgeschakeld; nieuwe RAG-modelproeven lopen via promptfoo. De native volledige-assistentbenchmark onder [coa-assistent](../coa-assistent/README.md) verandert niet.
+- [Promptfoo provider, assertions and budget contract](promptfoo/README.md).
+- [Native retrieval procedures and metrics](docs/retrieval-lab.md), including storage parity and manual review.
+- [Predeclared quality protocol](docs/retrieval-lab-quality-v1.md), including AND/OR goals, filters and capacity limits.
+- [Iterative-search comparison](docs/agentic-search-comparison.md).
+- [Compact MCP audit and historical byte comparison](docs/compact-mcp.md).
+- [Saved ranking-role regression](fixtures/regressions/README.md).
+
+These native guides explain retained execution/measurement layers and historical protocols; promptfoo is the current RAG orchestrator. [Complete-assistant evaluation](../coa-assistent/README.md) remains separate.

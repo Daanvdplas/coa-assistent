@@ -1,20 +1,20 @@
-# Retrievalvarianten lokaal vergelijken
+# Compare local retrieval configurations
 
-**Actuele runner:** [promptfoo](../README.md) bestuurt de RAG-proeven. De native commando’s hieronder beschrijven de behouden uitvoeringsonderlaag of historische rapportage, niet een tweede actuele benchmark/scorer.
+**Current orchestrator:** [promptfoo](../README.md). Native commands below explain the retained execution/measurement layer and historical reporting, not a second current benchmark scorer.
 
-Deze oorspronkelijke baseline gebruikt vijf fictieve activiteiten, dertig oorspronkelijke passages en achttien bestaande ontwikkel-/regressievragen. De nieuwe tienbronnenversie is apart te kiezen met `--dataset expanded-10-20261105`; zie [README](../../../docs/LOCAL_SETUP.md#nieuwe-testversie-met-tien-activiteiten). De drie hoofdkeuzes zijn **zoekmethode, opslag/structuur en beoordelingstype**.
+The original baseline uses five fictional activities, thirty canonical passages and eighteen seen development/regression questions. Select the ten-source version explicitly with `--dataset expanded-10-20261105`; [shared datasets](../../shared/README.md) records versions. The main axes are search method, storage/structure and assessment type.
 
-| Keuze | Varianten |
+| Axis | Choices |
 | --- | --- |
-| Zoekmethode | `dense`, `bm25`, `hybrid_rrf`, `hybrid_weighted` |
-| Opslag/structuur | `documents_sections`, `documents_activities`, `sqlite_sections`, `sqlite_activities` |
-| Beoordeling | `deterministic`, `manual`, `ai` (gepauzeerd) |
+| Search | `dense`, `bm25`, `hybrid_rrf`, `hybrid_weighted` |
+| Storage/structure | `documents_sections`, `documents_activities`, `sqlite_sections`, `sqlite_activities` |
+| Assessment | `deterministic`, `manual`, `ai` (paused) |
 
-De volledige hoofdmatrix heeft **16 varianten × 18 vragen = 288 zoekuitvoeringen**. Verschillende beoordelingen gebruiken daarna dezelfde opgeslagen resultaten. De offline opdrachten `lab run`, `lab assess` en `lab report` genereren geen antwoorden en doen geen Codex- of AI-beoordelaarsaanroepen.
+The original full baseline is **16 configurations × 18 questions = 288 retrieval records**. Assessors reuse those saved records; `lab run`, `lab assess` and `lab report` generate no answers and call no Codex/AI judge.
 
-## Uitvoeren
+## Execute
 
-Voer dit uit vanuit de projectmap met de bestaande `.model-cache`. Zonder modelbestanden kan de eerste vectoruitvoering ongeveer 235 MB downloaden. Keyword-only zoeken heeft geen embeddingmodel nodig.
+Use the repository working directory and existing `.model-cache`. A first vector run may download approximately 235 MB. Keyword-only retrieval needs no embedding model.
 
 ```sh
 LAB_RUN_DIR="$(mktemp -d /tmp/coa-retrieval-lab.XXXXXX)"
@@ -31,9 +31,9 @@ cargo run --locked --features sqlite -- lab assess \
   --output "$LAB_RUN_DIR/assessments.jsonl"
 ```
 
-De SQLite-feature is optioneel. `--no-default-features` bouwt een zelfstandige documentvariant; geplande SQLite-rijen blijven zichtbaar als niet ondersteund. Bestaande resultaatbestanden worden nooit overschreven. Gebruik voor een nieuwe uitvoering een nieuw resultaatbestand; dezelfde cachemap mag worden hergebruikt.
+SQLite is optional. `--no-default-features` builds the standalone document route; unavailable SQLite rows remain visibly unsupported, without fallback. Output files are never overwritten. Reuse caches if appropriate, but choose a new result file.
 
-Een kleine proef zonder embeddingmodel:
+Small keyword-only check:
 
 ```sh
 cargo run --locked --no-default-features -- lab run \
@@ -41,48 +41,47 @@ cargo run --locked --no-default-features -- lab run \
   --output "$LAB_RUN_DIR/t02-keyword.jsonl"
 ```
 
-## Resultaten bekijken en zelf beoordelen
+## Inspect and judge saved results
 
-Maak van opgeslagen uitvoeringen een zelfstandig HTML-rapport:
+```sh
+cargo run --locked --features sqlite -- lab report --input "$LAB_RUN_DIR/retrieval.jsonl" --assessments "$LAB_RUN_DIR/assessments.jsonl" --output "$LAB_RUN_DIR/report.html"
+```
 
-    cargo run --locked --features sqlite -- lab report --input "$LAB_RUN_DIR/retrieval.jsonl" --assessments "$LAB_RUN_DIR/assessments.jsonl" --output "$LAB_RUN_DIR/report.html"
-    open "$LAB_RUN_DIR/report.html"
+Open `report.html` in a browser (`open "$LAB_RUN_DIR/report.html"` on macOS). It needs no server, external scripts or internet. Reporting loads no encoder and repeats no search/model calls. Without `--assessments`, current deterministic metrics, blank manual assessments and paused-AI records are added offline.
 
-**open** is voor macOS; op andere systemen kun je het bestand in je browser openen. Het rapport heeft geen server, externe scripts of internetverbinding nodig. De report-opdracht laadt geen embeddingmodel en doet geen nieuwe zoek- of modelaanroepen. Zonder **--assessments** vult zij de actuele deterministische metingen, lege handmatige beoordelingen en gepauzeerde AI-records offline aan.
+1. Select a question, method, storage/structure and assessment.
+2. Open a result: expected facts appear beside actual passages with source/date.
+3. Inspect missing support and optional metrics/settings.
+4. Use **Zelf beoordelen** to record a human decision and optional note. The browser stores it locally; export to JSONL when needed.
 
-1. Kies een vraag, zoekmethode, opslag-/structuurprofiel en beoordeling.
-2. Open een resultaat. Links staan de verwachte feiten; rechts de werkelijk opgehaalde passages met bron en datum.
-3. Bekijk wat ontbreekt en open desgewenst de metingen en instellingen.
-4. Kies **Zelf beoordelen** om een oordeel en optionele notitie vast te leggen. Je browser bewaart dit lokaal; exporteer de beoordelingen voor een los JSONL-bestand.
+Import the export into a new report:
 
-Importeer zo'n export in een nieuw rapport:
+```sh
+cargo run --locked --features sqlite -- lab report --input "$LAB_RUN_DIR/retrieval.jsonl" --assessments /path/to/assessments.jsonl --output "$LAB_RUN_DIR/report-with-assessments.html"
+```
 
-    cargo run --locked --features sqlite -- lab report --input "$LAB_RUN_DIR/retrieval.jsonl" --assessments /pad/naar/beoordelingen.jsonl --output "$LAB_RUN_DIR/report-met-oordelen.html"
+Existing decisions are retained and missing assessment types added. Wrong/stale bindings are rejected without rerunning retrieval. Unavailable browser storage produces a visible notice. Unexecuted combinations receive no invented zero score. Human fields must not be filled by an agent.
 
-Het lab behoudt de gegeven oordelen en vult ontbrekende beoordelingstypen aan. Een verkeerd gekoppelde of verouderde beoordeling wordt geweigerd; zoeken wordt niet herhaald. Browseropslag die niet beschikbaar is, wordt zichtbaar gemeld. Niet-uitgevoerde combinaties tonen geen verzonnen nulscore.
+## Evidence, ranking and integrity
 
-Lokale tijden bewijzen geen algemene snelheidswinst. Het retrieval-buildprofiel staat niet in de records: gebruik voor prestatieonderzoek consequent **--release** en bewaar ook het commando, de binaryhash en de omgeving. De pagina telt gedeelde voorbereiding eenmaal per batch en houdt deze los van de lokale zoektijden.
+Deterministic checks validate source/config identity, unchanged text, traceable candidates/hits and context ceilings. **Evidence coverage** asks which expected fact goals are fully supported. Complete-case count/eligible-case count and average partial goal coverage are separate results; a higher partial average need not mean more fully supported questions. No metric is an automatic general quality verdict.
 
-## Wat wordt beoordeeld?
+For T02 (Tuesday, indoors, time/address), `ACT-FIETS-002:S2` and `S3` are required. S2 alone gives 0/2 complete goals; S3 alone 1/2; both 2/2. S2 is useful despite not completing a goal. Source date is **18 October 2026**. These are assessment expectations, never forced search results.
 
-Deterministische controles controleren bronidentiteit, ongewijzigde passages, configuratie, herleidbare zoekresultaten en contextlimieten. De **bewijsdekking** meet welke verwachte feiten volledig ondersteund worden. Relevantie-/rangschikkingsscores zijn alleen beschikbaar bij volledige relevantielabels. Geen enkele score is automatisch een algemeen kwaliteitsoordeel.
+Goals use OR between alternative evidence groups and AND inside each group. A sourced explicit unknown can have a positive support target; a missing fact without a source target has N/A, not perfect retrieval. Without generated answers, answer correctness/citations are N/A. AI judging stays paused.
 
-Voor T02 (dinsdag, binnen, tijd en adres) zijn de verwachte bronpassages `ACT-FIETS-002:S2` en `S3`. Alleen S2 ondersteunt 0/2 complete bewijsdoelen; alleen S3 ondersteunt 1/2; samen ondersteunen ze 2/2. S2 bevat dus wel nuttige informatie, ook wanneer nog geen volledig bewijsdoel af is. De brondatum is 18 oktober 2026. Dit zijn verwachtingen, geen opgelegde zoekresultaten.
+Relevance metrics need complete labels where required. Historical relevance MRR can credit exclusion evidence; **first goal-support reciprocal rank** considers only required source-goal references. These are different measures. Activity expansion does not create a rank. The [saved regression](../fixtures/regressions/README.md) protects this distinction.
 
-Handmatige beoordelingen beginnen leeg. Een mens kan later een oordeel en notitie invullen. AI-beoordelingen blijven gepauzeerd. Zonder gegenereerd antwoord zijn antwoordjuistheid en antwoordcitaten **niet van toepassing**. Een onbekend feit is geen positief zoekdoel en krijgt geen verzonnen perfecte score.
+Assessments bind the SHA-256 of the exact JSONL line. Reassessment never retrieves again; modified/different bytes are rejected. Assessor `retrieval-assessment-v2` validates unselected candidates and omitted references too. Invalid traces get no valid ranking score. Reassess older versions into new files rather than repeating retrieval or importing stale deterministic grades; criteria hashes and complete recomputation must agree.
 
-Beoordelingen zijn gekoppeld aan de SHA-256 van de exacte opgeslagen JSONL-regel. Bij opnieuw beoordelen wordt niet opnieuw gezocht. Een beoordeling van andere of gewijzigde resultaatbytes wordt geweigerd.
+## Controls, storage and fair timing
 
-Assessor `retrieval-assessment-v2` controleert ook alle niet-geselecteerde kandidaten en weggelaten verwijzingen. Bewijsdekking van ongewijzigde bronpassages blijft een afzonderlijke meting; een ongeldige trace krijgt geen geldige rangschikkingsscore. Maak bij een oudere assessorversie een nieuw beoordelingsbestand van dezelfde opgeslagen zoekresultaten. De zoekresultaten hoeven daarvoor niet opnieuw te worden uitgevoerd.
+Advanced options include `--top-k 3|6`, `--candidate-k`, `--context-limit`, `--selection sections|activity_expansion`, `--mmr on|off`, `--apply-filters on|off`, `--rrf-k`, `--vector-weight` and `--mmr-lambda`. `--query-filters` accepts explicit JSON, for example `'{"weekdays":["tuesday"],"environment":"indoor"}'`. No criteria come from expected answers or case IDs. Unknown source fields remain unknown; preferences do not silently become hard constraints.
 
-## Verdieping en eerlijke metingen
+Activity expansion is context selection: seeds remain intact, then whole unchanged related sections fit within the shared ceiling. Activity records are a distinct representation with source-backed typed fields and linked passages. Store, representation, filters and method are separately recorded. A top-k seed limit is not the expanded offered-section limit. T05 needs four sections and cannot complete at fixed section top-k three; passing a minimum-capacity bound does not guarantee token/filter feasibility.
 
-Geavanceerde opties zijn `--top-k 3|6`, `--candidate-k`, `--context-limit`, `--selection sections|activity_expansion`, `--mmr on|off`, `--apply-filters on|off`, `--rrf-k`, `--vector-weight` en `--mmr-lambda`. `--query-filters` accepteert expliciete JSON-criteria, bijvoorbeeld `'{"weekdays":["tuesday"],"environment":"indoor"}'`. Deze gelden voor de geselecteerde vragen; het lab leidt geen criteria uit verwachte antwoorden af. Onbekende bronvelden blijven onbekend.
+Document and SQLite adapters load the same ordered canonical passages and exact f32 vectors into one Rust scorer. SQLite supplies no separate native vector/FTS ranker; storage alone should not improve relevance. Cache identity includes source/embedding inputs, provider/model/SDK/encoding/dimensions; changed text or model invalidates affected entries. Nonfinite or wrong-size vectors are rejected. Dense, BM25, RRF and weighted hybrid retain their honest score kinds/components; none is answer confidence.
 
-Activiteituitbreiding is een afzonderlijke contextkeuze: oorspronkelijke passages blijven heel en worden alleen toegevoegd zolang het gedeelde contextbudget dat toelaat. Activiteitrecords vormen wel een echt ander gegevensmodel, met brongebonden velden en gekoppelde passages. Opslag, groepering, filters en zoekmethode worden afzonderlijk vastgelegd.
+`retrieval_ms` measures local search, selection and checks, excluding model initialization, embeddings and storage preparation. Shared model/query work and reuse appear once under `shared_preparation`; do not sum duplicate preparation identities. Preparation depends on order/cache state. Estimated context tokens are not provider usage, total input or cost.
 
-Alle opslagroutes laden dezelfde canonieke passages en exacte f32-embeddings in dezelfde Rust-scorer. SQLite gebruikt hier geen andere native vectorzoekmethode of FTS-ranker. Opslag veranderen hoort daardoor op zichzelf geen betere relevantie te geven.
-
-`retrieval_ms` meet de lokale zoekberekening, inclusief selectie en controles, zonder modelinitialisatie, embeddings of opslagvoorbereiding. Model-/querywerk en cachehergebruik worden gedeeld en apart vastgelegd in `shared_preparation`. Tel kopieën met dezelfde identiteit niet bij elkaar op. Voorbereiding per profiel hangt af van uitvoeringsvolgorde en cachestatus; gebruik die niet als ongecontroleerd bewijs dat een opslagvariant sneller is. Geschatte contexttokens zijn geen werkelijk providerverbruik.
-
-Een verse cachemap geeft een nieuwe lokale index/cache; modelbestanden blijven afzonderlijk in `.model-cache`. Bewaar koud/warm als aparte uitvoeringen en vermeld de toestand. De bestaande vragen zijn al eerder bekeken en leveren geen nieuwe ongeziene benchmark op.
+Use consistent `--release` for performance research and retain command, binary hash and environment: records do not capture retrieval build profile. Cold/warm runs must be separate and labelled. A fresh index/cache directory does not imply fresh model weights. Seen questions are not an unseen benchmark.

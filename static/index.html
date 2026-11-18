@@ -5,21 +5,6 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title data-i18n="pageTitle">COA Assistent · Vind een activiteit die past</title>
     <style>
-      main { max-width:1040px; margin:auto; padding:40px 32px 48px; }
-      .site-nav.demo-nav { justify-content:flex-end; padding-block:12px; gap:8px 20px; }
-      .demo-nav .demo-name { margin-inline-end:auto; color:var(--ink); font-weight:650; }
-      main.demo-main>h1 { font-size:1.875rem; font-weight:600; line-height:1.2; letter-spacing:-.015em; text-wrap:balance; margin:0 0 16px; }
-      .demo-nav .language-switch { display:block; position:relative; }
-      .demo-nav .language-trigger { display:flex; align-items:center; justify-content:center; gap:4px; min-width:44px; min-height:44px; padding:0 6px; cursor:pointer; list-style:none; }
-      .demo-nav .language-trigger::-webkit-details-marker { display:none; }
-      .demo-nav .language-trigger::after { content:"⌄"; font-size:.75rem; color:var(--muted); }
-      .demo-nav .language-options { position:absolute; z-index:10; inset-inline-end:0; top:calc(100% + 6px); min-width:200px; padding:4px; border:1px solid var(--line); background:var(--surface); }
-      .demo-nav .language-options button { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:8px 12px; border:0; border-radius:0; text-align:start; text-decoration:none; font-weight:500; }
-      .demo-nav .language-options button[aria-pressed="true"] { font-weight:650; text-decoration:underline; text-underline-offset:4px; }
-      .demo-nav .language-options button:hover { background:var(--paper); }
-      .demo-main h2 { font-size:1.5rem; margin:32px 0 16px; }
-      .demo-main h3 { font-size:1rem; margin:16px 0 6px; }
-      .demo-main p { max-width:72ch; }
       small { font-size:.8125rem; color:var(--muted); }
       button,textarea { font:inherit; color:inherit; }
       .demo-main button { min-height:48px; padding:10px 20px; }
@@ -84,17 +69,17 @@
       .search-step>.error,.search-step>.muted { margin-inline-start:22px; }
       .error { color:var(--error); }
       [hidden] { display:none !important; }
-      @media(max-width:650px) { main { padding:28px 16px 32px; } .site-nav.demo-nav { gap:8px 12px; } .demo-main h1 { font-size:2rem; margin-bottom:24px; } .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
-      @media(max-width:650px) { .demo-nav .demo-name { flex-basis:100%; } main.demo-main>h1 { font-size:1.75rem; margin-bottom:16px; } #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document { min-height:48px; padding-inline:8px; gap:6px; } }
+      @media(max-width:650px) { .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
+      @media(max-width:650px) { #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document { min-height:48px; padding-inline:8px; gap:6px; } }
       @media(max-width:360px) { #source .source-document { font-size:.875rem; padding-inline:6px; gap:4px; } }
     </style>
 
-  <link rel="stylesheet" href="/assets/site.css?v=20261116-activity-reader">
+  <link rel="stylesheet" href="/assets/site.css?v=20261118-shared-layout">
 <script src="/assets/language.js?v=20261117-public-demo" defer></script>
 <script src="/assets/demo.js?v=20261117-visible-evidence" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
-    <main class="demo-main">
+    <main class="demo-main app-main">
       <h1 data-i18n="questionTitle">Vind een activiteit die past</h1>
       <section id="source" aria-labelledby="source-heading">
         <h2 id="source-heading" data-i18n="activities">Activiteiten</h2>

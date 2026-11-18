@@ -1,18 +1,20 @@
-# COA-assistent als geheel evalueren
+# Evaluate the complete COA assistant
 
-Hier staan de proeven met gegenereerde antwoorden: vier RAG-aanpakken, harde bron-/citaatcontroles, de afzonderlijke inhoudelijke beoordelaar en diens kalibratie. Generatie en AI-beoordeling gebruiken Codex CLI. De modelbeoordelaar blijft voorlopig en is niet menselijk geijkt.
+These experiments generate answers using four RAG approaches, enforce source/citation checks and support a separate answer judge and calibration. Generation and AI judgment use Codex CLI. The judge is provisional and has not been calibrated by people.
 
-Dezelfde vier aanpakken kunnen ook de actuele twaalf fictieve activiteiten gebruiken: kies samen `--questions evals/shared/datasets/demo-12-20261118/questions.json` en `--expectations evals/shared/datasets/demo-12-20261118/expectations.json`. De vraagset bindt het broncorpus, de referentiedatum en de criteria; alle-documentencontext bevat dan 72 secties. Zonder deze keuze blijft de bestaande vijfbronnenpilot behouden. Dit meet de Codex-evalroute, niet de afzonderlijke Rig/Responses-webdemo. Nieuwe modelantwoorden zijn variabel; de broncontroles op opgeslagen uitvoer zijn vast.
+The four approaches also accept the twelve current documents: select `--questions evals/shared/datasets/demo-12-20261118/questions.json` together with `--expectations evals/shared/datasets/demo-12-20261118/expectations.json`. That dataset binds the corpus, reference date and criteria, including all 72 sections for full context. The default five-source protocol remains unchanged. This evaluates the Codex route, not the separate Rig/Responses demo; fixed source checks do not establish answer quality.
 
-- [Actuele reproduceerhandleiding](docs/reproduce.md), [criteria](docs/metrics.md) en [datasetuitleg](docs/dataset.md).
-- `src/`: de bestaande `experiment`-harness, inclusief judge, budget en rapportbouw.
-- `fixtures/`: acht kalibratievoorbeelden, AI-referentie en handgemaakt rapportvoorbeeld.
-- [Bewaarde uitvoering van 23–26 oktober 2026](results/2026-10-26/README.md): volledige ruwe geschiedenis, inclusief oorspronkelijke fouten en hashes.
-- [Gedeelde vraagsets](../shared/README.md): twaalf pilotvragen, zes oorspronkelijke vergelijkingsvragen en latere versies, zonder duplicaten.
+- [Reproduction procedure](docs/reproduce.md): validation, generation, judgment and reporting.
+- [Dataset contract](docs/dataset.md), [six held-out compositions](docs/heldout.md) and [metric definitions](docs/metrics.md).
+- [Report behavior](docs/report.md) and [visual framework explanation](docs/framework.html).
+- `src/`: the existing `experiment` harness, judge, budget and report renderer.
+- `fixtures/`: eight calibration examples, a separate AI reference and a handmade report example. The [human-review worksheet](docs/human-review.html) is a preserved functional instrument, with original Dutch cases and empty human labels.
+- [Saved 23–26 October 2026 run](results/2026-10-26/README.md): complete raw history, including original errors and hashes. Its README is hashed evidence and remains unchanged.
+- [Shared datasets](../shared/README.md): twelve pilot questions, six original comparison questions and later versions.
 
-## Bestaand rapport openen zonder modelcalls
+## Open an existing report without model calls
 
-Voer dit uit vanuit de repository:
+From the repository root:
 
 ```sh
 mkdir -p evals/coa-assistent/results/local
@@ -20,13 +22,11 @@ cargo run --locked -- experiment validate
 cargo run --locked -- experiment report --input evals/coa-assistent/fixtures/report-example.jsonl --output evals/coa-assistent/results/local/voorbeeld.html
 ```
 
-Het voorbeeld bevat handgemaakte rendererchecks, geen nieuwe RAG-meting.
-
-Voor het echte oktoberarchief:
+The example contains handmade renderer checks, not measured RAG results. For the real October archive:
 
 ```sh
 COA_EVIDENCE=evals/coa-assistent/results/2026-10-26
 cargo run --locked -- experiment report --input "$COA_EVIDENCE/smoke-graded.jsonl,$COA_EVIDENCE/pilot-graded.jsonl,$COA_EVIDENCE/heldout-final-graded.jsonl" --output evals/coa-assistent/results/local/oktober.html
 ```
 
-Het oktoberarchief, inclusief zijn README, is meegehasht en daarom ongewijzigd. Oude padnamen daarin blijven historische herkomstinformatie; bovenstaande commando's gebruiken de huidige plekken. Nieuwe modeluitvoeringen starten uitsluitend expliciet met `--live`, nieuwe uitvoerbestanden en een begrensd gedeeld ledger volgens de handleiding.
+Old paths in the sealed archive remain provenance; the commands above use current locations. New model sessions require explicit authorization, `--live`, new output files and a bounded shared ledger following the reproduction procedure.

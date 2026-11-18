@@ -1,22 +1,20 @@
-# Zelf de evaluatie uitvoeren
+# Run the complete-assistant evaluation
 
-De evaluatie gebruikt vijf fictieve documenten: twaalf ontwikkel-/pilotvragen en zes vooraf apart gehouden vergelijkingsvragen. Je bekijkt bewijsdekking, antwoordkwaliteit en efficiëntie afzonderlijk. De kleine set en de voorlopige AI-beoordelaar onderbouwen een verkennende vergelijking.
+This protocol uses five fictional documents, twelve development/pilot questions and six predeclared comparison questions. Inspect evidence coverage, answer quality and efficiency separately. The small set and provisional AI judge support an exploratory comparison, not a general reliability claim.
 
-## 1. Begin zonder modelaanroepen
+## Current twelve-document development set
 
-### Actuele twaalfbronnenproef
-
-De nieuwe gedeelde ontwikkelvraagset gebruikt alle twaalf activiteiten, met nieuwe brongebonden verwachtingen voor Schaken en Naaicafé. Valideer die zonder een model te starten:
+Validate the twelve-source questions without a model call:
 
 ```sh
 cargo run --locked -- experiment validate --questions evals/shared/datasets/demo-12-20261118/questions.json --expectations evals/shared/datasets/demo-12-20261118/expectations.json
 ```
 
-Voor een expliciet gestarte nieuwe proef geef je deze twee opties ook mee aan `experiment run --live` en eventueel later `experiment grade --live`. De gekozen vraagset bepaalt automatisch de exacte twaalf bronbestanden en referentiedatum; MiniLM, BM25, de MCP-zoekroute en alle-documentencontext gebruiken dezelfde bronversie. Een run van alle 17 vragen met vier aanpakken omvat 68 generaties en past niet binnen het bestaande plafond van 40: kies vooraf een deelverzameling en behoud het ledger. De historische proeven hieronder blijven bij hun eigen vijfbronnenprotocol.
+Use both dataset flags for an explicitly authorized `experiment run --live` or later `experiment grade --live`. The corpus contains 72 sections. Seventeen eval cases across four approaches require 68 generations and exceed the existing 40-generation ceiling: select a bounded subset and preserve its ledger. The historical protocols below retain their own five-source inputs. This evaluates Codex, not the Rig/Responses demo; AI judgment remains provisional.
 
-Dit blijft een evaluatie via Codex CLI. De Rig/Responses-webdemo gebruikt dezelfde bronnen, maar heeft een ander model-/tooluitvoeringspad. De vaste bron- en citaatcontroles bewijzen geen inhoudelijk juist antwoord. Een eventuele afzonderlijke AI-beoordeling blijft voorlopig; deze wijziging voert geen modellen of beoordelingen uit.
+## 1. Start without model calls
 
-Voer dit vanuit de repository uit. Rust en de afhankelijkheden zijn nodig; Cargo kan die bij de eerste build downloaden. Voor deze opdrachten is geen Codex-aanmelding nodig.
+Run from the repository root. Rust/dependencies are required; Cargo may download dependencies during the first build. No Codex login is needed:
 
 ```sh
 cargo test --locked
@@ -28,13 +26,13 @@ mkdir -p /tmp/coa-rag-preview
 cargo run --locked -- experiment report --input evals/coa-assistent/fixtures/report-example.jsonl --output /tmp/coa-rag-preview/voorbeeld.html
 ```
 
-Open `voorbeeld.html` in je browser. Deze zes handgemaakte rendererchecks blijven als **voorbeelden** gemarkeerd. Filteren en uitklappen werken rechtstreeks vanaf schijf, zonder netwerk of modellen. De bestaande demo blijft apart.
+Open `voorbeeld.html`. Its six handmade renderer checks remain labelled as examples. Filtering/expansion works directly from disk without a model/network. The live demo remains separate.
 
-## 2. Controleer de keten met twee bekende vragen
+## 2. Check two known questions
 
-Hiervoor zijn een aangemelde, compatibele Codex-runtime en de lokale embeddingbestanden nodig; zie de [startinstructies](../../../docs/LOCAL_SETUP.md#werking-en-configuratie). MiniLM maakt embeddings lokaal. Antwoorden en afzonderlijke beoordelingen gebruiken OpenAI via Codex en kunnen usage verbruiken. `--live` is daarom verplicht.
+First obtain explicit authorization for model usage. This route needs an authenticated compatible [Codex runtime](../../../docs/codex.md) and local embedding files. MiniLM embeds locally; answer generation and separate judging send context to OpenAI through Codex and consume usage. `--live` is required.
 
-Voor een nieuw zelfstandig traject kies je een eigen map. Bij hervatten gebruik je de **bestaande map en hetzelfde ledger**; dat is de budgetregistratie. Uitvoerbestanden krijgen een nieuwe naam en worden niet overschreven.
+Choose a new directory for an independently authorized run. Resume with the **existing directory and same ledger**. Every output file must be new:
 
 ```sh
 COA_EVAL_DIR=/tmp/coa-rag-evaluation
@@ -43,31 +41,37 @@ mkdir -p "$COA_EVAL_DIR"
 cargo run --locked -- experiment run --live --cases P01,P06 --arms agentic_dense,full_context --output "$COA_EVAL_DIR/smoke-generation.jsonl" --ledger "$COA_EVAL_DIR/ledger.json" --max-cases 2 --max-generations 4 --max-judgements 0 --max-seconds 600
 ```
 
-Dit is de gedeelde smoke: twee bekende vragen met Codex en directe context, maximaal vier generaties. Iedere poging reserveert vooraf een sessie. Eén gezamenlijk ledger begrenst het traject op 40 generaties, 56 beoordelingen en een venster van vier uur; mislukte pogingen tellen mee. Er loopt één sessie tegelijk, maximaal 120 seconden. Een modelsessie kan intern meerdere providerrequests bevatten. De afzonderlijke MCP-zoekcalls staan wel in de trace.
+This smoke check uses two questions with Codex search/direct context, at most four generations. Each attempt reserves a session first. The shared ledger bounds the full protocol to 40 generation sessions, 56 judgment sessions and four hours; failures count. Only one session runs at a time, at most 120 seconds. A session can contain several provider requests; MCP searches are traced separately.
 
-Een verlopen venster stopt het werk. Vernieuw het ledger niet om de tellers te omzeilen. Alleen een expliciet toegestane voortzetting mag het bestaande venster verlengen; de [audit en sessieplafonds blijven behouden](../../../docs/LOCAL_SETUP.md#reproduceerbare-experimenten).
+An expired window stops work. Never renew/reset the ledger to bypass usage. Only an explicitly authorized continuation may extend its existing expired window:
 
-## 3. Rond de pilot af en vergelijk daarna zes vragen
+```sh
+cargo run --locked -- experiment extend-window --ledger "$COA_EVAL_DIR/ledger.json" --seconds 14400 --authorize-continuation
+```
 
-De tien overige pilotvragen worden één keer met Codex uitgevoerd. Samen met de twee smokevragen dekt dit alle twaalf bekende vragen; de oorspronkelijke contextfouten blijven bewaard.
+The command requires an existing expired, exclusively locked ledger. It preserves original start, consumed sessions and 40/56 ceilings, recording old/new deadlines, authorization reason/time and counters. An active window, invalid audit chain or corrupt ledger is refused. Older binaries refuse the extended schema; use the matching current executable.
+
+## 3. Complete the pilot, then compare six questions
+
+Run the remaining ten pilot cases once. Together with the smoke cases, they cover twelve known questions; preserve original context failures:
 
 ```sh
 cargo run --locked -- experiment run --live --cases P02,P03,P04,P05,P07,P08,P09,P10,P11,P12 --arms agentic_dense --output "$COA_EVAL_DIR/pilot-generation.jsonl" --ledger "$COA_EVAL_DIR/ledger.json" --max-cases 10 --max-generations 10 --max-judgements 0 --max-seconds 1800
 ```
 
-Controleer de pilot en zet prompt, brondata, criteria en instellingen vast vóór de eerste uitvoering op deze zes vragen. Zij zijn nieuwe combinaties van bekende bronfeiten. Pas de generator niet op de uitkomsten aan en noem een volgende afgestemde uitvoering dan opnieuw ontwikkeling.
+Review the pilot and freeze prompts, sources, criteria and settings **before** the first six-case comparison. These are new compositions of known facts. Do not tune on their results and call a later run unseen:
 
 ```sh
 cargo run --locked -- experiment run --live --questions evals/shared/datasets/legacy/heldout-questions.json --expectations evals/shared/datasets/legacy/heldout-expectations.json --cases T01,T02,T03,T04,T05,T06 --arms agentic_dense,full_context,dense_once,bm25 --output "$COA_EVAL_DIR/heldout-generation.jsonl" --ledger "$COA_EVAL_DIR/ledger.json" --max-cases 6 --max-generations 24 --max-judgements 0 --max-seconds 3600
 ```
 
-De aanpakken zijn Codex met vervolgzoeken, alle documenten vooraf, één MiniLM-zoekactie en één BM25-zoekactie. De vaste bron- en vraaghashes, modelbestanden, programma-identiteit, werkelijke context en fouten blijven in het artifact staan. Modelaliassen en provideruitvoering beperken exacte herhaalbaarheid.
+The arms are iterative Codex/MCP retrieval, all thirty source sections supplied directly without tools, one MiniLM search and one BM25 search. The last two offer only their selected passages to the same answer model. BM25 uses k1=1.2, b=0.75, no stemming; its lexical scores are unbounded. Artifacts preserve source/question hashes, model/executable identity, actual context, errors, citations and available usage. Unknown usage stays `null`; aliases/provider routing limit exact reproducibility.
 
-Het standaardprotocol gebruikt **4 + 10 + 24 = 38 generaties**. Binnen het plafond blijven maximaal twee extra, technisch gemotiveerde pogingen over. Er zijn geen automatische retries; leg reden en gekozen uitvoering vast en bewaar de oorspronkelijke fout.
+The standard protocol uses **4 + 10 + 24 = 38 generations**. At most two technically justified additional attempts fit the ceiling. There are no automatic retries; record the reason/selected run and preserve the first failure.
 
-## 4. Beoordeel bestaande antwoorden zonder opnieuw te genereren
+## 4. Judge saved answers separately
 
-Deze opdrachten maken alleen afzonderlijke beoordelingen. Zij genereren geen nieuwe antwoorden en voeren geen nieuwe zoekacties uit. De beoordelaar krijgt het volledige opgeslagen antwoord, de aangeboden context en de apart geladen criteria/referentiepassages; hij heeft geen tools.
+These commands create judgments, not new answers or searches. The judge receives the question, complete saved answer, actual offered context and separately loaded criteria/reference passages. It has no MCP, shell, files, browser or other tools:
 
 ```sh
 cargo run --locked -- experiment grade --live --input "$COA_EVAL_DIR/smoke-generation.jsonl" --output "$COA_EVAL_DIR/smoke-graded.jsonl" --ledger "$COA_EVAL_DIR/ledger.json" --max-judgements 4 --max-seconds 600
@@ -77,26 +81,28 @@ cargo run --locked -- experiment grade --live --input "$COA_EVAL_DIR/pilot-gener
 cargo run --locked -- experiment grade --live --questions evals/shared/datasets/legacy/heldout-questions.json --expectations evals/shared/datasets/legacy/heldout-expectations.json --input "$COA_EVAL_DIR/heldout-generation.jsonl" --output "$COA_EVAL_DIR/heldout-graded.jsonl" --ledger "$COA_EVAL_DIR/ledger.json" --max-judgements 24 --max-seconds 3600
 ```
 
-Ongeldige uitvoer, een time-out en een onbeslist criterium leveren geen positieve kwaliteitsclaim op. Een hoge AI-score heft een harde fout niet op. Een beoordeling opnieuw uitvoeren krijgt een nieuw outputbestand en gebruikt hetzelfde resterende budget.
+The judge assesses correctness, completeness, relevance, source support and honest unknowns with short exact excerpts. Criteria receive `good`, `bad` or `review_needed`; invalid output/timeouts yield no content score. Good fractions retain numerator/denominator and undecided counts. A high AI score cannot override hard failures. Rejudging uses a new file and the same remaining ledger.
 
-## 5. Open de echte resultaten lokaal
+## 5. Read the report
 
 ```sh
 cargo run --locked -- experiment report --input "$COA_EVAL_DIR/smoke-graded.jsonl,$COA_EVAL_DIR/pilot-graded.jsonl,$COA_EVAL_DIR/heldout-graded.jsonl" --output /tmp/coa-rag-preview/resultaten.html
 ```
 
-Open `resultaten.html`. De gepaarde tabel houdt dezelfde zes vragen naast elkaar, met noemers, ontbrekende uitvoeringen en technische fouten. Eén unieke run krijgt zijn ID; bij herhalingen kiest het rapport geen automatische winnaar. Volledige historie blijft opvraagbaar. Voeg een generatiebestand en zijn beoordeelde kopie niet samen: dezelfde run-ID mag maar één keer voorkomen.
+Open `resultaten.html`. The paired table compares the same six questions with denominators, missing runs and technical failures. A unique run shows its ID; repetitions do not get an automatic winner. Do not combine a generation file with its judged copy: run IDs must be unique.
 
-Het rapport valideert de huidige datasetversies en rekent de metingen opnieuw uit. Bewaar de oorspronkelijke JSONL-bestanden, het ledger en de bijbehorende codeversie voor latere controle. Een HTML-rapport is een leesbare weergave, geen ondertekend attest. De [meetdefinities](metrics.md) en [rapportuitleg](report.md) leggen floats, N.v.t., onbekende usage en de grenzen van tijdsvergelijking uit.
+The renderer validates dataset versions and recomputes metrics. Keep original JSONL, ledger and code version. HTML is a readable view, not a signed attestation. [Metrics](metrics.md) and [report behavior](report.md) explain floats, N/A, unknown usage and timing limits.
 
-## 6. Houd AI-referentie en privacy expliciet
+## 6. Keep the AI reference and privacy explicit
+
+Optional, separately authorized check:
 
 ```sh
 cargo run --locked -- experiment calibrate --live --output "$COA_EVAL_DIR/ai-reference-check.json" --ledger "$COA_EVAL_DIR/ledger.json" --max-judgements 8 --max-seconds 1200
 ```
 
-Deze optionele controle vergelijkt acht vaste kandidaatantwoorden met een apart beoordeelde **AI-referentie**. Ontwikkel- en controlegroepen blijven gescheiden; referentielabels gaan niet naar de beoordelaar. `human_calibration: false` blijft zichtbaar. De menselijke labels blijven leeg; er hoeft nu niemand labels aan te leveren. Overeenstemming met deze kleine AI-set bewijst geen betrouwbare beoordelaar voor andere onderwerpen.
+This compares eight fixed candidates with a separate **AI reference**. Development/check subsets remain separate; reference labels/notes never go to the judge. Checkpoints preserve progress. `human_calibration: false` remains visible and human fields remain empty. Agreement with this small AI set does not establish reliable judging elsewhere. A later separate reference artifact can be selected with `--reference`.
 
-Gebruik uitsluitend de fictieve data. Lokale embeddings betekenen niet dat alle inhoud lokaal blijft: geselecteerde passages, of alle dertig secties bij de directe-contextaanpak, gaan voor generatie via Codex naar OpenAI. De afzonderlijke beoordelaar ontvangt ook criteria en referentiepassages. Aanmelding blijft buiten de gedeelde artifacts; fouten worden begrensd en geschoond vastgelegd. Lees de [privacygrenzen](../../../docs/privacy-boundaries.md) vóór uitbreiding of publicatie.
+Use fictional data only. Retrieved passages—or all thirty sections for full context—go through Codex to OpenAI. The judge also receives criteria/reference passages. Authentication stays outside shared artifacts; errors are bounded/sanitized. Read [privacy](../../../docs/privacy.md) before expanding access/data or publishing.
 
-Serveer alleen `/tmp/coa-rag-preview` als je een lokale websitepreview wilt. Houd JSONL, diagnostiek, ledger en aanmeldgegevens buiten die map. Publiek delen heeft een afzonderlijke vrijgave; deze handleiding publiceert niets.
+Serve only `/tmp/coa-rag-preview` for an HTML preview. Keep JSONL, diagnostics, ledgers and credentials outside. Public sharing needs separate release approval; this procedure publishes nothing.

@@ -1,79 +1,160 @@
-<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title data-i18n="technicalPageTitle">Hoe het werkt · COA Assistent</title><link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand"><script src="/assets/language.js?v=20261110-grouped-header" defer></script></head><body><nav class="site-nav" aria-label="Hoofdnavigatie"><span class="site-brand"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a></nav><main class="site-main" lang="nl"><article class="technical-summary">
-  <header>
-    <h1>Zo werkt de assistent</h1>
-    <p>De assistent zoekt informatie op voordat hij een antwoord maakt. Hier lees je wat de onderdelen doen, welke gegevens ze gebruiken en wat we al testen.</p>
-  </header>
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-i18n="technicalPageTitle">Hoe het werkt · COA Assistent</title>
+  <link rel="stylesheet" href="/assets/site.css?v=20261118-shared-layout">
+  <script src="/assets/language.js?v=20261117-public-demo" defer></script>
+  <style>
+    html[lang="nl"] .locale-en,html[lang="en"] .locale-nl{display:none}
+    .embedding-lesson { max-width:680px; margin-inline:auto; }
+    .embedding-lesson section { margin:0; scroll-margin-top:24px; }
+    .embedding-lesson section + section { margin-top:32px; padding-top:28px; border-top:1px solid var(--line); }
+    .embedding-lesson h2 { margin:0 0 12px; }
+    .embedding-lesson h3 { margin:24px 0 10px; }
+    .lesson-index { display:grid; margin:0 0 28px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    .lesson-index a { display:flex; align-items:center; min-height:44px; width:fit-content; max-width:100%; padding-block:8px; text-decoration:none; }
+    .lesson-index a:hover,.lesson-index a:focus-visible { text-decoration:underline; }
+    .embedding-lesson figure { margin:18px 0; }
+    .embedding-lesson figcaption { font-size:.8125rem; color:var(--muted); margin-top:8px; }
+    .embedding-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .embedding-tile { border:1px solid var(--line); padding:12px 14px; min-width:0; background:var(--surface); }
+    .embedding-tile small { display:block; color:var(--muted); font-size:.8125rem; margin-bottom:5px; }
+    .embedding-tile p { margin:0; }
+    .embedding-numbers { font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace; white-space:nowrap; }
+    .embedding-converter { text-align:center; margin:10px 0; font-size:.9375rem; }
+    .embedding-converter .flow-arrow { display:block; }
+    .meaning-map { position:relative; height:190px; border-bottom:1px solid var(--line); }
+    .meaning-point { position:absolute; font-size:1rem; line-height:1.35; padding-top:16px; }
+    .meaning-point::before { content:""; position:absolute; left:0; top:0; width:9px; height:9px; border-radius:50%; background:var(--heading); }
+    .meaning-question { left:5%; top:14%; max-width:56%; }
+    .meaning-garden { left:28%; top:58%; }
+    .meaning-bicycle { left:73%; top:62%; max-width:26%; color:var(--muted); }
+    .meaning-bicycle::before { background:var(--muted); }
+    .embedding-lesson .rag-architecture { --diagram-width:min(976px,calc(100vw - 64px)); width:var(--diagram-width); margin:20px calc((100% - var(--diagram-width))/2); }
+    .architecture-scroll { max-width:100%; overflow-x:auto; }
+    .architecture-scroll svg { display:block; width:976px; height:auto; max-width:none; }
+    @media(max-width:650px) { .embedding-lesson .rag-architecture { --diagram-width:calc(100vw - 32px); } }
+    .search-again { font-size:.9375rem; color:var(--muted); margin:12px 0 0; }
+    .lesson-recap { margin-top:24px; }
+    .embedding-lesson .lesson-links { font-size:.875rem; margin-top:24px; }
+    @media(max-width:450px) {
+      .embedding-pair { gap:8px; }
+      .embedding-tile { padding:10px; }
+      .embedding-tile p { font-size:.9375rem; }
+      .embedding-numbers { font-size:.8125rem; }
+    }
+  </style>
+</head>
+<body>
+<nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
+<main class="site-main app-main info-main">
+<article class="embedding-lesson">
+  <header><h1><span class="locale-nl" lang="nl">Hoe het werkt</span><span class="locale-en" lang="en">How it works</span></h1></header>
+  <nav class="lesson-index" aria-labelledby="questions-label">
+    <span id="questions-label" class="sr-only"><span class="locale-nl" lang="nl">Onderwerpen</span><span class="locale-en" lang="en">Topics</span></span>
+    <a href="#embeddings"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></a>
+    <a href="#rag"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></a>
+  </nav>
 
-  <section aria-labelledby="tech-question">
-    <h2 id="tech-question">Van vraag naar gevonden tekst</h2>
-    <ol>
-      <li><strong>De bronnen worden voorbereid.</strong> Twaalf verzonnen activiteitendocumenten zijn verdeeld in 72 tekststukjes. Elk stukje behoudt de activiteit, de sectie en de eigen brondatum.</li>
-      <li><strong>De tekst wordt doorzoekbaar.</strong> Een lokaal MiniLM-model maakt van ieder stukje een lijst getallen: een <em>embedding</em>. De titel, tussenkop en tekst tellen mee. Woorden met een vergelijkbare betekenis kunnen zo bij elkaar uitkomen.</li>
-      <li><strong>Sol doet een zoekopdracht.</strong> Rig bestuurt de model- en toolstappen. Het model krijgt jouw vraag en kan onze bestaande zoekfunctie aanroepen. Voor zoeken op betekenis maakt het lokale model ook een embedding van die zoekopdracht. Rust vergelijkt die met de opgeslagen documentvectoren en kiest de meest gelijkende stukjes.</li>
-      <li><strong>Sol krijgt gewone tekst terug.</strong> Het model ontvangt de gevonden passages met hun bron en datum, niet de vectoren. Het kan gerichter verderzoeken als bijvoorbeeld een tijdstip of adres ontbreekt.</li>
-      <li><strong>Het antwoord wordt getoond.</strong> De applicatie controleert of citaten letterlijk voorkomen in de werkelijk aangeboden passages van de juiste bron. De demo laat ook de echte zoekopdrachten en gevonden tekst zien.</li>
-    </ol>
-    <p>Dit heet <em>retrieval-augmented generation</em>, afgekort RAG: informatie ophalen en gebruiken om een antwoord te maken. Een geldig citaat bewijst de herkomst. Het bewijst nog niet dat iedere conclusie in het antwoord klopt.</p>
-    <details>
-      <summary>Waar staat dit in de code?</summary>
-      <ul>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/lib.rs#L109">Lokale index: teksten voorbereiden, embeddings maken en zoeken</a></li>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/responses/rig_runtime.rs">De Rig-agent met alleen onze lokale zoektool</a></li>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/docs/retrieval-codex.md">Historische Codex-verbinding voor CLI en evaluaties</a></li>
-      </ul>
-    </details>
+  <section id="embeddings" aria-labelledby="embeddings-heading">
+    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Zoeken op betekenis</span><span class="locale-en" lang="en">Searching by meaning</span></h2>
+    <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein model zet de tekst én je vraag om in lijsten getallen: <em>embeddings</em>. Voor de tekst en de vraag gebruiken we hetzelfde model. Zo kun je de getallen vergelijken.</p>
+    <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small model turns the text and your question into lists of numbers: <em>embeddings</em>. Both use the same model, so their numbers can be compared.</p>
+    <figure>
+      <div class="embedding-pair">
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Tekst over de activiteit</span><span class="locale-en" lang="en">Activity text</span></small><p><span class="locale-nl" lang="nl">Tuinieren: we kweken groenten en bloemen.</span><span class="locale-en" lang="en">Gardening: we grow vegetables and flowers.</span></p></div>
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Je vraag</span><span class="locale-en" lang="en">Your question</span></small><p><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></p></div>
+      </div>
+      <div class="embedding-converter"><span class="flow-arrow" aria-hidden="true">↓</span><span class="locale-nl" lang="nl">Hetzelfde embeddingmodel</span><span class="locale-en" lang="en">Same embedding model</span><span class="flow-arrow" aria-hidden="true">↓</span></div>
+      <div class="embedding-pair">
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de tekst</span><span class="locale-en" lang="en">Text’s numbers</span></small><p class="embedding-numbers">[0.2, 0.8, …]</p></div>
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de vraag</span><span class="locale-en" lang="en">Question’s numbers</span></small><p class="embedding-numbers">[0.3, 0.7, …]</p></div>
+      </div>
+      <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld. De getallen en posities op de kaart zijn verzonnen om het idee te laten zien.</span><span class="locale-en" lang="en">Simplified example. Numbers and map positions are made up to show the idea.</span></figcaption>
+    </figure>
+    <h3><span class="locale-nl" lang="nl">Vergelijk de betekenis</span><span class="locale-en" lang="en">Compare the meaning</span></h3>
+    <p class="locale-nl" lang="nl">Zie die getallen als plekken op een kaart. Verwante betekenissen liggen vaak dichtbij, ook als de woorden verschillen. De zoekfunctie kiest zo passende tekststukjes en geeft de oorspronkelijke woorden terug.</p>
+    <p class="locale-en" lang="en">Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. Search uses this similarity to pick passages and return their original text.</p>
+    <figure>
+      <div class="meaning-map">
+        <span class="meaning-point meaning-question"><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></span>
+        <span class="meaning-point meaning-garden"><span class="locale-nl" lang="nl">Tuinieren</span><span class="locale-en" lang="en">Gardening</span></span>
+        <span class="meaning-point meaning-bicycle"><span class="locale-nl" lang="nl">Fietsen repareren</span><span class="locale-en" lang="en">Bicycle repair</span></span>
+      </div>
+    </figure>
+    <p class="locale-nl" lang="nl">Dit voorbeeld zoekt op betekenis. De demo kan ook op overeenkomende woorden zoeken.</p>
+    <p class="locale-en" lang="en">This example searches by meaning. The demo can also match words.</p>
   </section>
 
-  <section aria-labelledby="tech-search">
-    <h2 id="tech-search">Vier manieren van zoeken</h2>
-    <dl>
-      <dt><strong>Op betekenis</strong></dt>
-      <dd>Vergelijkt embeddings. Andere woorden kunnen toch naar een verwante passage leiden. Dit is de standaard in de demo.</dd>
-      <dt><strong>Op woorden</strong></dt>
-      <dd>BM25 zoekt overeenkomende woorden en houdt rekening met hoe vaak en hoe kenmerkend ze zijn. Hiervoor is geen embeddingmodel nodig.</dd>
-      <dt><strong>Combinatie op volgorde</strong></dt>
-      <dd>Voegt de ranglijsten van woord- en betekeniszoeken samen. Een passage die bij beide hoog staat kan naar voren komen.</dd>
-      <dt><strong>Gewogen combinatie</strong></dt>
-      <dd>Brengt de verschillende scores op een afgesproken schaal en combineert ze met vaste gewichten.</dd>
-    </dl>
-    <p>Een hoge zoekscore is geen kans dat het antwoord juist is. Ook bij een vraag zonder passend antwoord kan de zoeker nog vergelijkbare tekst vinden.</p>
-    <details>
-      <summary>De zoekmethodes in de code</summary>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/engine.rs#L122">De gedeelde zoekberekening</a> en <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/config.rs#L7">de beschikbare instellingen</a>.</p>
-    </details>
+  <section id="rag" aria-labelledby="rag-heading">
+    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Antwoorden met bronnen</span><span class="locale-en" lang="en">Answering with sources</span></h2>
+    <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
+    <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
+    <figure class="rag-architecture">
+      <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="rag-heading">
+        <div class="locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
+  <title id="coa-diagram-nl-diagram-title">Hoe werkt de COA-assistent?</title>
+  <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het AI-model roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het AI-model staat erbuiten.</desc>
+  <defs><marker id="coa-diagram-nl-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
+  
+  <g id="coa-diagram-nl-rag-frame" role="group" aria-label="RAG-zoektool: zoekindex en zoekfunctie" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
+    
+    
+    <text x="500" y="569" text-anchor="middle" fill="#002D36" font-size="24" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif">RAG-zoektool</text>
+  </g>
+  <g font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">
+    <text x="50" y="78" font-size="44" font-weight="600" font-family="Calibri, &quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#064855">Hoe werkt de COA-assistent?</text>
+    <g><path d="M210 300 L210 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" stroke-dasharray="9 9" marker-end="url(#coa-diagram-nl-arrow)"/><text x="250" y="445" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="250" dy="0">Vooraf klaarzetten</tspan></text></g>
+<g><path d="M1325 285 L1325 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1290" y="445" text-anchor="end" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1290" dy="0">Vraag</tspan></text></g>
+<g><path d="M1395 585 L1395 285" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1430" y="425" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1430" dy="0">Antwoord</tspan><tspan x="1430" dy="44">+ bronnen</tspan></text></g>
+<g><path d="M1185 645 L955 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1070" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Zoekvraag</tspan></text></g>
+<g><path d="M955 690 L1185 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1070" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Tekststukken</tspan></text></g>
+<g><path d="M625 645 L385 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="505" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Vergelijken</tspan></text></g>
+<g><path d="M385 690 L625 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="505" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Tekststukken</tspan></text></g>
+    <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activiteiten</text></g>
+<g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekindex</text></g>
+<g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekfunctie</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI-model</text></g>
+<g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA-assistent</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
+  </g>
+</svg></div>
+        <div class="locale-en" lang="en"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-en-diagram-title" id="coa-diagram-page-en" aria-describedby="coa-diagram-en-diagram-description">
+  <title id="coa-diagram-en-diagram-title">How does the COA assistant work?</title>
+  <desc id="coa-diagram-en-diagram-description">Activities are prepared in the search index. The AI model calls the search function and uses the returned text passages to answer with sources. The RAG search tool frame contains only the search index and search function; the AI model is outside it.</desc>
+  <defs><marker id="coa-diagram-en-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
+  
+  <g id="coa-diagram-en-rag-frame" role="group" aria-label="RAG search tool: search index and search function" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
+    
+    
+    <text x="500" y="569" text-anchor="middle" fill="#002D36" font-size="24" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif">RAG search tool</text>
+  </g>
+  <g font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">
+    <text x="50" y="78" font-size="44" font-weight="600" font-family="Calibri, &quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#064855">How does the COA assistant work?</text>
+    <g><path d="M210 300 L210 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" stroke-dasharray="9 9" marker-end="url(#coa-diagram-en-arrow)"/><text x="250" y="445" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="250" dy="0">Prepare in advance</tspan></text></g>
+<g><path d="M1325 285 L1325 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1290" y="445" text-anchor="end" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1290" dy="0">Question</tspan></text></g>
+<g><path d="M1395 585 L1395 285" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1430" y="425" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1430" dy="0">Answer</tspan><tspan x="1430" dy="44">+ sources</tspan></text></g>
+<g><path d="M1185 645 L955 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1070" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Search query</tspan></text></g>
+<g><path d="M955 690 L1185 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1070" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Text passages</tspan></text></g>
+<g><path d="M625 645 L385 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="505" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Compare</tspan></text></g>
+<g><path d="M385 690 L625 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="505" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Text passages</tspan></text></g>
+    <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activities</text></g>
+<g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search index</text></g>
+<g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search function</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI model</text></g>
+<g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA assistant</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
+  </g>
+</svg></div>
+      </div>
+    </figure>
+    <p class="search-again"><span class="locale-nl" lang="nl">Ontbreekt er iets? Het model kan de zoekfunctie om nog een tekststukje vragen.</span><span class="locale-en" lang="en">Missing a detail? The model can ask the search function for another passage.</span></p>
+    <p class="lesson-recap locale-nl" lang="nl">Het model schrijft met de gevonden tekst een antwoord met bronnen. Een bron helpt je het antwoord te controleren, maar garandeert niet dat elke conclusie klopt.</p>
+    <p class="lesson-recap locale-en" lang="en">The model uses the found text to write an answer with sources. A source helps you check an answer; it does not guarantee that every conclusion is right.</p>
   </section>
-
-  <section aria-labelledby="tech-storage">
-    <h2 id="tech-storage">Waar staan de gegevens?</h2>
-    <p>De gewone demo laadt de bronstukjes en hun vectoren in het geheugen. De bronbestanden zijn onderdeel van het programma. De lokale map met modelbestanden bevat het MiniLM-model; dat is iets anders dan de documentvectoren.</p>
-    <p>Het experimentgedeelte ondersteunt daarnaast SQLite. Daar kunnen secties apart worden opgeslagen, of aan een activiteit worden gekoppeld. Opslag en zoeken zijn afzonderlijke keuzes: gegevens anders bewaren verandert niet vanzelf welke tekst de zoekfunctie vergelijkt.</p>
-    <p>De opgeslagen experimenten gebruiken de eerdere bronset van tien activiteiten. Als alle varianten daarin dezelfde zestig secties met dezelfde zoekberekening gebruiken, kunnen ze exact dezelfde resultaten geven. Dat bewijst niet dat zoeken in hele activiteiten hetzelfde werkt als zoeken in losse secties.</p>
-    <details>
-      <summary>De opslagvarianten bekijken</summary>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/storage/mod.rs#L70">Opslagstructuren en profielen</a> zijn los gedefinieerd van <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/config.rs#L15">de selectie van tekststukjes of een activiteit</a>.</p>
-    </details>
-  </section>
-
-  <section aria-labelledby="tech-evals">
-    <h2 id="tech-evals">Wat controleren de tests?</h2>
-    <p>Per testvraag ligt vooraf vast welke bronstukjes nodig zijn. Bijvoorbeeld de tijd én de locatie van één passende activiteit. Als meerdere activiteiten geldig zijn, blijven die alternatieven toegestaan; losse stukjes van verschillende activiteiten vormen niet zomaar één compleet antwoord.</p>
-    <p>Na een sessie controleert vaste code welke verwachte stukjes daadwerkelijk aan het model zijn aangeboden. Die verwachtingen sturen de zoekvragen of het stoppen van de agent niet. We tellen ook de uitgevoerde zoekacties. Minder zoeken is pas nuttig als de benodigde informatie gevonden wordt.</p>
-    <p>De opgeslagen vergelijking gebruikte de eerdere Codex-route, niet de nieuwe Responses API-route. De API-route is ook met tien gelijktijdige echte vragen op die eerdere bronset gecontroleerd. Vóór Rig was de twaalfbronnenset alleen lokaal gecontroleerd. De Rig-route is daarna op 13 november 2026 met drie echte fictieve vragen op twaalf bronnen gecontroleerd; alle drie voltooiden, met samen tien providerrequests. Dit is technische compatibiliteit, geen vergelijkende kwaliteitsmeting vóór en na de migratie.</p>
-    <p>De laatste vergelijking gebruikte tien vragen, twee modellen en drie herhalingen: zestig sessies. Beide modellen gebruikten zoeken op betekenis met dezelfde instellingen. Deze proef vergelijkt dus niet tegelijk alle zoekmethodes. <a href="/resultaten/">Bekijk de resultaten en de drie herhalingen per vraag</a>.</p>
-    <p>De inhoudelijke kwaliteit van de geschreven antwoorden is nog niet beoordeeld. Scores voor ruis en rangorde zijn hier evenmin actief: daarvoor moeten we vollediger vastleggen welke overige bronstukjes relevant zijn.</p>
-    <details>
-      <summary>Hoe we dit reproduceerbaar houden</summary>
-      <p>Vragen, bronnen, verwachte stukjes, instellingen en programma-identiteiten worden vastgelegd. Opgeslagen zoektraces kunnen zonder nieuwe modelcalls opnieuw worden beoordeeld. De zes eerdere afgebroken pogingen blijven apart van de nieuwe vergelijking bewaard.</p>
-      <p>De proef gaf per sessie maximaal drie stukjes per zoekactie, vier zoekpogingen en 120 seconden. Dezelfde instellingen maken de vergelijking controleerbaar; ze garanderen geen volledige bronset. Bij beide modellen ontbrak in alle drie herhalingen bijvoorbeeld de exacte verzamelplek van Parkonderhoud.</p>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval_lab/agent_assessment.rs#L98">De beoordeling gebeurt achteraf</a>. Lees ook de bestaande <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/docs/evaluation/reproduce.md">reproduceerhandleiding</a>.</p>
-    </details>
-  </section>
-
-  <section aria-labelledby="tech-boundaries">
-    <h2 id="tech-boundaries">Wat blijft lokaal?</h2>
-    <p>MiniLM draait lokaal via fastembed 7.1.2. De vraag en geselecteerde bronpassages gaan via Rig en de OpenAI Responses API naar Sol. De huidige webdemo start hiervoor geen Codex-processen. Lokale embeddings betekenen dus niet dat de hele verwerking lokaal blijft.</p>
-    <p>Alle activiteitendata in dit prototype zijn verzonnen. De assistent schrijft niets naar dossiers, verstuurt geen berichten en meldt niemand aan. Het is een onafhankelijk leerproject, geen intern COA-systeem. De medewerker en bewoner houden de keuze over deelname.</p>
-    <p><a href="/">Probeer de demo</a> of <a href="https://github.com/Daanvdplas/coa-assistent">bekijk de broncode en bestaande documentatie</a>.</p>
-  </section>
+  <p class="lesson-links"><a href="/" data-i18n="demo">Demo</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/code-tour.html"><span class="locale-nl" lang="nl">Bekijk de code</span><span class="locale-en" lang="en">Explore the code</span></a></p>
 </article>
-</main><footer class="site-footer"><span data-i18n="projectShortNotice">Eigen leerproject, geïnspireerd door de COA-use case. Alle activiteiten zijn verzonnen.</span> <a href="https://github.com/Daanvdplas/coa-assistent" data-i18n="code">Bekijk de code</a>.</footer></body></html>
+</main>
+<footer class="site-footer"><span class="locale-nl" lang="nl">Onafhankelijk leerproject. Alle activiteiten en voorbeeldgegevens zijn verzonnen.</span><span class="locale-en" lang="en">An independent learning project. All activities and example details are fictional.</span></footer>
+</body>
+</html>
