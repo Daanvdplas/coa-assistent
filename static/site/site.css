@@ -17,7 +17,7 @@ select,.method-field select{appearance:none;background-image:var(--control-chevr
 /* Shared demo and explanation layout. */
 .app-main { max-width:1040px; margin:auto; padding:40px 32px 48px; }
 .site-nav.demo-nav { justify-content:flex-end; padding-block:12px; gap:8px 20px; }
-.demo-nav .demo-name { margin-inline-end:auto; color:var(--ink); font-weight:650; }
+.demo-nav .demo-name { margin-inline-end:auto; }
 .app-main h1 { font-size:1.875rem; font-weight:600; line-height:1.2; letter-spacing:-.015em; text-wrap:balance; margin:0 0 16px; }
 .app-main h2 { font-size:1.5rem; margin:32px 0 16px; }
 .app-main h3 { font-size:1rem; margin:16px 0 6px; }
