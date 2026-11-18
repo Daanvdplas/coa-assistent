@@ -20,7 +20,7 @@
     .embedding-lesson figcaption { font-size:.8125rem; color:var(--muted); margin-top:8px; }
     .embedding-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
     .embedding-tile { border:1px solid var(--line); padding:12px 14px; min-width:0; background:var(--surface); }
-    .embedding-tile small,.embedding-input small { display:block; color:var(--muted); font-size:.8125rem; margin-bottom:5px; }
+    .embedding-tile small { display:block; color:var(--muted); font-size:.8125rem; margin-bottom:5px; }
     .embedding-tile p { margin:0; }
     .embedding-numbers { font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace; white-space:nowrap; }
     .embedding-converter { text-align:center; margin:10px 0; font-size:.9375rem; }
@@ -32,14 +32,10 @@
     .meaning-garden { left:28%; top:58%; }
     .meaning-bicycle { left:73%; top:62%; max-width:26%; color:var(--muted); }
     .meaning-bicycle::before { background:var(--muted); }
-    .embedding-input { padding:14px; border-left:2px solid var(--heading); background:var(--surface); }
-    .embedding-input p { margin:0 0 10px; }
-    .embedding-input p:last-child { margin:0; }
-    .answer-flow { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1.3fr); gap:10px; align-items:center; margin-top:18px; }
-    .answer-model { font-weight:650; }
-    .answer-card { padding:12px 14px; border:1px solid var(--line); background:var(--surface); }
-    .answer-card p { margin:0; }
-    .answer-card small { display:block; font-size:.8125rem; margin-top:7px; color:var(--muted); }
+    .embedding-lesson .rag-architecture { --diagram-width:min(976px,calc(100vw - 64px)); width:var(--diagram-width); margin:20px calc((100% - var(--diagram-width))/2); }
+    .architecture-scroll { max-width:100%; overflow-x:auto; }
+    .architecture-scroll svg { display:block; width:976px; height:auto; max-width:none; }
+    @media(max-width:650px) { .embedding-lesson .rag-architecture { --diagram-width:calc(100vw - 32px); } }
     .search-again { font-size:.9375rem; color:var(--muted); margin:12px 0 0; }
     .lesson-recap { margin-top:24px; }
     .embedding-lesson .lesson-links { font-size:.875rem; margin-top:24px; }
@@ -48,11 +44,6 @@
       .embedding-tile { padding:10px; }
       .embedding-tile p { font-size:.9375rem; }
       .embedding-numbers { font-size:.8125rem; }
-      .answer-flow { grid-template-columns:minmax(0,1fr); gap:8px; }
-      .answer-model { text-align:center; }
-      .answer-flow>span { justify-self:center; transform:rotate(90deg); }
-      .answer-card { padding:10px; }
-      .answer-card p { font-size:.9375rem; }
     }
   </style>
 </head>
@@ -101,14 +92,63 @@
     <h2 id="rag-heading"><span class="locale-nl" lang="nl">Antwoorden met bronnen</span><span class="locale-en" lang="en">Answering with sources</span></h2>
     <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
     <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
-    <figure>
-      <div class="embedding-input">
-        <small><span class="locale-nl" lang="nl">Je vraag</span><span class="locale-en" lang="en">Your question</span></small><p><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></p>
-        <small><span class="locale-nl" lang="nl">Gevonden tekst · Tuinieren</span><span class="locale-en" lang="en">Found passage · Gardening</span></small><p><span class="locale-nl" lang="nl">Iedere dinsdag van 10.00 tot 12.00 uur.</span><span class="locale-en" lang="en">Every Tuesday from 10:00 to 12:00.</span></p>
+    <figure class="rag-architecture">
+      <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="rag-heading">
+        <div class="locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
+  <title id="coa-diagram-nl-diagram-title">Hoe werkt de COA-assistent?</title>
+  <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het AI-model roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het AI-model staat erbuiten.</desc>
+  <defs><marker id="coa-diagram-nl-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
+  
+  <g id="coa-diagram-nl-rag-frame" role="group" aria-label="RAG-zoektool: zoekindex en zoekfunctie" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
+    
+    
+    <text x="500" y="569" text-anchor="middle" fill="#002D36" font-size="24" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif">RAG-zoektool</text>
+  </g>
+  <g font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">
+    <text x="50" y="78" font-size="44" font-weight="600" font-family="Calibri, &quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#064855">Hoe werkt de COA-assistent?</text>
+    <g><path d="M210 300 L210 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" stroke-dasharray="9 9" marker-end="url(#coa-diagram-nl-arrow)"/><text x="250" y="445" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="250" dy="0">Vooraf klaarzetten</tspan></text></g>
+<g><path d="M1325 285 L1325 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1290" y="445" text-anchor="end" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1290" dy="0">Vraag</tspan></text></g>
+<g><path d="M1395 585 L1395 285" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1430" y="425" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1430" dy="0">Antwoord</tspan><tspan x="1430" dy="44">+ bronnen</tspan></text></g>
+<g><path d="M1185 645 L955 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1070" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Zoekvraag</tspan></text></g>
+<g><path d="M955 690 L1185 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="1070" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Tekststukken</tspan></text></g>
+<g><path d="M625 645 L385 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="505" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Vergelijken</tspan></text></g>
+<g><path d="M385 690 L625 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-nl-arrow)"/><text x="505" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Tekststukken</tspan></text></g>
+    <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activiteiten</text></g>
+<g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekindex</text></g>
+<g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekfunctie</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI-model</text></g>
+<g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA-assistent</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
+  </g>
+</svg></div>
+        <div class="locale-en" lang="en"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-en-diagram-title" id="coa-diagram-page-en" aria-describedby="coa-diagram-en-diagram-description">
+  <title id="coa-diagram-en-diagram-title">How does the COA assistant work?</title>
+  <desc id="coa-diagram-en-diagram-description">Activities are prepared in the search index. The AI model calls the search function and uses the returned text passages to answer with sources. The RAG search tool frame contains only the search index and search function; the AI model is outside it.</desc>
+  <defs><marker id="coa-diagram-en-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
+  
+  <g id="coa-diagram-en-rag-frame" role="group" aria-label="RAG search tool: search index and search function" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
+    
+    
+    <text x="500" y="569" text-anchor="middle" fill="#002D36" font-size="24" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif">RAG search tool</text>
+  </g>
+  <g font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">
+    <text x="50" y="78" font-size="44" font-weight="600" font-family="Calibri, &quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#064855">How does the COA assistant work?</text>
+    <g><path d="M210 300 L210 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" stroke-dasharray="9 9" marker-end="url(#coa-diagram-en-arrow)"/><text x="250" y="445" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="250" dy="0">Prepare in advance</tspan></text></g>
+<g><path d="M1325 285 L1325 585" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1290" y="445" text-anchor="end" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1290" dy="0">Question</tspan></text></g>
+<g><path d="M1395 585 L1395 285" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1430" y="425" text-anchor="start" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1430" dy="0">Answer</tspan><tspan x="1430" dy="44">+ sources</tspan></text></g>
+<g><path d="M1185 645 L955 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1070" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Search query</tspan></text></g>
+<g><path d="M955 690 L1185 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="1070" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="1070" dy="0">Text passages</tspan></text></g>
+<g><path d="M625 645 L385 645" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="505" y="607" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Compare</tspan></text></g>
+<g><path d="M385 690 L625 690" fill="none" stroke="oklch(44% .025 214)" stroke-width="2.8" marker-end="url(#coa-diagram-en-arrow)"/><text x="505" y="750" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36"><tspan x="505" dy="0">Text passages</tspan></text></g>
+    <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activities</text></g>
+<g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search index</text></g>
+<g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search function</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI model</text></g>
+<g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA assistant</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
+  </g>
+</svg></div>
       </div>
-      <div class="answer-flow"><div class="answer-model"><span class="locale-nl" lang="nl">Antwoordmodel</span><span class="locale-en" lang="en">Answer model</span></div><span aria-hidden="true">→</span><div class="answer-card"><p><span class="locale-nl" lang="nl">Tuinieren is op dinsdag van 10.00 tot 12.00 uur.</span><span class="locale-en" lang="en">Gardening runs on Tuesday, 10:00–12:00.</span></p><small><span class="locale-nl" lang="nl">Bron: Tuinieren · 20 oktober 2026</span><span class="locale-en" lang="en">Source: Gardening · 20 October 2026</span></small></div></div>
-      <p class="search-again"><span class="locale-nl" lang="nl">↶ Ontbreekt er iets? Het model kan de zoekfunctie om nog een tekststukje vragen.</span><span class="locale-en" lang="en">↶ Missing a detail? The model can ask the search function for another passage.</span></p>
     </figure>
+    <p class="search-again"><span class="locale-nl" lang="nl">Ontbreekt er iets? Het model kan de zoekfunctie om nog een tekststukje vragen.</span><span class="locale-en" lang="en">Missing a detail? The model can ask the search function for another passage.</span></p>
     <p class="lesson-recap locale-nl" lang="nl">Het model schrijft met de gevonden tekst een antwoord met bronnen. Een bron helpt je het antwoord te controleren, maar garandeert niet dat elke conclusie klopt.</p>
     <p class="lesson-recap locale-en" lang="en">The model uses the found text to write an answer with sources. A source helps you check an answer; it does not guarantee that every conclusion is right.</p>
   </section>
