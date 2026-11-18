@@ -2,6 +2,8 @@
 
 This guide explains the current website and the boundary between new model answers and saved evaluations. Start with the [interactive code tour](code-tour.html); use the [runtime report](runtime-report.md) for dated verification and known limitations. [Local setup](LOCAL_SETUP.md) covers installation, [privacy](privacy.md) covers data handling, and [the evaluation index](../evals/README.md) routes experiments.
 
+The explanation page embeds the Dutch and English architecture diagram. Its editable two-page source is [how-it-works.drawio](diagrams/how-it-works.drawio); keep its geometry and inline SVG versions consistent. The RAG frame contains the search index and search function, with the answer model outside that frame.
+
 ## One website, separate execution paths
 
 ```mermaid
