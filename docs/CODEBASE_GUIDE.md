@@ -37,17 +37,21 @@ Hosting adds a separate route allowlist; the local evaluation worker is not a su
 
 [`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question, `answer_language` (`nl`/`en`, default `nl`) and `retrieval_method` (`dense`/`bm25`, default `dense`) before starting background work. Invalid enum values return HTTP 422. Later selector changes apply only to new questions; replay retains the original context.
 
-[`ResponsesRunner::run`](../src/responses.rs) delegates model/tool steps to Rig in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). The agent registers only the typed `SearchTool`, native structured-answer schema and `RunPolicy` hooks. Rig owns the agent loop; COA does not run a second competing loop.
+[`ResponsesRunner::run`](../src/responses.rs) delegates model/tool steps to Rig in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). The agent registers typed search and source-reading tools, the native structured-answer schema and `RunPolicy` hooks. Rig owns the agent loop; COA does not run a second competing loop.
 
-The request goes to OpenAI's Responses API with `gpt-6.1-sol`, reasoning `low`, service tier `default` and `store: false`. The web prompt shares language, source and prompt-injection rules with [`codex.rs`](../src/codex.rs); the question is a separate input data item. The only model tool is `search_document(query, top_k, search_goal)`. It cannot access shell, arbitrary files, URLs, web search, Codex or a code-mode host. This is local function calling, without MCP transport in the web path.
+The request goes to OpenAI's Responses API with `gpt-6.1-sol`, reasoning `low`, service tier `default` and `store: false`. The web prompt shares language, source and prompt-injection rules with [`codex.rs`](../src/codex.rs); the question is a separate input data item. Its tools are `search_document(query, top_k, search_goal)` and `read_sources(source_ids, search_goal)`. Neither can access shell, arbitrary files, URLs, web search, Codex or a code-mode host. This is local function calling, without MCP transport in the web path.
 
-The first model call must perform a real source search. The model can then make focused follow-up searches. `search_goal` is a public one-line task label, 1–80 characters, supplied by the model for that executed action; it is not private reasoning or a result claim. It is added to web JSON only after source/answer validation. Older runs and the shared Codex tool-call schema do not receive invented goals.
+The first model call is restricted to a real `search_document` call. Its response includes the complete source catalog. The model can then search again or explicitly read one to twelve catalog sources through [`source_reader.rs`](../src/responses/source_reader.rs). A read returns every original section of the selected sources, not ranked hits. It checks the catalog hashes, dates, corpus and manifest against the first search, rejects duplicate/unknown IDs, and counts toward the same four-action limit. It cannot read before the first search. The trace identifies the operation as `read_sources`, with `ranked: false`, the returned IDs and a factual `corpus_complete` flag for that read; its legacy `top_k` field is zero because the read has no ranking cutoff. Partial reads stay partial. The model chooses this operation, rather than the runtime inserting every document into every question.
+
+`search_goal` is a public one-line task label, 1–80 characters, supplied by the model for that executed action; it is not private reasoning or a result claim. It is added to web JSON only after source/answer validation. Older runs and the shared Codex tool-call schema do not receive invented goals. Exhaustive comparisons require checking the relevant conditions across the catalog; a high-ranked match alone does not establish a complete list. Unasked unknowns, such as current vacancies, do not become extra selection conditions. Receiving all source text still does not prove that the model interpreted it correctly.
 
 The fixed callback invokes [`Index::search_for_method`](../src/lib.rs). A mutex protects the shared index only during the short local `spawn_blocking` search; model HTTP requests wait independently. The website does not start ten model copies or ten Codex processes. The selected search method is server context and cannot change between tool calls.
 
 Rig preserves original input/output items for subsequent calls, including encrypted reasoning, assistant phases and matching `function_call_output`, without `previous_response_id`. This replay exists only in the run's RAM; raw/encrypted reasoning is absent from public records. Only the final answer is interpreted as the answer. Refusals, incomplete responses, unknown tools, malformed arguments and invalid final JSON fail the run.
 
 `validate_retrieved_answer` checks that source IDs, dates, manifests and exact citation text agree with passages actually returned. Repeated section IDs are namespaced by document. This proves provenance, not that every conclusion follows from the evidence. Missing evidence and honest unknowns remain possible even when the run completes.
+
+The answer JSON retains `text`, `citations` and `unknowns`. Web prompt version 5 permits a pipe table for a comparison, or plain text/short lists otherwise. [`demo.js`](../static/site/demo.js) turns only valid tables and short lists into semantic DOM elements, using `textContent` for every cell and item. It never renders model HTML. Invalid table layouts remain readable text, relevant uncertainty stays visible, and a wide table scrolls inside its own keyboard-focusable region. Synthetic browser regressions can run with `COA_PLAYWRIGHT_CORE=/path/to/playwright-core COA_BROWSER=/path/to/chrome npm run test:demo:ui`; they make no model calls and do not establish real model answer quality.
 
 ## Bound transport and spending
 
@@ -56,11 +60,12 @@ Rig preserves original input/output items for subsequent calls, including encryp
 | Limit | Current contract |
 | --- | --- |
 | Whole run | One 120-second deadline, including counting, body reads and retrieval. |
-| Tool work | At most four searches; after the fourth, tool choice is `none`. |
+| Tool work | At most four source actions in total (searches and reads); after the fourth, tool choice is `none`. |
 | Model work | At most five generations and five free exact input-token preflights; no automatic retries. |
 | Tokens per generation | At most 300,000 counted input tokens and 4096 output tokens, including reasoning. |
 | Bodies | 512 KiB provider response, 1 MiB serialized request context, 16 KiB count response. |
 | Search input | Query 1–1000 characters; top-k 1–6; tool arguments at most 16 KiB; unknown fields refused. |
+| Explicit source read | One to twelve distinct IDs from the current catalog; full original sections only; no paths or URLs. |
 
 Each attempt receives a durable, atomic reservation in the schema-2 budget **before** input counting. The count includes all token-bearing fields, tools, schema and encrypted replay; unknown fields or invalid counts stop generation. Model, Standard pricing tier, `30m` cache policy and output ceiling stay fixed. Missing/corrupt/replaced/unwritable state fails closed. Restarts preserve usage; the same budget cannot be opened concurrently. [`demo_budget.rs`](../src/demo_budget.rs) owns this policy; [setup](LOCAL_SETUP.md#token-and-price-assumptions) records price assumptions and initialization.
 

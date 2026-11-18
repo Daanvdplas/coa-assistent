@@ -163,9 +163,18 @@ fn count_payload(body: &[u8]) -> Result<Value, &'static str> {
             .iter()
             .any(|key| request.get(key).is_some_and(|value| !value.is_null()))
         || request["tools"].as_array().is_none_or(|tools| {
-            tools.len() != 1
-                || tools[0]["type"] != "function"
-                || tools[0]["name"] != "search_document"
+            !(1..=2).contains(&tools.len())
+                || tools.iter().any(|tool| tool["type"] != "function")
+                || tools
+                    .iter()
+                    .filter(|tool| tool["name"] == "search_document")
+                    .count()
+                    != 1
+                || tools
+                    .iter()
+                    .filter(|tool| tool["name"] == "read_sources")
+                    .count()
+                    != tools.len() - 1
         })
         || long_cache_breakpoint(&request)
     {
@@ -318,6 +327,14 @@ mod tests {
             ("prompt_cache_options", json!({"ttl":"12h"})),
             ("conversation", json!("mutable-conversation")),
             ("tools", json!([{"type":"web_search"}])),
+            (
+                "tools",
+                json!([{"type":"function","name":"search_document"},{"type":"function","name":"search_document"}]),
+            ),
+            (
+                "tools",
+                json!([{"type":"function","name":"search_document"},{"type":"function","name":"read_sources"},{"type":"function","name":"shell"}]),
+            ),
             (
                 "input",
                 json!([{"role":"user","content":[{"type":"input_text","text":"Hallo","prompt_cache_breakpoint":{"ttl":"12h"}}]}]),

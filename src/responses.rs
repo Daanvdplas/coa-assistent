@@ -1,6 +1,7 @@
 //! The web demo's Rig agent, with a bounded, stateless Responses API transport.
 //! CLI and experiment entry points continue to use the separate Codex runner.
 mod rig_runtime;
+mod source_reader;
 mod transport;
 use crate::{
     DemoSearchMethod,
@@ -132,7 +133,7 @@ impl ResponsesRunner {
         Ok(runner)
     }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v4","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v5","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -274,6 +275,69 @@ mod tests {
     }
     fn final_answer() -> Value {
         json!({"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":json!({"text":"Dinsdag van 10 tot 12 uur.","citations":[{"source_id":"ACT-TUIN-001","source_date":"2026-10-20","section_id":"S2","quote":"Iedere dinsdag van 10.00 tot 12.00 uur."}],"unknowns":[]}).to_string(),"annotations":[]}]})
+    }
+    pub(super) fn corpus_evidence(corpus: CorpusId) -> Value {
+        let sources = corpus.sources().unwrap();
+        let catalog: Vec<_> = sources.iter().zip(corpus.documents()).map(|(source, text)| {
+            json!({"id":source.id,"title":source.title,"date":source.date,"sha256":crate::manifest::hash(text.as_bytes())})
+        }).collect();
+        json!({"sources":catalog,"as_of":corpus.as_of(),"manifest":{"source_sha256":corpus.sha256()},"retrieval_method":"bm25","hits":[{"section":sources[1].sections[1]}]})
+    }
+    #[tokio::test]
+    async fn a_comparison_can_read_the_complete_catalog_and_cite_both_supported_options() {
+        let corpus = CorpusId::DemoTwelve;
+        let sources = corpus.sources().unwrap();
+        let ids: Vec<_> = sources.iter().map(|source| source.id.clone()).collect();
+        let read = json!({"type":"function_call","id":"fc_read","call_id":"read","name":"read_sources","arguments":json!({"source_ids":ids,"search_goal":"Activiteiten vergelijken"}).to_string(),"status":"completed"});
+        let citations: Vec<_> = sources.iter().filter(|source| ["ACT-FIETS-002","ACT-TAAL-003"].contains(&source.id.as_str()))
+            .flat_map(|source| source.sections.iter().filter(|section| ["S1","S2","S3","S5"].contains(&section.id.as_str())))
+            .map(|section| json!({"source_id":section.source_id,"source_date":section.source_date,"section_id":section.id,"quote":section.text})).collect();
+        let text = "| Activiteit | Dag | Tijd | Wat je kunt doen |\n| --- | --- | --- | --- |\n| Fietsen opknappen | Dinsdag | 14.00–16.00 | Banden plakken en eenvoudige reparaties |\n| Taalcafé | Woensdag | 14.00–15.30 | Nederlands praten en taalspelletjes |";
+        let answer = json!({"type":"message","role":"assistant","status":"completed","content":[{"type":"output_text","text":json!({"text":text,"citations":citations,"unknowns":[]}).to_string(),"annotations":[]}]});
+        let (url, seen, task) = mock(vec![
+            envelope(json!([call("search", "binnen 14.00 gratis materiaal")])),
+            envelope(json!([read])),
+            envelope(json!([answer])),
+        ])
+        .await;
+        let runner = ResponsesRunner::new(
+            MOCK_KEY.into(),
+            &url,
+            Arc::new(move |_, _, _| Ok(corpus_evidence(corpus))),
+        )
+        .unwrap();
+        let result = runner.run("Welke activiteiten uit deze bronnen zijn binnen, beginnen om 14.00 uur, zijn gratis en hebben het materiaal voor de activiteit al aanwezig? Zet alle passende opties naast elkaar met de dag, eindtijd en wat je daar doet.", 3, corpus, AnswerLanguage::Nl, DemoSearchMethod::Bm25).await.unwrap();
+        assert_eq!(result["provider_requests"], 3);
+        assert_eq!(result["tool_calls"].as_array().unwrap().len(), 2);
+        let read = &result["tool_calls"][1];
+        assert_eq!(read["tool"], "read_sources");
+        assert_eq!(read["result"]["hits"].as_array().unwrap().len(), 72);
+        assert_eq!(read["result"]["corpus_complete"], true);
+        assert_eq!(result["answer"]["text"], text);
+        assert_eq!(result["answer"]["citations"].as_array().unwrap().len(), 8);
+        let requests = seen.lock().unwrap();
+        assert_eq!(requests.len(), 3);
+        let output = requests[2]["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["type"] == "function_call_output" && item["call_id"] == "read")
+            .unwrap();
+        let delivered: Value = serde_json::from_str(output["output"].as_str().unwrap()).unwrap();
+        assert_eq!(delivered["hits"].as_array().unwrap().len(), 72);
+        assert_eq!(delivered["sources"], corpus_evidence(corpus)["sources"]);
+        for source in sources {
+            for section in source.sections {
+                assert!(
+                    delivered["hits"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|hit| hit["section"] == json!(section))
+                );
+            }
+        }
+        task.abort();
     }
     fn count_stub<S: Clone + Send + Sync + 'static>() -> axum::routing::MethodRouter<S> {
         post(|| async { Json(json!({"object":"response.input_tokens","input_tokens":1})) })
@@ -818,7 +882,7 @@ mod tests {
             assert_eq!(request["reasoning"]["effort"], "low");
             assert_eq!(request["parallel_tool_calls"], false);
             assert_eq!(request["text"]["format"]["strict"], true);
-            assert_eq!(request["tools"].as_array().unwrap().len(), 1);
+            assert_eq!(request["tools"].as_array().unwrap().len(), 2);
             assert!(request.get("previous_response_id").is_none());
             assert!(
                 request["instructions"]
@@ -834,8 +898,8 @@ mod tests {
             );
             let instructions = request["instructions"].as_str().unwrap();
             assert!(
-                instructions.contains("Do not use Markdown tables"),
-                "Web answers must stay readable in the plain-text renderer"
+                instructions.contains("use a Markdown pipe table"),
+                "Web comparisons must use the supported table format"
             );
             assert!(instructions.contains("Lead with the specific activities"));
             assert!(instructions.contains("Keep relevant uncertainty honest"));
@@ -844,9 +908,12 @@ mod tests {
         }
         assert_eq!(
             runner.configuration()["prompt_version"],
-            "responses-activity-v4"
+            "responses-activity-v5"
         );
-        assert_eq!(requests[0]["tool_choice"], "required");
+        assert_eq!(
+            requests[0]["tool_choice"],
+            json!({"type":"function","name":"search_document"})
+        );
         assert!(
             requests[1]["input"]
                 .as_array()

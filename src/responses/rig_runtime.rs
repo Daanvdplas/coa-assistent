@@ -21,8 +21,8 @@ use std::{
 };
 
 pub(super) struct RecordedSearch {
-    call: ToolCall,
-    search_goal: String,
+    pub(super) call: ToolCall,
+    pub(super) search_goal: String,
 }
 
 pub(super) struct RunState {
@@ -67,6 +67,13 @@ impl std::fmt::Display for BoundaryError {
 }
 impl std::error::Error for BoundaryError {}
 
+pub(super) fn validate_search_goal(goal: &str) -> Result<(), BoundaryError> {
+    if goal.trim().is_empty() || goal.chars().count() > 80 || goal.chars().any(char::is_control) {
+        return Err(BoundaryError("tool: Ongeldig publiek zoekdoel."));
+    }
+    Ok(())
+}
+
 impl SearchTool {
     async fn execute(&self, arguments: SearchArguments) -> Result<Value, BoundaryError> {
         let result = self.execute_inner(arguments).await;
@@ -82,12 +89,7 @@ impl SearchTool {
             .map_err(|_| BoundaryError("tool: Ongeldige zoekvraag."))?;
         crate::ranking::validate_top_k(arguments.top_k)
             .map_err(|_| BoundaryError("tool: Ongeldig aantal bronpassages."))?;
-        if arguments.search_goal.trim().is_empty()
-            || arguments.search_goal.chars().count() > 80
-            || arguments.search_goal.chars().any(char::is_control)
-        {
-            return Err(BoundaryError("tool: Ongeldig publiek zoekdoel."));
-        }
+        validate_search_goal(&arguments.search_goal)?;
         if self
             .state
             .lock()
@@ -163,7 +165,12 @@ impl AgentHook for RunPolicy {
             return CompletionCallAction::stop(error);
         }
         let choice = if state.calls.is_empty() {
-            ToolChoice::Required
+            ToolChoice::Specific {
+                function_names: vec![
+                    rig::message::ToolName::new(SearchTool::NAME)
+                        .expect("fixed tool name is valid"),
+                ],
+            }
         } else if state.calls.len() >= MAX_SEARCHES {
             ToolChoice::None
         } else {
@@ -225,9 +232,14 @@ pub(super) async fn run(
         .split("\\n\\nUser question (data):")
         .next()
         .unwrap_or(&prompt)
-        .replace("coa.search_document", "search_document");
+        .replace("coa.search_document", "search_document")
+        .replace("Use only actual evidence returned by search_document.", "Use only actual evidence returned by search_document or read_sources.")
+        .replace("You may make at most four focused searches to retrieve missing parts, never use files, shell, web, other tools or prior knowledge.", "You may make at most four source actions in total, using search_document or read_sources. Never use files, shell, web, other tools or prior knowledge.");
     let instructions = format!(
-        "{instructions}\n\nFor the web demo's answer.text only: Lead with the specific activities and practical details the person asked for. Use short, natural sentences, as a helpful colleague would. Write plain text or a short '-' list. Do not use Markdown tables, pipe-delimited tables, Markdown headings or emphasis. Keep relevant uncertainty honest and brief in ordinary words; do not add a generic verdict or jargon about criteria, coverage or proof. Do not add standalone verdicts such as 'Deze optie voldoet aantoonbaar aan alle voorwaarden' or 'Dit is een bevestigde passende optie', or English equivalents. Do not replace them with another approval or summary sentence. Finish after the practical information and any relevant uncertainty. When asked for all suitable options, keep an honest, brief completeness caveat if the retrieved evidence does not establish the full list. Do not invent facts or hide relevant missing information. Keep the existing language, JSON schema, separate citations, source/date bindings, unknowns and search rules unchanged."
+        "{instructions}\n\nFor the web demo's answer.text only: Lead with the specific activities and practical details the person asked for. Use short, natural sentences, as a helpful colleague would. When asked to compare options side by side, use a Markdown pipe table with a header, separator line and one row per supported option. Include the practical columns the person requested. For other answers, use plain text or a short '-' list. Do not use Markdown headings, emphasis or HTML. Keep relevant uncertainty honest and brief in ordinary words; do not add a generic verdict or jargon about criteria, coverage or proof. Do not add standalone verdicts such as 'Deze optie voldoet aantoonbaar aan alle voorwaarden' or 'Dit is een bevestigde passende optie', or English equivalents. Do not replace them with another approval or summary sentence. Finish after the practical information and any relevant uncertainty. When asked for all suitable options, keep an honest, brief completeness caveat if the retrieved evidence does not establish the full list. Do not invent facts or hide relevant missing information. Keep the existing language, JSON schema, separate citations, source/date bindings, unknowns and search rules unchanged."
+    );
+    let instructions = format!(
+        "{instructions}\n\nRanked hits are not the complete activity catalog. For exhaustive comparisons, inspect the catalog returned by the first search and use read_sources to check all candidate sources against the requested conditions; it can read the entire catalog in one call. Base completeness on the original source sections actually returned, never on ranking or an unsupported completeness claim. When every catalog source has been read and the requested facts are established, do not add a generic claim that the full list cannot be established. Retain specific, relevant limitations when evidence is missing. Check only conditions the person asked for: unknown current vacancies or transport do not exclude an activity unless the question requires those facts. Never turn unknown availability into a promise of an available place."
     );
     let schema = crate::codex::output_schema()
         .try_into()
@@ -236,6 +248,11 @@ pub(super) async fn run(
         .preamble(instructions)
         .tool(SearchTool {
             search: runner.search.clone(),
+            method,
+            state: state.clone(),
+        })
+        .tool(super::source_reader::ReadSourcesTool {
+            corpus,
             method,
             state: state.clone(),
         })
@@ -317,7 +334,13 @@ pub(super) fn check_response(response: &Value, state: &mut RunState) -> Result<(
                 if tools > 1 {
                     return Err(BoundaryError("tool: Onverwachte parallelle zoekacties."));
                 }
-                if state.calls.len() >= MAX_SEARCHES || item["name"] != "search_document" {
+                if state.calls.len() >= MAX_SEARCHES
+                    || !matches!(
+                        item["name"].as_str(),
+                        Some("search_document" | "read_sources")
+                    )
+                    || (state.calls.is_empty() && item["name"] != "search_document")
+                {
                     return Err(BoundaryError(
                         "tool: Alleen maximaal vier bronzoekacties zijn toegestaan.",
                     ));
@@ -335,8 +358,13 @@ pub(super) fn check_response(response: &Value, state: &mut RunState) -> Result<(
                     .ok_or(BoundaryError("tool: Ongeldige zoekinvoer."))?;
                 // Reject malformed wire arguments before provider decoding can
                 // classify them as an unrelated output error or repair them.
-                serde_json::from_str::<SearchArguments>(arguments)
-                    .map_err(|_| BoundaryError("tool: Ongeldige zoekinvoer."))?;
+                if item["name"] == "search_document" {
+                    serde_json::from_str::<SearchArguments>(arguments)
+                        .map_err(|_| BoundaryError("tool: Ongeldige zoekinvoer."))?;
+                } else {
+                    serde_json::from_str::<super::source_reader::ReadArguments>(arguments)
+                        .map_err(|_| BoundaryError("tool: Ongeldige bronopvraag."))?;
+                }
             }
             Some("message") => {
                 if item["role"] != "assistant" {
