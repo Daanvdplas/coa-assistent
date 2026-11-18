@@ -13,3 +13,25 @@ select,.method-field select{appearance:none;background-image:var(--control-chevr
 @media(forced-colors:active){select,.method-field select{appearance:auto;background-image:none}.demo-nav .language-trigger::after{background:none;border-right:1px solid ButtonText;border-bottom:1px solid ButtonText;width:7px;height:7px;flex-basis:7px;transform:rotate(45deg)}}
 
 @media(max-width:650px){.results-controls{grid-template-columns:minmax(0,1fr);gap:6px}.results-controls select+label{margin-top:6px}}
+
+/* Shared demo and explanation layout. */
+.app-main { max-width:1040px; margin:auto; padding:40px 32px 48px; }
+.site-nav.demo-nav { justify-content:flex-end; padding-block:12px; gap:8px 20px; }
+.demo-nav .demo-name { margin-inline-end:auto; color:var(--ink); font-weight:650; }
+.app-main h1 { font-size:1.875rem; font-weight:600; line-height:1.2; letter-spacing:-.015em; text-wrap:balance; margin:0 0 16px; }
+.app-main h2 { font-size:1.5rem; margin:32px 0 16px; }
+.app-main h3 { font-size:1rem; margin:16px 0 6px; }
+.app-main p { max-width:72ch; }
+.demo-nav .language-switch { display:block; position:relative; }
+.demo-nav .language-trigger { display:flex; align-items:center; justify-content:center; gap:4px; min-width:44px; min-height:44px; padding:0 6px; cursor:pointer; list-style:none; }
+.demo-nav .language-trigger::-webkit-details-marker { display:none; }
+.demo-nav .language-options { position:absolute; z-index:10; inset-inline-end:0; top:calc(100% + 6px); min-width:200px; padding:4px; border:1px solid var(--line); background:var(--surface); }
+.demo-nav .language-options button { display:flex; align-items:center; gap:8px; width:100%; min-height:44px; padding:8px 12px; border:0; border-radius:0; text-align:start; text-decoration:none; font-weight:500; }
+.demo-nav .language-options button[aria-pressed="true"] { font-weight:650; text-decoration:underline; text-underline-offset:4px; }
+.demo-nav .language-options button:hover { background:var(--paper); }
+@media(max-width:650px) {
+  .app-main { padding:28px 16px 32px; }
+  .site-nav.demo-nav { gap:8px 12px; }
+  .demo-nav .demo-name { flex-basis:100%; }
+  .app-main h1 { font-size:1.75rem; }
+}

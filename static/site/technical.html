@@ -4,22 +4,63 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title data-i18n="technicalPageTitle">Hoe het werkt · COA Assistent</title>
-  <link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand">
-  <script src="/assets/language.js?v=20261110-grouped-header" defer></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261118-shared-layout">
+  <script src="/assets/language.js?v=20261117-public-demo" defer></script>
   <style>
     html[lang="nl"] .locale-en,html[lang="en"] .locale-nl{display:none}
-    .embedding-lesson{max-width:680px;margin-inline:auto}.embedding-lesson h1{margin-top:0}.embedding-lesson section{margin:42px 0;scroll-margin-top:24px}.embedding-lesson h2{font-size:1.65rem;margin:0 0 14px}.embedding-lesson h3{font-size:1.15rem;margin:30px 0 10px}.lesson-index{display:grid;gap:10px;margin:24px 0 36px}.lesson-index a{width:fit-content}.embedding-lesson figure{margin:18px 0}.embedding-lesson figcaption{font-size:.78rem;color:var(--muted);margin-top:8px}.embedding-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.embedding-tile{border:1px solid var(--line);padding:12px 14px;min-width:0}.embedding-tile small,.embedding-input small{display:block;color:var(--muted);font-size:.8rem;margin-bottom:5px}.embedding-tile p{margin:0}.embedding-numbers{font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace;white-space:nowrap}.embedding-converter{text-align:center;margin:10px 0;font-size:.9rem}.embedding-converter .flow-arrow{display:block}.meaning-map{position:relative;height:190px;border-bottom:1px solid var(--line)}.meaning-point{position:absolute;font-size:1rem;line-height:1.35;padding-top:16px}.meaning-point::before{content:"";position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;background:var(--heading)}.meaning-question{left:5%;top:14%;max-width:56%}.meaning-garden{left:28%;top:58%}.meaning-bicycle{left:73%;top:62%;max-width:26%;color:var(--muted)}.meaning-bicycle::before{background:var(--muted)}.embedding-input{padding:14px;border-left:2px solid var(--heading)}.embedding-input p{margin:0 0 10px}.embedding-input p:last-child{margin:0}.answer-flow{display:grid;grid-template-columns:minmax(0,1fr) 24px minmax(0,1.3fr);gap:10px;align-items:center;margin-top:18px}.answer-model{font-weight:650}.answer-card{padding:12px 14px;border:1px solid var(--heading)}.answer-card p{margin:0}.answer-card small{display:block;font-size:.78rem;margin-top:7px;color:var(--muted)}.search-again{font-size:.87rem;color:var(--muted);margin:12px 0 0}.lesson-recap{margin-top:24px}.embedding-lesson .lesson-links{font-size:.9rem;margin-top:24px}@media(max-width:450px){.embedding-pair{gap:8px}.embedding-tile{padding:10px}.embedding-tile p{font-size:.9rem}.embedding-numbers{font-size:.75rem}.answer-flow{grid-template-columns:minmax(0,1fr);gap:8px}.answer-model{text-align:center}.answer-flow>span{justify-self:center;transform:rotate(90deg)}.answer-card{padding:10px}.answer-card p{font-size:.9rem}}
+    .embedding-lesson { max-width:680px; margin-inline:auto; }
+    .embedding-lesson section { margin:0; scroll-margin-top:24px; }
+    .embedding-lesson section + section { margin-top:32px; padding-top:28px; border-top:1px solid var(--line); }
+    .embedding-lesson h2 { margin:0 0 12px; }
+    .embedding-lesson h3 { margin:24px 0 10px; }
+    .lesson-index { display:grid; margin:0 0 28px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    .lesson-index a { display:flex; align-items:center; min-height:44px; width:fit-content; max-width:100%; padding-block:8px; text-decoration:none; }
+    .lesson-index a:hover,.lesson-index a:focus-visible { text-decoration:underline; }
+    .embedding-lesson figure { margin:18px 0; }
+    .embedding-lesson figcaption { font-size:.8125rem; color:var(--muted); margin-top:8px; }
+    .embedding-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .embedding-tile { border:1px solid var(--line); padding:12px 14px; min-width:0; background:var(--surface); }
+    .embedding-tile small,.embedding-input small { display:block; color:var(--muted); font-size:.8125rem; margin-bottom:5px; }
+    .embedding-tile p { margin:0; }
+    .embedding-numbers { font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace; white-space:nowrap; }
+    .embedding-converter { text-align:center; margin:10px 0; font-size:.9375rem; }
+    .embedding-converter .flow-arrow { display:block; }
+    .meaning-map { position:relative; height:190px; border-bottom:1px solid var(--line); }
+    .meaning-point { position:absolute; font-size:1rem; line-height:1.35; padding-top:16px; }
+    .meaning-point::before { content:""; position:absolute; left:0; top:0; width:9px; height:9px; border-radius:50%; background:var(--heading); }
+    .meaning-question { left:5%; top:14%; max-width:56%; }
+    .meaning-garden { left:28%; top:58%; }
+    .meaning-bicycle { left:73%; top:62%; max-width:26%; color:var(--muted); }
+    .meaning-bicycle::before { background:var(--muted); }
+    .embedding-input { padding:14px; border-left:2px solid var(--heading); background:var(--surface); }
+    .embedding-input p { margin:0 0 10px; }
+    .embedding-input p:last-child { margin:0; }
+    .answer-flow { display:grid; grid-template-columns:minmax(0,1fr) 24px minmax(0,1.3fr); gap:10px; align-items:center; margin-top:18px; }
+    .answer-model { font-weight:650; }
+    .answer-card { padding:12px 14px; border:1px solid var(--line); background:var(--surface); }
+    .answer-card p { margin:0; }
+    .answer-card small { display:block; font-size:.8125rem; margin-top:7px; color:var(--muted); }
+    .search-again { font-size:.9375rem; color:var(--muted); margin:12px 0 0; }
+    .lesson-recap { margin-top:24px; }
+    .embedding-lesson .lesson-links { font-size:.875rem; margin-top:24px; }
+    @media(max-width:450px) {
+      .embedding-pair { gap:8px; }
+      .embedding-tile { padding:10px; }
+      .embedding-tile p { font-size:.9375rem; }
+      .embedding-numbers { font-size:.8125rem; }
+      .answer-flow { grid-template-columns:minmax(0,1fr); gap:8px; }
+      .answer-model { text-align:center; }
+      .answer-flow>span { justify-self:center; transform:rotate(90deg); }
+      .answer-card { padding:10px; }
+      .answer-card p { font-size:.9375rem; }
+    }
   </style>
 </head>
 <body>
-<nav class="site-nav" aria-label="Hoofdnavigatie">
-  <span class="site-brand"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span>
-  <a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a>
-  <div class="language-switch" aria-label="Taal"><button type="button" data-language="nl" aria-pressed="true">NL</button><button type="button" data-language="en" aria-pressed="false">EN</button></div>
-</nav>
-<main class="site-main">
+<nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
+<main class="site-main app-main info-main">
 <article class="embedding-lesson">
-  <header><h1><span class="locale-nl" lang="nl">Hoe werkt het?</span><span class="locale-en" lang="en">How does it work?</span></h1></header>
+  <header><h1><span class="locale-nl" lang="nl">Hoe het werkt</span><span class="locale-en" lang="en">How it works</span></h1></header>
   <nav class="lesson-index" aria-labelledby="questions-label">
     <span id="questions-label" class="sr-only"><span class="locale-nl" lang="nl">Onderwerpen</span><span class="locale-en" lang="en">Topics</span></span>
     <a href="#embeddings"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></a>
@@ -27,7 +68,7 @@
   </nav>
 
   <section id="embeddings" aria-labelledby="embeddings-heading">
-    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></h2>
+    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Zoeken op betekenis</span><span class="locale-en" lang="en">Searching by meaning</span></h2>
     <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein model zet de tekst én je vraag om in lijsten getallen: <em>embeddings</em>. Voor de tekst en de vraag gebruiken we hetzelfde model. Zo kun je de getallen vergelijken.</p>
     <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small model turns the text and your question into lists of numbers: <em>embeddings</em>. Both use the same model, so their numbers can be compared.</p>
     <figure>
@@ -57,7 +98,7 @@
   </section>
 
   <section id="rag" aria-labelledby="rag-heading">
-    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></h2>
+    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Antwoorden met bronnen</span><span class="locale-en" lang="en">Answering with sources</span></h2>
     <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
     <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
     <figure>
