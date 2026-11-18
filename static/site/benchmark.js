@@ -232,6 +232,11 @@ function populateSuites(preserve = false) {
     group.append(choices);
     container.append(group);
   }
+  byId("select-assistant").textContent = container.querySelector(
+    'input[value="assistant-rig"]',
+  )
+    ? "Alle actuele assistent-evals"
+    : "Alle assistent-evals";
   modelControls();
 }
 function populatePlanner() {
@@ -1267,10 +1272,14 @@ for (const [id, family] of [
   ["select-assistant", "assistant"],
 ])
   byId(id).addEventListener("click", () => {
+    const currentAssistant =
+      id === "select-assistant" &&
+      byId("benchmark-suites").querySelector('input[value="assistant-rig"]');
     for (const input of byId("benchmark-suites").querySelectorAll("input"))
-      input.checked =
-        state.catalog.suites.find((suite) => suite.id === input.value)
-          ?.family === family;
+      input.checked = currentAssistant
+        ? input.value === "assistant-rig"
+        : state.catalog.suites.find((suite) => suite.id === input.value)
+            ?.family === family;
     schedulePlan();
   });
 byId("select-all").addEventListener("click", () => {

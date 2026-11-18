@@ -760,9 +760,24 @@ test("a missed case retains its measured raw time in the existing evidence detai
 test("Rig asks for an explicit model-attempt bound without inventing Codex sessions", async () => {
   const { page, starts } = await fixture({ rig: true });
   try {
-    await page.locator("#benchmark-suites input[value=retrieval]").uncheck();
-    await page.locator("#benchmark-suites input[value=quality]").uncheck();
-    await page.locator("#benchmark-suites input[value=assistant-rig]").check();
+    await page
+      .getByRole("button", {
+        name: "Alle actuele assistent-evals",
+        exact: true,
+      })
+      .click();
+    assert.deepEqual(
+      await page
+        .locator("#benchmark-suites input:checked")
+        .evaluateAll((nodes) => nodes.map((node) => node.value)),
+      ["assistant-rig"],
+    );
+    assert.equal(
+      await page
+        .locator("#benchmark-suites input[value=assistant]")
+        .isChecked(),
+      false,
+    );
     await page.getByLabel("Modelgebruik toestaan", { exact: true }).check();
     await page
       .getByLabel("Maximaal aantal modelpogingen", { exact: true })
