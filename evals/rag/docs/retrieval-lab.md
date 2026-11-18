@@ -76,7 +76,7 @@ Assessments bind the SHA-256 of the exact JSONL line. Reassessment never retriev
 
 ## Controls, storage and fair timing
 
-Advanced options include `--top-k 3|6`, `--candidate-k`, `--context-limit`, `--selection sections|activity_expansion`, `--mmr on|off`, `--apply-filters on|off`, `--rrf-k`, `--vector-weight` and `--mmr-lambda`. `--query-filters` accepts explicit JSON, for example `' {"weekdays":["tuesday"],"environment":"indoor"}'` (leading whitespace is optional). No criteria come from expected answers or case IDs. Unknown source fields remain unknown; preferences do not silently become hard constraints.
+Advanced options include `--top-k 3|6`, `--candidate-k`, `--context-limit`, `--selection sections|activity_expansion`, `--mmr on|off`, `--apply-filters on|off`, `--rrf-k`, `--vector-weight` and `--mmr-lambda`. `--query-filters` accepts explicit JSON, for example `'{"weekdays":["tuesday"],"environment":"indoor"}'`. No criteria come from expected answers or case IDs. Unknown source fields remain unknown; preferences do not silently become hard constraints.
 
 Activity expansion is context selection: seeds remain intact, then whole unchanged related sections fit within the shared ceiling. Activity records are a distinct representation with source-backed typed fields and linked passages. Store, representation, filters and method are separately recorded. A top-k seed limit is not the expanded offered-section limit. T05 needs four sections and cannot complete at fixed section top-k three; passing a minimum-capacity bound does not guarantee token/filter feasibility.
 

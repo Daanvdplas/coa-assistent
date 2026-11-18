@@ -1,6 +1,6 @@
 # Real Codex retrieval bridge
 
-This document covers the CLI/evaluation Codex bridge, separate from the Rig/Responses website. Its default corpus is five fictional activity documents and thirty sections; free queries and the internal gardening regressions retain that scope. This is a local learning prototype, not a COA system or a production-quality claim.
+This document covers the CLI/evaluation Codex bridge, separate from the Rig/Responses website. Its default corpus is five fictional activity documents and thirty sections; free-text queries and the internal gardening regressions retain that scope. This is a local learning prototype, not a COA system or a production-quality claim.
 
 ```sh
 cargo run -- ask --top-k 3 'Waar en wanneer is het tuinieren?'
