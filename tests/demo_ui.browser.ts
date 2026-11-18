@@ -58,10 +58,13 @@ async function answer(text: string, language = "nl", mobile = false) {
 test("comparison answers become accessible tables without losing uncertainty or executing cell HTML", async () => {
   for (const language of ["nl", "en"]) {
     const caveat = language === "nl" ? "Andere opties zijn nog niet gecontroleerd." : "Other options have not been checked yet.";
-    const page = await answer(`| Activiteit | Dag | Tijd | Wat je kunt doen |\n| --- | --- | --- | --- |\n| Fietsen repareren | Dinsdag | 14:00–16:00 | Fietsen nakijken |\n| Taalcafé | Woensdag | 14:00–15:30 | <img src=x onerror=window.injected=true> |\n\n${caveat}`, language, true);
+    const table = language === "nl"
+      ? "| Activiteit | Dag | Begintijd | Eindtijd | Binnen | Kosten | Materiaal aanwezig | Wat doe je? |\n|---|---|---|---|---|---|---|---|\n| Fietsen opknappen | Iedere dinsdag | 14.00 uur | 16.00 uur | Ja | Gratis | Gereedschap en reparatiemateriaal | Banden plakken en eenvoudige reparaties doen. |\n| Taalcafé | Iedere woensdag | 14.00 uur | 15.30 uur | Ja | Gratis | Kaartjes, papier en pennen | <img src=x onerror=window.injected=true> |"
+      : "| Activity | Day | Starts | Ends | Indoors | Cost | Material provided | What can you do? |\n|---|---|---|---|---|---|---|---|\n| Bicycle repair | Every Tuesday | 14:00 | 16:00 | Yes | Free | Tools and repair materials | Repair tyres and make simple repairs. |\n| Language café | Every Wednesday | 14:00 | 15:30 | Yes | Free | Cards, paper and pens | <img src=x onerror=window.injected=true> |";
+    const page = await answer(table + "\n\n" + caveat, language, true);
     try {
       assert.equal(await page.locator("#answer table").count(), 1);
-      assert.equal(await page.locator("#answer thead th").count(), 4);
+      assert.equal(await page.locator("#answer thead th").count(), 8);
       assert.equal(await page.locator("#answer tbody tr").count(), 2);
       assert.equal(await page.locator("#answer img").count(), 0);
       assert.equal(await page.evaluate(() => Boolean((window as any).injected)), false);
@@ -69,6 +72,12 @@ test("comparison answers become accessible tables without losing uncertainty or 
       assert((await page.locator("#answer").innerText()).includes(caveat));
       assert.equal(await page.locator("#answer").getAttribute("lang"), language);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      const wordLines = await page.locator("#answer th").nth(2).evaluate((cell: HTMLElement) => {
+        const word = document.createRange();
+        word.selectNodeContents(cell);
+        return word.getClientRects().length;
+      });
+      assert.equal(wordLines, 1, "A short header word must not become a stack of letters");
       await page.locator("#answer .answer-table").focus();
       assert.equal(await page.evaluate(() => document.activeElement?.classList.contains("answer-table")), true);
     } finally { await page.close(); }
