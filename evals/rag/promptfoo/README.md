@@ -1,129 +1,68 @@
-# RAG-evaluaties met promptfoo
+# Promptfoo execution and assertion contract
 
-Dit is de canonieke uitvoerroute voor de RAG-evals. Promptfoo bepaalt de vragen,
-configuraties, herhalingen en assertions. De Rust-code voert uitsluitend lokale
-retrieval of een afgeschermde Codex/MCP-sessie uit. De oude Rust-beoordelaars en
-historische rapporten blijven beschikbaar voor compatibiliteit en controle;
-hun scores worden niet als nieuwe promptfoo-scores overgenomen.
+This is the canonical RAG orchestration layer. Promptfoo selects questions, configurations, repetitions and assertions. Rust performs local retrieval or an isolated Codex/MCP session. Native assessors/historical reports remain available for compatibility and inspection; their scores are not imported as new promptfoo measurements. [The RAG index](../README.md) explains browser tests and complete suites.
 
-## Starten zonder modelcalls
+## Start without model calls
 
-Benodigd: Rust en Node **22.22.0 of hoger**. De eigen evaluatiecode en tests zijn TypeScript; Python is niet nodig. Vanuit de repo-root:
+Requires Rust and Node **22.22.0 or newer**. Owned evaluation tools/tests are TypeScript; Python is unnecessary. From the repository root:
 
 ```sh
-npm ci
+npm ci --ignore-scripts --no-audit --no-fund
 cargo build --locked --features sqlite
 npm run eval:rag -- --suite all-local
 ```
 
-Gebruik eventueel `--binary /absoluut/pad/naar/meedoen-retrieval` en
-`--model-cache /absoluut/pad/naar/.model-cache`. SQLite moet in de gekozen binary
-zijn ingebouwd om alle vier opslagprofielen werkelijk te vergelijken.
+Optional `--binary /absolute/path/to/meedoen-retrieval` and `--model-cache /absolute/path/to/.model-cache` select local inputs. SQLite must be compiled into the executable to compare all four storage profiles.
 
-| Suite | Wat draait er standaard? | Modelgebruik |
+| Suite | Default execution | Answer-model use |
 | --- | --- | --- |
-| `garden` | Vijf vaste tuinvragen × dense en historische Jaccard-woordoverlap: 10 rijen. | Geen antwoordmodel. |
-| `retrieval` | Vier bestaande vraagsets, samen 50 vragen × vier methoden × vier opslag-/structuurprofielen: 800 rijen. | Geen antwoordmodel. |
-| `quality` | De bestaande contextproef: legacy 18 × 24 configuraties en independent 12 × 28 configuraties: 768 rijen. | Geen antwoordmodel. |
-| `compact` | Exacte Rust-projectie van één bewaarde canonieke T02-retrievaltrace, met bron-/metadatabehoud, SHA-256 en UTF-8-bytemetingen. | Geen retrieval of modelcall. |
-| `agentic` | De bestaande selectie van tien vragen × vier zoekmethoden: 40 afzonderlijke Codex-sessies. | Expliciete live-opt-in. |
-| `models` | Tien aangescherpte vragen × Sol/Luna × drie herhalingen: 60 sessies. | Expliciete live-opt-in. |
-| `compact-live` | De drie bestaande T02/T05/P05-paren met werkelijk `full` en `compact` transport: zes sessies. | Expliciete live-opt-in. |
+| `garden` | 5 fixed gardening questions × dense/Jaccard: 10 rows | None |
+| `retrieval` | 50 questions × 4 methods × 4 profiles: 800 rows | None |
+| `quality` | Legacy 18 × 24 + independent 12 × 28: 768 rows | None |
+| `compact` | Exact Rust projection of one saved T02 trace, metadata/hash/UTF-8 byte checks | No retrieval or model |
+| `agentic` | 10 selected questions × 4 methods: 40 sessions | Explicit live opt-in |
+| `models` | 10 questions × Sol/Luna × 3 repetitions: 60 sessions | Explicit live opt-in |
+| `compact-live` | T02/T05/P05 full/compact pairs: 6 sessions | Explicit live opt-in |
 
-`all-local` kiest de eerste vier suites. De vier methoden zijn `dense`, `bm25`,
-`hybrid_rrf` en `hybrid_weighted`; de profielen zijn `documents_sections`,
-`documents_activities`, `sqlite_sections` en `sqlite_activities`.
-
-Een kleine lokale selectie:
+`all-local` selects the first four. Methods are `dense`, `bm25`, `hybrid_rrf`, `hybrid_weighted`; profiles are `documents_sections`, `documents_activities`, `sqlite_sections`, `sqlite_activities`. [cases.cjs](cases.cjs) defines the full matrix. Preserved source/label bytes remain unchanged; this is not a new twelve-document gold corpus.
 
 ```sh
 npm run eval:rag -- --suite retrieval --dataset legacy --cases T05,P05 --methods bm25 --profiles documents_sections
 ```
 
-De volledige vraag-/configuratiematrix staat in [cases.cjs](cases.cjs).
-Bestaande vragen, beschermde labels en bronnen blijven bytegelijk. De huidige
-twaalfdocumentendemo heeft hiermee geen nieuw, onafhankelijk goldlabelcorpus.
+## Codex is the evaluation model route
 
-## Codex blijft de enige modelroute voor evals
-
-Een modelproef vraagt `--live`, een expliciet ledger en sessie-/tijdgrenzen.
-Dit voorbeeld is een **kleine uitvoercontrole**, geen volledige modelvergelijking:
+Obtain usage approval before model work. Every trial requires `--live`, an explicit ledger and session/time limits. This is a small technical execution check, not a full comparison:
 
 ```sh
 npm run eval:rag:live -- --suite models --phase smoke --cases RAG26-01 --repeat 1 --ledger evals/rag/results/local/model-smoke/ledger.json --max-generations 8 --max-seconds 900
 ```
 
-De voorbeeldselectie vraagt precies één Sol- en één Luna-sessie. De standaard
-`models`-suite behoudt de oorspronkelijke afwisselende volgorde van 60 expliciete
-case/model/herhalingsslots. Gebruik `--phase pilot` voor de eerste vier sessies.
-`--phase remaining --approval <bestand>` vereist daarna de oorspronkelijke, door
-een onafhankelijke reviewer gegeven hashgebonden pilotgoedkeuring. Een schone
-onderbreking hervat bij het eerstvolgende onuitgevoerde slot; onzekere pogingen
-stoppen zonder herhaling. Een selectie met `--phase smoke --repeat 1` is een
-begrensde technische proef en geen volledige modelvergelijking. Zonder fase
-blijft het plan zichtbaar, maar start geen modeluitvoering.
+That selection requests one Sol and one Luna session. Full `models` retains sixty alternating case/model/repetition slots. `--phase pilot` runs the first four; `--phase remaining --approval <file>` requires independent hash-bound approval of the original preregistration/pilot. Clean interruption resumes at the next unexecuted slot; uncertain attempts stop without retry. Without a phase, only the plan is shown. Smoke selection does not replace the full protocol.
 
-Dezelfde gedeelde ledger begrenst alle
-verdere sessies gezamenlijk; een volledig nieuwe vergelijking van zestig
-sessies vereist dus een afzonderlijk, expliciet passend budget.
+All continuation uses the same shared ledger/limits. A separately authorized new sixty-session comparison needs its own explicit allowance, never a reset of the previous ledger. Before each Codex start, the global counter reserves an attempt. Rust `lock-exec` holds an OS file lock while TypeScript writes and synchronizes the transaction. Crashes release the lock but leave uncertain reservations consumed.
 
-De globale teller reserveert vóór elke Codex-start. De Rust-opdracht `lock-exec` houdt daarbij een OS-bestandslock vast terwijl de TypeScript-transactie schrijft en synchroniseert. Een crash geeft de lock automatisch vrij; een onzekere reservering blijft staan. Mislukte of onzekere pogingen
-tellen mee, stoppen vervolguitvoering en worden niet automatisch herhaald. Alleen
-aantoonbare `model_output_invalid`- en `model_contract_violation`-uitkomsten mogen
-binnen de modelvergelijking als gefaalde modelantwoorden doorgaan; hun bronkwaliteit
-blijft onbekend. Authenticatie-, netwerk- en tracefouten stoppen de proef.
-Een lopend proces is begrensd op de resterende gezamenlijke tijd, met ruimte
-voor opruiming. Native deelledgers zijn gescheiden per dataset/model/treatment;
-ze verruimen de globale grens niet. Een bestaand ledger wordt nooit stil gereset
-of verlengd. Cache en automatische retries staan uit, met één uitvoering tegelijk.
+Failed/uncertain attempts count and stop further work without automatic retry. Only proven `model_output_invalid`/`model_contract_violation` outcomes may continue as failed model responses within a comparison; source quality remains unknown. Authentication/network/trace failures stop. Processes fit within remaining shared time, including cleanup. Native subledgers split datasets/models/treatments without enlarging the global limit. No silent reset/extension is allowed. Cache/retries are off; one session runs at a time.
 
-De provider verwijdert OpenAI API-sleutelinstellingen uit de subprocessomgeving.
-Hij laadt geen sleutelbestand en gebruikt geen OpenAI-provider of modelgrader
-van promptfoo. Alleen vraagtekst en vastgelegde zoekinstellingen gaan naar
-Codex; labels, bronverwachtingen en beoordelingscriteria blijven bij assertions.
+The provider removes OpenAI API-key settings from child environments, loads no key file and uses no promptfoo OpenAI provider or model judge. Codex receives only questions and fixed retrieval settings. Labels, expectations and criteria belong to assertions.
 
-## Resultaten lezen
+## Results and interpretation
 
-Elke uitvoering krijgt een nieuwe map onder `evals/rag/results/local/` met echte
-promptfoo-JSON, samenvattingen en afgeschermde native artifacts. Lokale retrieval
-wordt per exact geselecteerde configuratie voorbereid om model/indexopbouw te
-delen. De provider leest alleen de bytegebonden records van datzelfde verse
-execution-ID; dit is geen hergebruik van oude benchmarkresultaten of promptfoo-cache.
+Each execution gets a new ignored `evals/rag/results/local/` directory with real promptfoo JSON, summaries and private native artifacts. Retrieval preparation shares model/index construction only for exactly selected request groups. The provider reads byte-bound records from the same new execution ID, not old benchmark output or promptfoo cache.
 
-`gradingResult.componentResults[].metadata.source_metrics` bewaart onder meer:
+`gradingResult.componentResults[].metadata.source_metrics` records complete evidence sets, partial coverage, supported ranking metrics, missed goals, section/activity capacity bounds and N/A where positive goals are absent. Only source quality is assessed; free-form answer quality stays `not_assessed`.
 
-- complete bewijssets en afzonderlijke gedeeltelijke doeldekking;
-- relevante bronnen, gemiste doelen en rangorde waar labels dat toelaten;
-- minimale sectie-/activiteitcapaciteit tegenover de gekozen top-k;
-- `null`/niet-toepasselijk bij ontbrekende positieve doelen;
-- uitsluitend bronkwaliteit: vrije antwoordkwaliteit blijft `not_assessed`.
+Missing required sources remain a real assertion failure. Unknown/clarification cases without positive targets get integrity checks without perfect/zero source-quality scores. Provider errors, invalid traces and unsupported profiles remain execution problems. Exit code 100 can therefore be a preserved evidence miss; inspect result categories rather than assuming installation failure.
 
-Een complete uitvoering met ontbrekende bronnen blijft een echte assertionfail.
-Een onbekend-/verduidelijkingsgeval zonder positief doel krijgt alleen een
-technische integriteitscontrole, zonder perfecte of nul-bronkwaliteitsscore.
-Providerfouten, ongeldige traces en unsupported profielen blijven afzonderlijke
-uitvoerproblemen. Een CLI-exitcode 100 kan daarom een normale, bewaarde
-inhoudelijke misser betekenen; controleer de foutcategorieën in het resultaat.
+The exporter updates `/resultaten/` using permitted observable fields, excluding credentials, raw runtime paths and private reasoning. Sixty historical records in `../site/results.json` remain unchanged. The [thirteen-call compact comparison](../docs/compact-mcp.md) is historical; the default one-record replay does not claim to re-execute that bundle. Bytes are not quality, provider tokens or money.
 
-De exportadapter werkt de bestaande eigen pagina `/resultaten/` bij vanuit deze
-promptfoo-resultaten. Alleen toegestane waarneembare velden worden gepubliceerd;
-ruwe runtimepaden, credentials en interne reasoningevents blijven erbuiten.
-De zestig historische runs in `../site/results.json` blijven ongewijzigd.
+## Implementation and verification
 
-De oorspronkelijke [dertien-callmeting](../docs/compact-mcp.md) blijft historisch
-bewijs. De standaard `compact`-suite hierboven gebruikt één andere, expliciet
-herleidbare T02-record en claimt die dertien oude responses niet opnieuw te hebben
-uitgevoerd. Payloadbytes zijn geen antwoordkwaliteit, providertokens of kosten.
+- [provider.ts](provider.ts): execution and bounded Codex ledgers.
+- [prepare.ts](prepare.ts): exact fresh local request groups without assessment.
+- [assertions.ts](assertions.ts): canonical source/trace checks and derived metrics.
+- [data-pins.json](data-pins.json): hashes of preserved input bytes, not new labels.
 
-## Implementatie en bronnen
+Pinned **promptfoo 0.125.1**, published **25 October 2026 at 02:12:24.374 UTC**, per the [official npm registry](https://registry.npmjs.org/promptfoo). Version and native TypeScript loading were checked **16 November 2026**. The provider follows the installed `ApiProvider.callApi(prompt, context, options)` contract; assertions use promptfoo's JavaScript assertion type with TypeScript files. The real CLI has been checked using Rust BM25 without model calls.
 
-- [provider.ts](provider.ts): uitvoering en begrensde Codex-ledgers.
-- [prepare.ts](prepare.ts): verse, exacte lokale requestgroepen, zonder beoordeling.
-- [assertions.ts](assertions.ts): canonieke bron-/tracecontroles en eigen scores.
-- [data-pins.json](data-pins.json): hashes van bestaande inputbytes, geen nieuwe labels.
-
-Gepind: **promptfoo 0.125.1**, gepubliceerd **25 oktober 2026 om
-02:12:24.374 UTC**, volgens de [officiële npm-registry](https://registry.npmjs.org/promptfoo).
-Versie en native TypeScript-loading gecontroleerd op **16 november 2026**. De provider volgt het `ApiProvider.callApi(prompt, context, options)`-contract uit de geïnstalleerde, gepinde package; de bronassertions gebruiken het JavaScript-assertiontype van Promptfoo met TypeScript-bestanden. De echte CLI is zonder modelcalls met Rust-BM25 gecontroleerd.
-
-Voor lokale contracttests: `npm run typecheck` en `npm run test:rag`. Geef na de Rust-build `COA_RAG_BINARY` mee zodat ook de tests voor bestandslocks, gedeelde budgetten en procesopruiming draaien. Nieuwe modelproeven pinnen de TypeScript-code en de native binary. Historische preregistraties die oude Python-code pinnen worden niet herschreven; zulke oude uitvoeringen hervatten niet onder gewijzigde code. Opgeslagen resultaten blijven herbeoordeelbaar zonder modelcalls.
+Use `npm run typecheck` and `npm run test:rag`. Set `COA_RAG_BINARY` after building Rust to include file-lock, shared-budget and child-cleanup checks. New model trials pin TypeScript code and the native executable. Historical preregistrations with Python source pins are not rewritten/resumed under changed code; saved results can still be reassessed without models.

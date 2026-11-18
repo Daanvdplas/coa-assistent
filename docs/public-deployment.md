@@ -1,113 +1,109 @@
-# Publieke demo: voorbereiden, controleren en stoppen
+# Public demo: release, verify and stop
 
-Status: deploymentvoorbereiding, **geen gepubliceerde dienst**. Publiceer pas na akkoord op de exacte release, de openbare URL, de afzonderlijke projectsleutel en het totale kostenplafond. Alleen fictieve gegevens. Een ander team beheert de demo-interface; neem hun goedgekeurde wijzigingen mee vóór de laatste releasebouw.
+This is an operator procedure, not authorization to deploy. The [runtime report](runtime-report.md) records the **17 November 2026** public launch; this document does not recheck the current host, URL, allowance or service state. The launch used the temporary Cloudflare route below. New deployment or paid verification requires approval of the exact release, URL, separate project key and total allowance. Use fictional information only.
 
-De eigenaar koos een grens van $100. Een providerinstelling is niet beschikbaar; de demo gebruikt daarom de lokale policy 2: vóór iedere modelpoging telt de officiële gratis input-tokenroute de exacte invoer, maximaal 300.000 tokens, met maximaal 4096 outputtokens en vijftig expliciet goedgekeurde pogingen. Onder de op 17 november 2026 gecontroleerde Sol/Standard/30m-prijzen is dat maximaal $78,072 API-gebruik; één totale planningsmarge van 20% komt op $93,6864. Dit is geen accountbrede facturatiegarantie voor andere sleutelgebruikers, gewijzigde prijzen of onjuiste operatorconfiguratie. Wijzig model, prijstier, cacheduur of tokenplafond niet zonder herberekening. Zet geen sleutel of echt bewonersgegeven in deze repository, opdrachten, issues of logs.
+The original owner approved $100 and fifty schema-2 model attempts under **policy 2**. Before each attempt, the official free endpoint counts the exact complete input, at most 300,000 tokens; output is at most 4096 tokens. At the Sol/Standard/30m price assumptions recorded **17 November 2026**, fifty attempts give a conservative $78.072, or $93.6864 with one total 20% planning margin. This is not an account-wide billing guarantee or a default allowance for another installation. Recalculate before changing model, tier, cache policy, token ceilings, prices or issuance. Keep keys and real resident data out of Git, commands, issues and logs.
 
-## Bestaande host en ontbrekende voorwaarden
+## Host and route history
 
-Read-only gecontroleerd op 16 november 2026: bestaande Hetzner-VPS met Ubuntu 24.04, x86_64, twee vCPU, ongeveer 3 GiB beschikbaar RAM, geen swap en 45 GiB vrije schijf. `coa-demo` bestaat met `/var/lib/coa-demo` (`700`); `/opt/coa-demo` is leeg en root-owned. Er was nog geen COA-service, Caddy of openbare HTTPS-route. SSH, de private Tailscale-route en de private nieuwsdemo blijven ongemoeid.
+A read-only check on **16 November 2026** found an existing Ubuntu 24.04 x86_64 Hetzner VPS, two vCPUs, approximately 3 GiB available RAM, no swap and 45 GiB free disk. `/var/lib/coa-demo` existed with mode `0700`; `/opt/coa-demo` was initially empty and root-owned. These are historical observations, not live capacity checks. Preserve SSH, private Tailscale routing and unrelated services.
 
-De eigenaar heeft op 17 november geen voorkeur voor een domeinnaam uitgesproken. De kleinste voorgestelde route is daarom HTTPS op het bestaande publieke IP-adres, zonder domeinaankoop of gratis DNS-afhankelijkheid. Caddy gebruikt expliciet Let's Encrypt ACME met profiel `shortlived`, niet een alleen lokaal vertrouwd IP-certificaat. De configuratietest controleert de publieke issuer en het profiel zonder een certificaat aan te vragen.
+The initial proposed permanent route was HTTPS on the public IP, without a domain purchase: Caddy explicitly uses Let's Encrypt's `shortlived` ACME profile, not a locally trusted IP certificate. Public ports were unreachable in the concrete trial despite working local Caddy listeners; firewall management and Funnel-owner authorization were unavailable. Do not change broad firewall/Tailscale settings to work around this. The temporary tunnel was the approved alternative. Recheck prerequisites before selecting a new route.
 
-De openbare poorten waren bij de concrete proef onbereikbaar, ook met werkende lokale Caddy-listeners. Hetzner-beheer en Funnel-ownerautorisatie waren niet beschikbaar. Verander geen algemene firewallregels of bestaande private Tailscale-publicatie. Een accountloze tijdelijke tunnel is hieronder als proefroute beschreven; publicatie van de app begint pas na de controles en vrijgave.
+## Build one pinned Linux package
 
-## Eén gepind Linux-pakket
+The **Public demo release candidate** workflow builds Ubuntu 24.04/Rust 1.97.1 with `Cargo.lock`. It creates a downloadable review artifact, has no server/provider credentials and deploys nothing. Run it on the approved branch and check that its actual commit equals the approved release.
 
-De workflow **Public demo release candidate** bouwt op Ubuntu 24.04 met Rust 1.97.1 en `Cargo.lock`. Hij publiceert alleen een downloadbaar reviewartefact; hij heeft geen server-/providercredentials en deployt niets. Start hem op de goedgekeurde branch via GitHub Actions. Controleer daarna dat de werkelijk gebouwde commit exact de goedgekeurde release is.
+The package contains:
 
-Het pakket bevat:
+- `bin/meedoen-retrieval`: Linux x86_64 release, not a Mac executable.
+- `lib/`: runtime libraries not supplied by the target Ubuntu baseline, discovered with `ldd`.
+- `release.json` and `SHA256SUMS`: source commit, toolchain, lockfile hash and checksums.
+- `config/`: packaged proxy/service configuration from repository [deploy/](../deploy/); `DEPLOYMENT.md`: this procedure.
 
-- `bin/meedoen-retrieval`: Linux x86_64-release; geen Mac-binary.
-- `lib/`: eventuele niet door Ubuntu geleverde runtimebibliotheken uit `ldd`.
-- `release.json` en `SHA256SUMS`: broncommit, toolchain, lockfilehash en bestandschecksums.
-- `config/`: de Caddy- en systemd-configuratie; `DEPLOYMENT.md`: deze werkwijze.
+The binary embeds sources, UI and selected saved reports. The website service needs no Node, npm, Codex, Git, personal caches or full checkout. Verify system libraries with `ldd`. The workflow tests proxy behavior, checksums, CLI, systemd parsing and real MiniLM warmup with an unusable test key and no answer calls. It rejects a binary without mandatory budget enforcement. This is not a VPS capacity guarantee.
 
-De bronnen, interface en beperkte opgeslagen rapporten zijn in de binary ingebed. Node, npm, Codex, Git, persoonlijke caches en de volledige checkout hoeven niet op de productieservice. Ubuntu levert de systeembibliotheken uit het manifest; controleer `ldd` op de host. De workflow test de proxy, checksums, Linux-CLI, systemd-parser en echte MiniLM-warmup met een onbruikbare testsleutel zonder antwoordcalls. Hij weigert een binary die geen verplicht budget heeft. Dit bewijst nog geen capaciteit op de VPS.
+Verify the downloaded archive's outer `.sha256`, extract into a new directory, then run `sha256sum --check SHA256SUMS` there. Retain source commit and workflow-run identity. Install root-owned under `/opt/coa-demo/releases/APPROVED_COMMIT`; switch `current` only when activating that verified release. Never overwrite an active release.
 
-Download het artefact van de gecontroleerde workflowrun. Controleer de buitenste `.sha256`, pak uit in een nieuwe map en voer daarin `sha256sum --check SHA256SUMS` uit. Bewaar de broncommit en GitHub-run bij de vrijgave. Installeer de uitgepakte inhoud root-owned in `/opt/coa-demo/releases/GOEDGEKEURDE_COMMIT`; maak `current` pas bij ingebruikname een verwijzing naar die gecontroleerde map. Overschrijf geen actieve release.
+## Private key and persistent state
 
-## Private state en sleutel
+These are operator actions **after approval**, never automatic startup/restart steps:
 
-Deze handelingen zijn voor de operator **na goedkeuring**, geen onderdeel van starten of herstarten:
+1. Create `/var/lib/coa-demo/budget`, owner `coa-demo:coa-demo`, mode `0700`.
+2. Store the separate project key in `/var/lib/coa-demo/openai-api-key`, owned by `coa-demo`, regular, mode `0600`, with no symlink/hardlink. Do not copy personal Codex authentication or put the value in arguments/environment files.
+3. Initialize once as `coa-demo`: `meedoen-retrieval demo-budget init /var/lib/coa-demo/budget/attempts-v2.json --max-attempts APPROVED_COUNT`. The placeholder is deliberately invalid; substitute only the approved count. Initialization must refuse an existing file. Keep state outside releases and across restart/rollback.
 
-1. Maak `/var/lib/coa-demo/budget` met eigenaar `coa-demo:coa-demo` en mode `700`.
-2. Plaats de afzonderlijke projectsleutel als regulier bestand `/var/lib/coa-demo/openai-api-key`, eigenaar `coa-demo`, mode `600`, zonder symlink/hardlink. Gebruik geen persoonlijke Codex-aanmelding en geen sleutelwaarde in argumenten of environmentbestanden.
-3. Initialiseer één keer als `coa-demo`: `meedoen-retrieval demo-budget init /var/lib/coa-demo/budget/attempts-v2.json --max-attempts GOEDGEKEURD_AANTAL`. De placeholder is bewust ongeldig; de operationele startkeuze is vijftig onder de hierboven vastgelegde policy. Het commando moet een bestaand bestand weigeren. Het budget hoort buiten de releasemappen en blijft bij herstart en rollback behouden.
+Never delete/rewrite budget state to repair an error. Missing, invalid or inaccessible state must block provider attempts. The service initializes nothing and has no default cap. Network-address limits are additional RAM counters, not spending state.
 
-Verwijder of herschrijf het budgetbestand nooit om een fout op te lossen. Ontbrekende, ongeldige of ontoegankelijke state moet nieuwe providerpogingen tegenhouden. De serviceunit initialiseert niets en heeft geen standaardcap. Lokale per-netwerklimieten blijven aanvullend; die tellers staan alleen in RAM.
+Historical migration: an earlier private preparation had an unused schema-1 allowance of fifteen. Only its explicitly verified zero-use state authorized a one-time transition: stop service, preserve the old file unchanged as audit evidence, remove service access (`root:root`, `0400`) and initialize a **new** v2 path with the new binary. Never change the old cap/counter. Any use requires a new combined remaining-budget decision. Older binaries refuse v2; never roll back to an old unit plus the unused v1 budget, which would open a second allowance. This history does not authorize a new migration.
 
-Op de private voorbereidingsversie bestond eerder schema 1 met vijftien pogingen, waarvan nul gebruikt. Alleen voor die expliciet vastgestelde nulstand is een eenmalige overgang toegestaan: stop de service, controleer en bewaar het oorspronkelijke bestand ongewijzigd als auditbewijs, onttrek het aan de servicegebruiker (`root:root`, `0400`) en maak met de nieuwe binary een **nieuw** schema-2-bestand op het v2-pad. Verander nooit het oude maximum of de teller. Bij enig verbruik: stop en laat het gezamenlijke resterende budget opnieuw goedkeuren. De nieuwe unit wijst naar v2; oudere binaries weigeren schema 2. Rol niet terug naar een oude unit plus het eerder ongebruikte v1-budget: dat zou een tweede onafhankelijk startbudget openen.
+## Service and model warmup behind closed access
 
-## Service en modelwarmup achter gesloten toegang
+Install packaged `config/coa-demo.service` as `/etc/systemd/system/coa-demo.service`. It runs as `coa-demo`, with read-only code, private temporary files, hidden personal home directories and write access only under `/var/lib/coa-demo`. Key/budget paths are fixed; Rust listens only on `127.0.0.1:8766`.
 
-Installeer `config/coa-demo.service` als `/etc/systemd/system/coa-demo.service`. De unit draait als `coa-demo`, met readonly code, private tijdelijke bestanden, verborgen persoonlijke homedirectories en alleen schrijfrecht onder `/var/lib/coa-demo`. De sleutel en het budgetpad zijn vast; de applicatie luistert uitsluitend op `127.0.0.1:8766`.
+`MemoryMax=1536M` is a configured ceiling, not proven sustained capacity. Warm MiniLM from the service working directory so its approximately 235 MB model cache stays under `/var/lib/coa-demo`. Startup embeds 72 fictional sections using two CPU threads; answer generation runs externally. Do not copy personal cache collections.
 
-`MemoryMax=1536M` is een voorlopige grens, geen gemeten capaciteit. Warm MiniLM op vanuit de servicewerkmap, zodat alleen de benodigde `.model-cache` onder `/var/lib/coa-demo` wordt gemaakt. Download geen persoonlijke cachecollectie. De huidige MiniLM-download is ongeveer 235 MB; startup maakt embeddings voor 72 fictieve bronsecties, met twee CPU-threads. De antwoorden worden extern gegenereerd, niet op de VPS.
+After `systemctl daemon-reload` and `systemctl start coa-demo.service`, retain private-only access until checks pass:
 
-Na `systemctl daemon-reload` en `systemctl start coa-demo.service` mag toegang nog alleen via SSH/een private verbinding. Controleer:
+- `ldd` with `LD_LIBRARY_PATH=/opt/coa-demo/current/lib` shows no missing library.
+- `/api/source` exposes twelve intended sources/reference date, real provider configuration and `runtime_ready=true`, without a mock route. Readiness alone does not prove quota/credit.
+- Warmup and systemd `MemoryCurrent`/`MemoryPeak` show no OOM or restart loop. Insufficient resources keep publication blocked.
+- Verify key/state ownership and modes, and fail-closed behavior for missing/corrupt budget state using isolated test state rather than damaging the live ledger.
 
-- `ldd` met `LD_LIBRARY_PATH=/opt/coa-demo/current/lib`: geen ontbrekende bibliotheek.
-- `/api/source`: twaalf bronnen, juiste referentiedatum, de bedoelde echte providerconfiguratie en `runtime_ready=true`; geen mockroute.
-- Modelwarmup en `MemoryCurrent`/`MemoryPeak` in systemd; geen OOM of herstartlus. Bij onvoldoende ruimte blijft publicatie uit.
-- Sleutel/state-eigenaar, `700`/`600`, en weigering als het budget ontbreekt of beschadigd is.
+Log only safe status/operational diagnostics. Do not enable body, authorization-header, question/answer or session logging. The supplied Caddy config has no access log and removes the whole request object from its default logger: upstream failures must not log the `X-Test-Session` bearer token. Proxy tests force that failure with a synthetic canary. `store: false` does not promise zero provider retention.
 
-Schrijf alleen foutstatussen en beperkte operationele informatie naar de journal. Zet geen body-, autorisatieheader-, vraag-/antwoord- of sessielogging aan. De meegeleverde Caddyfile activeert geen accesslog en verwijdert het volledige requestobject uit de standaardlogger: ook een upstreamfout mag het `X-Test-Session`-bearertoken niet loggen. Status en foutdiagnostiek blijven behouden. De echte proxytest forceert zo'n fout met een synthetische canary. Externe providerverwerking blijft bestaan; `store:false` is geen belofte van nulretentie.
+## Permanent HTTPS route
 
-## HTTPS-proxy en openbare routes
+Proxy tests pin **Caddy 2.11.9**, published **5 November 2026**. Install packaged `config/Caddyfile` as `/etc/caddy/Caddyfile`, and `config/caddy-override.conf` as `/etc/systemd/system/caddy.service.d/coa-demo.conf`. Create root-owned `/etc/coa-demo/public.env` (`0600`) from `config/public.env.example`, containing only the approved public IP, without scheme/path. Missing host configuration fails; there is no catch-all site.
 
-Installeer een gecontroleerde Caddy-versie; de proxytests gebruiken **2.11.9**, gepubliceerd op 5 november 2026. Installeer `config/Caddyfile` als `/etc/caddy/Caddyfile` en `config/caddy-override.conf` als `/etc/systemd/system/caddy.service.d/coa-demo.conf`. Maak `/etc/coa-demo/public.env` root-owned (`600`) op basis van `config/public.env.example`; vul uitsluitend het goedgekeurde publieke IP-adres in, zonder `https://` of pad. Een ontbrekende host maakt de configuratie ongeldig. Er is geen catch-allsite.
+Run Caddy `adapt`/`validate` with the same environment file before activation. Verify IP-SAN, publicly trusted chain and required ports. A local certificate or `curl -k` is not evidence. IP certificates are short-lived: assign daily expiry/renewal checks to the owner. Keep Caddy's persistent certificate state outside release directories. Never expose Rust's app port directly.
 
-Valideer vóór starten met Caddy `adapt`/`validate`, waarbij hetzelfde environmentbestand wordt gelezen. Controleer het vereiste IP-SAN, de publieke certificaatketen en de poortvoorwaarden voor de gekozen URL. Een lokaal vertrouwd certificaat of `curl -k` geldt niet als bewijs. De IP-certificaten zijn kort geldig: controleer vervaldatum en automatische vernieuwing; leg een dagelijkse controle bij de demo-eigenaar. Caddy bewaart zijn certificaatstate op zijn eigen persistente pad, niet in een releasemap. Open geen app-poort rechtstreeks naar internet.
+Caddy overwrites `X-Real-IP` with the real connection address; Rust trusts exactly `127.0.0.1`. Reverify identity before adding another proxy/CDN. Client-supplied `X-Real-IP`/`X-Forwarded-For` must not control counters.
 
-De proxy overschrijft `X-Real-IP` met het werkelijke verbindingsadres; de app vertrouwt exact `127.0.0.1`. Gebruik geen extra CDN/proxy zonder deze identiteit opnieuw te controleren. Een bezoeker mag zijn teller niet beïnvloeden met zelf meegezonden `X-Real-IP` of `X-Forwarded-For`.
+Public allowlist: demo, technical explanation, static assets/saved reports, sources, session creation/read, question start and the visitor's own run. Reading uses GET/HEAD; POST is limited to `/api/session` and `/api/runs`; other routes fail before Rust. Local evaluation workers, replay, judgments, criteria, diagnostics, test questions and report export stay private. Public results must be read-only; do not broaden routes to make local start buttons work.
 
-Publiek toegestaan: de demo, technische uitleg, statische assets/rapporten, bronnen, sessies aanmaken/lezen, vragen starten en de eigen uitvoering ophalen. Alleen `GET`/`HEAD` op leesroutes en `POST` op `/api/session` en `/api/runs`. Andere routes geven 404 vóór de app.
+## Temporary account-free HTTPS route
 
-Niet publiek: lokale zoektestworkers, replay, beoordelingen, criteria, diagnose, testvragen en verslagexport. De resultatenpagina moet daarom openbare bezoekers duidelijk alleen opgeslagen uitkomsten laten bekijken; lokale startknoppen zijn geen ondersteunde openbare flow. Stem die presentatie af met de UI-eigenaar; verruim de proxy niet om lokale workers openbaar te maken.
+Cloudflare Quick Tunnels is the temporary alternative when firewall/Funnel management is unavailable. Pin `cloudflared` **2026.11.0**, released **12 November 2026**, Linux-amd64 SHA-256 `51f7c68b57ed7269164075d7e789efce5b59355982f06392deeb037d982a51fd`, installed root-owned at `/opt/coa-demo/tools/cloudflared-2026.11.0`. It needs no Cloudflare account, domain purchase or API key.
 
-## Tijdelijke accountloze HTTPS-proefroute
+The route has no SLA, permits at most 200 concurrent HTTP requests and supports no SSE. The demo polls short JSON requests. Its random `trycloudflare.com` URL changes on tunnel-process restart. It is not permanent hosting. App/Caddy restart must not restart the independent tunnel unit; after a tunnel restart, verify the new URL and update shared links.
 
-Cloudflare Quick Tunnels is een tijdelijke uitwijkroute wanneer de eigenaar geen firewall- of Funnel-ownerbeheer kan afronden. Gebruik uitsluitend de gepinde `cloudflared` **2026.11.0** (12 november 2026), Linux-amd64-SHA256 `51f7c68b57ed7269164075d7e789efce5b59355982f06392deeb037d982a51fd`. Plaats de binary root-owned als `/opt/coa-demo/tools/cloudflared-2026.11.0`. Er is geen Cloudflare-account, domeinaankoop of API-key voor deze proef nodig.
+Use a separate nologin `coa-tunnel` user with `/var/lib/coa-tunnel` (`0700`). Install packaged `config/coa-demo-tunnel.service` root-owned and verify with `systemd-analyze verify`. It opens only an outbound HTTP/2 tunnel to loopback Caddy; metrics bind `127.0.0.1:20242`. It has no capabilities, provider-key environment or access to `/var/lib/coa-demo`. Verify neither `caddy` nor `coa-tunnel` can read the key.
 
-Deze route heeft geen SLA, maximaal 200 gelijktijdige HTTP-requests en geen SSE. De demo pollt korte JSON-requests en gebruikt geen publieke SSE-stream. **De willekeurige `trycloudflare.com`-URL verandert bij herstart van het tunnelproces.** Verkoop deze proef niet als permanente LinkedIn-hosting. Een app-/Caddy-herstart mag het tunnelproces niet herstarten; de tunnelunit heeft daarom geen binding aan de applicatieunit. Bij een tunnelherstart moet de eigenaar de nieuwe URL controleren en eventueel de gedeelde link aanpassen.
+Begin with maintenance `config/Caddyfile.quick-tunnel`: loopback 9899, automatic TLS/admin API disabled, no app proxy, all routes return 503/no-store. Cloudflare supplies public HTTPS. From outside the server verify trusted TLS without `-k`, maintenance text and 503 for `/` and `POST /api/runs`, with the provider ledger unchanged. `config/Caddyfile.quick-tunnel.app` is the separate app configuration, not maintenance mode.
 
-Maak een afzonderlijke nologin-gebruiker `coa-tunnel` met `/var/lib/coa-tunnel` (`0700`). Installeer `config/coa-demo-tunnel.service` root-owned en controleer de unit met `systemd-analyze verify`. De unit is alleen een uitgaande HTTP/2-tunnel naar Caddy op loopback; metrics luisteren uitsluitend op `127.0.0.1:20242`. Hij heeft geen capabilities, geen OpenAI-keyomgeving en geen toegang tot `/var/lib/coa-demo`. Controleer dat zowel `caddy` als `coa-tunnel` de providersleutel niet kunnen lezen.
+The app variant keeps the public allowlist and rejects worker/admin routes. It overwrites `X-Real-IP` from edge-supplied `CF-Connecting-IP`, only via its owned local tunnel. With an isolated fake backend, prove spoofed public `CF-Connecting-IP`, `X-Real-IP` and `X-Forwarded-For` do not become visitor identity. Without evidence, trust no forwarded address and use a conservative shared counter. Public results must remain read-only.
 
-Begin uitsluitend met `config/Caddyfile.quick-tunnel` als `/etc/caddy/Caddyfile`: loopback `9899`, automatische TLS en admin-API uit, geen app-proxy, elke route geeft onderhoudsstatus 503/no-store. Caddy en de tunnel krijgen geen OpenAI-sleutel. De tunnel zelf verzorgt publiek vertrouwde HTTPS. Controleer van buiten de server normale TLS zonder `-k`, de onderhoudstekst en 503 op zowel `/` als `POST /api/runs`; de providerledger moet ongewijzigd blijven. De aparte appconfig staat alleen klaar in `config/Caddyfile.quick-tunnel.app` en is **niet** de onderhoudsconfig.
+Cloudflare terminates TLS and processes traffic. Public UI must identify both Cloudflare and OpenAI and prohibit personal data. Keep maintenance mode until privacy, budget, UI and release conditions are approved.
 
-De appvariant behoudt de publieke routeallowlist en weigert lokale workers/adminroutes. Hij overschrijft `X-Real-IP` met het door de Cloudflare-edge aangeleverde `CF-Connecting-IP`, alleen via de eigen lokale tunnel. Verifieer met een tijdelijk geïsoleerd nepbackend dat publiek vervalste `CF-Connecting-IP`, `X-Real-IP` en `X-Forwarded-For` niet als bezoekersadres aankomen. Zonder dit bewijs: geen header vertrouwen; gebruik een conservatieve gedeelde teller. De resultatenpagina moet bovendien publiek alleen-lezen zijn; startknoppen mogen niet naar een geweigerde worker leiden.
+Before changes, privately record `tailscale serve status --json` and PID/start identities of existing private services; compare afterwards without publishing those details. Do not run `tailscale serve reset`, enable Funnel on an existing private port or change broad policies. Stop the tunnel with `systemctl stop coa-demo-tunnel.service`, without a quota reset or coupled app stop. Retain the original IP-route configuration for a separately reviewed permanent route.
 
-Cloudflare termineert de publieke TLS-verbinding en kan het verkeer verwerken. De korte uitleg bij de definitieve publieke app moet daarom zowel Cloudflare als OpenAI noemen en persoonsgegevens uitsluiten; dit is een UI-handoff, geen wijziging die de netwerkconfig zelfstandig afhandelt. Tot privacy-, budget-, UI- en vrijgavevoorwaarden rond zijn, blijft uitsluitend de onderhoudsconfig actief.
+## Verify and release the exact version
 
-Leg vóór de wijziging `tailscale serve status --json` en de PIDs/starttijden van de bestaande private diensten vast. Vergelijk die na afloop exact. Gebruik geen `tailscale serve reset`, Funnel op de bestaande private poort 8443 of een andere brede policywijziging. Stop deze uitwijkroute met `systemctl stop coa-demo-tunnel.service`; er is geen gekoppelde appstop of quotareset nodig. Bewaar de oorspronkelijke IP-Caddyconfig afzonderlijk zodat later een gecontroleerde permanente route mogelijk blijft.
+Require independent review of the built release and actual public route before sharing a new link:
 
-## Vrijgave van exact deze versie
+1. Trusted HTTPS is reachable outside Tailscale; HTTP redirects appropriately. Commit/assets match the approved package.
+2. Sources, language choice, mobile flow, single expanded activity and saved reports work. The question area identifies an independent fictional prototype and external processing, prohibiting personal data.
+3. One explicitly approved bounded fictional question works with real evidence, within the same spending budget. Old smoke tests are not billing evidence.
+4. Visitors have separate sessions. Check proxy identity, 429/`Retry-After`, full capacity and denied routes without unlimited model calls.
+5. Restart preserves cap/usage; parallel work cannot overspend reservations. Stop blocks new attempts. A local timeout does not prove cancellation of accepted provider work.
 
-Vóór een LinkedIn-link controleren twee rollen de gebouwde release en de werkelijke publieke route:
+Without evidence, local policy enforcement, approved key access and release approval, keep the app unpublished. Packaging/configuration review is not a substitute for an uncompleted separately requested dynamic security audit.
 
-1. HTTPS is zonder certificaatwaarschuwing bereikbaar buiten Tailscale; HTTP verwijst naar HTTPS. De goedgekeurde commit en frontendassets komen overeen met het pakket.
-2. Bronnen, taalkeuze, mobiel, één open activiteit en opgeslagen rapporten werken. Bij het vraagveld staat dat dit een onafhankelijk fictief prototype is, dat vragen extern worden verwerkt en dat geen persoonsgegevens mogen worden ingevuld.
-3. Eén vooraf begrensde echte fictieve vraag werkt met echte bronnen. Betaalde controles beginnen pas met expliciete toestemming en tellen binnen dezelfde budgetgrens; oude rookproeven zijn geen facturatiebewijs.
-4. Twee bezoekers krijgen gescheiden sessies. Proxy-IP-overschrijving, 429/`Retry-After`, volle capaciteit en ongeoorloofde routes worden gecontroleerd zonder extra onbeperkte modelcalls.
-5. Herstart behoudt pogingenteller en cap; parallelle vragen kunnen geen quota overschrijden. Stoppen blokkeert nieuwe providerpogingen. Een plaatselijke time-out of stop garandeert niet dat al verstuurd providerwerk geen kosten meer maakt.
+## Stop date and rollback
 
-Zonder dit bewijs, aantoonbare lokale budgetpolicy of sleuteltoegang: geen publicatie. De workflow is uitsluitend voorbereiding en vervangt dit akkoord niet. Een gewone configuratie-/correctheidsreview is geen vervanging voor een niet voltooide afzonderlijk gevraagde securityaudit.
+Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
-## Stoppen, einddatum en rollback
+Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the same v2 budget. An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
 
-Leg bij vrijgave een eigenaar en stopdatum vast. Stop direct met `systemctl stop coa-demo.service` bij onverwachte kosten, misbruik, foutieve bron-/privacyweergave of onbekende budgetstate. Controleer dat er geen nieuw providerverkeer kan starten; behoud de ledger voor controle. Houd SSH, Tailscale en de private nieuwsdemo aan.
+## Dated references
 
-Voor onderhoud kan de openbare proxy een korte 503-melding geven. Voor rollback: stop de COA-service, kies uitsluitend een eerder onafhankelijk gecontroleerde **policy-2-release met input-tokencontrole**, wijzig `current`, controleer checksums en start met hetzelfde v2-budget. Een oudere versie met alleen een pogingenteller is voor de nieuwe vijftigpogingencap onvoldoende; dan blijft de dienst uit. Wissel geen hostbreed Caddybestand uit dat ondertussen andere diensten bevat zonder hun configuratie te behouden.
+- [Caddy 2.11.9](https://github.com/caddyserver/caddy/releases/tag/v2.11.9), published **5 November 2026**.
+- [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), updated **30 September 2026**.
+- [cloudflared 2026.11.0](https://github.com/cloudflare/cloudflared/releases/tag/2026.11.0), published **12 November 2026**, including the pinned checksum.
+- [Let's Encrypt IP/six-day certificates](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability), published **15 January 2026**, updated **11 March 2026**.
+- [Let's Encrypt profiles](https://letsencrypt.org/docs/profiles/), updated **4 October 2026**: `shortlived` supports IP addresses and 160-hour certificates.
+- [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), updated **6 March 2026** ([source commit](https://github.com/caddyserver/website/commit/9a26b56e3b36ea4dea362b504ad19101fdf11461)).
+- [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), updated **8 November 2026** ([source commit](https://github.com/caddyserver/website/commit/e71548f6f16ebbae678062968158ca788069ef06)).
 
-## Bronnen en actualiteit
-
-- [Caddy 2.11.9](https://github.com/caddyserver/caddy/releases/tag/v2.11.9), gepubliceerd **5 november 2026**.
-- [Cloudflare Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/), bijgewerkt **30 september 2026**: accountloos, tijdelijke URL, geen SLA/SSE en maximaal 200 gelijktijdige requests.
-- [cloudflared 2026.11.0](https://github.com/cloudflare/cloudflared/releases/tag/2026.11.0), gepubliceerd **12 november 2026**; de release publiceert de hierboven vastgelegde SHA-256.
-- [Let's Encrypt: IP- en zesdaagse certificaten](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability), gepubliceerd **15 januari 2026**, bijgewerkt **11 maart 2026**.
-- [Let's Encrypt-profielen](https://letsencrypt.org/docs/profiles/), bijgewerkt **4 oktober 2026**: `shortlived` ondersteunt IP-adressen en geeft certificaten van 160 uur; automatische vernieuwing is noodzakelijk.
-- [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), aantoonbaar bijgewerkt **6 maart 2026** ([broncommit](https://github.com/caddyserver/website/commit/9a26b56e3b36ea4dea362b504ad19101fdf11461)).
-- [Caddy reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), bijgewerkt **8 november 2026** ([broncommit](https://github.com/caddyserver/website/commit/e71548f6f16ebbae678062968158ca788069ef06)).
-
-Deze bronnen onderbouwen het proxymechanisme; de concrete URL, certificaatuitgifte, provideraccount en hostcapaciteit moeten bij ingebruikname worden gecontroleerd.
+These recorded references support the mechanism, not current URL validity, certificate issuance, account state or capacity. Recheck those at deployment time.

@@ -1,123 +1,131 @@
-# Architectuurgids: de webdemo en de evaluatieresultaten
+# Codebase guide
 
-Deze gids beschrijft de actuele weblaag en de grenzen tussen live uitvoering en opgeslagen evaluaties. De geïntegreerde webroute en de bescherming tegen herhaald gebruik zijn op 13 november 2026 aan de broncode gecontroleerd. De bestaande [README](../README.md), [Codex-uitleg](retrieval-codex.md), [evaluatiehandleiding](../evals/coa-assistent/docs/reproduce.md) en [privacygrenzen](privacy-boundaries.md) geven verdere context. De [interactieve code-tour](code-tour.html) volgt de actuele Rig-webroute; de oorspronkelijke vijfbronnen-Codex/MCP-diagrammen daarin blijven expliciet als historische momentopname bewaard.
+This guide explains the current website and the boundary between new model answers and saved evaluations. Start with the [interactive code tour](code-tour.html); use the [runtime report](runtime-report.md) for dated verification and known limitations. [Local setup](LOCAL_SETUP.md) covers installation, [privacy](privacy.md) covers data handling, and [the evaluation index](../evals/README.md) routes experiments.
 
-## Recente architectuurwijzigingen
+## One website, separate execution paths
 
-| Datum | Verandering | Implementatie |
-| --- | --- | --- |
-| 2026-11-16 | Drie vaste lokale bronproeven kunnen vanuit de eigen pagina worden uitgevoerd. Eén begrensde webjob gebruikt promptfoo met P01/T02/T05, top-5 en echte MiniLM/E5-encoding; de Rig-demo en historische/modelproeven blijven apart. | [`eval_jobs.rs`](../src/web/eval_jobs.rs), [modelcatalogus](../evals/rag/embedding-models.json), [`preparation.rs`](../evals/rag/src/preparation.rs) |
-| 2026-11-13 | Promptfoo bestuurt RAG-cases, configuraties, herhalingen en assertions. Customproviders gebruiken lokale Rust-retrieval en expliciet begrensde Codex-sessies. De eigen resultaatpagina toont een publieke whitelistprojectie van actuele promptfoo-uitvoer; de oude zestig sessies blijven historie. De volledige-assistentjudge blijft native Codex. | [RAG-evaluaties](../evals/rag/README.md), [`web.rs`](../src/web.rs), [`run_promptfoo.mjs`](../evals/rag/scripts/run_promptfoo.mjs) |
-| 2026-11-13 | Evaluatiecode, datasets, scripts, rapportassets en bewaarde resultaten staan fysiek onder `evals/rag/`, `evals/coa-assistent/` en de noodzakelijke gedeelde vraagsets. Rust-modulepaden behouden bestaande CLI/API-namen; de webserver embedt dezelfde resultaatassets vanaf hun nieuwe plek. Historische artifacts en hashes blijven gelijk. | [Evaluatieoverzicht](../evals/README.md), [`lib.rs`](../src/lib.rs), [`main.rs`](../src/main.rs), [`web.rs`](../src/web.rs) |
-| 2026-11-13 | De live demo kiest `demo-twelve`: de bestaande tien bronnen plus Schaken en Naaicafé, samen 72 secties. Het bestaande raster toont daarmee drie volle rijen van vier. `expanded-ten` en alle bevroren evaluatiebronnen blijven ongewijzigd. | [`corpus.rs`](../src/corpus.rs), [`main.rs`](../src/main.rs), [`source.rs`](../src/source.rs), [`language.js`](../static/site/language.js) |
-| 2026-11-13 | De demo-, taal-, resultaat-, finale header- en API-wijzigingen zijn samengebracht. De server begrenst modelvragen en nieuwe sessies per verbindingsadres; een expliciete proxy-instelling bepaalt of `X-Real-IP` mag worden gebruikt. | [`demo_limits.rs`](../src/demo_limits.rs), [`web.rs`](../src/web.rs), [`demo.js`](../static/site/demo.js) |
-| 2026-11-13 | Rig 0.46.0 neemt de web-agentlus, typed tool-dispatch en Responses-history over. COA behoudt begrensd HTTP-transport, broncontrole en bezoekersbeleid; CLI/Codex-evaluaties blijven apart. Rust is gepind op 1.97.1. | [`rig_runtime.rs`](../src/responses/rig_runtime.rs), [`transport.rs`](../src/responses/transport.rs), [`rust-toolchain.toml`](../rust-toolchain.toml) |
-| 2026-11-10 | De webdemo gebruikt directe OpenAI Responses API-calls met Sol, tien gelijktijdige bezoekersvragen, veilige begrensde sessies en één gedeelde lokale zoekindex. Codex-CLI, MCP en bevroren evaluaties blijven apart behouden. | [`responses.rs`](../src/responses.rs), [`web.rs`](../src/web.rs), [`runs.rs`](../src/runs.rs) |
-| 2026-11-10 | De demo kan per nieuwe vraag kiezen tussen dense-zoeken op betekenis en BM25 op woorden. De webroute zet de methode vast in de lokale zoekcallback van de API-runner; de zichtbare gebruikte methode komt uit gevalideerde toolresultaten. | [`web::run`](../src/web.rs), [`ResponsesRunner::run`](../src/responses.rs), [`Index::search_for_method`](../src/lib.rs) |
-| 2026-11-10 | De demo is direct de homepage op `/`; `/demo` en `/demo/` sturen met HTTP 308 door naar `/`. De aparte home-template en Home-link zijn verwijderd; Demo verwijst naar `/`. | [`web::router`](../src/web.rs), [`static/index.html`](../static/index.html), [`static/site/`](../static/site/) |
-| 2026-11-10 | Zoekacties staan als afzonderlijke blokken met letterlijke query en leesbare bronpassages. Technische labels en de aparte onbekendenlijst zijn uit de UI verwijderd. De webprompt houdt bronmetadata in `citations` en ontbrekende informatie in `unknowns`, met behoud van rechtstreeks gevraagde feiten en noodzakelijke onzekerheid. | [`demo.js`](../static/site/demo.js), [`static/index.html`](../static/index.html), [`generation_prompt_for_answer_language`](../src/codex.rs) |
-| 2026-11-10 | Een Nederlandse/Engelse taalkeuze vertaalt de demo-interface en kiest de taal van nieuwe antwoorden. De taal staat in de runcontext; originele broninhoud en citaten blijven ongewijzigd. Historische CLI- en experimentprompts blijven gelijk. | [`language.js`](../static/site/language.js), [`demo.js`](../static/site/demo.js), [`web::run`](../src/web.rs), [`CodexRunner::run_for_corpus_in_language`](../src/codex.rs) |
-| 2026-11-10 | De live demo toont alleen activiteiten, vrije vraag, antwoord en zoekresultaten. De voorbeeldvragen, extra vraag-/herhaalknoppen, uitvoeringsmetadata en geschiedenis zijn uit de browser verwijderd; de bestaande API blijft beschikbaar. De navigatie toont geen resultatenlink en de demo heeft één projectdisclaimer. | [`static/index.html`](../static/index.html), [`static/site/`](../static/site/) |
-| 2026-11-09 | Eén webserver verbindt startpagina, bestaande live demo, opgeslagen modelvergelijking en technische uitleg. De live modeluitvoering blijft dezelfde. | [`web::router`](../src/web.rs), [`static/site/`](../static/site/) |
-| 2026-11-09 | Een aparte, controleerbare export maakt van de zestig vastgelegde sessies een openbare presentatieprojectie. Ruwe uitvoer en lokale bestandspaden worden niet geserveerd. | [`export_site_results.ts`](../evals/rag/scripts/export_site_results.ts) |
-
-## Eén origin, drie onderdelen
-
-De executable start met `serve` of zonder argumenten. De CLI laadt eerst de bronnen/index. [`web::serve`](../src/web.rs) ontvangt die index, maakt `WebState` en bindt op localhost. De standaardpoort blijft 8766; `COA_PORT` kan een andere lokale poort kiezen.
-
-| Route | Wat de bezoeker krijgt |
-| --- | --- |
-| `/` | De demo zelf: vrije vraag, brondocumenten, antwoord en echte zoekacties. |
-| `/demo`, `/demo/` | Een permanente HTTP 308-redirect naar `/` voor bestaande links. |
-| `/resultaten/` | Zestig opgeslagen sessies: tien vragen, twee modellen, drie herhalingen. |
-| `/techniek/` | Een leesbare samenvatting van de bestaande bron-, zoek-, Codex- en evaluatielogica. |
-| `/assets/site.css`, `/assets/language.js`, `/assets/demo.js`, `/assets/results.js`, `/assets/results.json` | Expliciet ingebouwde presentatiebestanden. Andere bestanden worden niet via deze routes aangeboden. |
-
-Deze pagina's zijn `include_str!`-assets in de Rust-binary. Er is geen algemene fileserver die de checkout of experimentele outputmap ontsluit. Een gewijzigde asset vraagt opnieuw bouwen en starten. De webserver houdt zijn bestaande localhostbinding; deze wijziging voegt geen publieke hosting toe.
-
-## De vrije demo blijft live
-
-De browser toont het letterlijke agentantwoord, de werkelijk geciteerde bronpassages en daaronder ingeklapte zoekacties met alle echte zoekvragen en hits in volgorde. Citaatidentiteit en exacte tekst moeten overeenkomen met een werkelijk teruggegeven passage. Een wijziging in het vraagveld verbergt het vorige antwoord. De bestaande API-routes voor sessies, historie en herhalen blijven behouden. De browser bewaart het sessie-ID in `sessionStorage` en hervat een nog lopende uitvoering bij herladen. De merknaam is gewone tekst; de gedeelde navigatie bevat Demo op `/` en technische uitleg; `/resultaten/` blijft rechtstreeks bereikbaar. Eén footer in de demo bevat de projectgrenzen en de bestaande code-link.
-
-[`static/index.html`](../static/index.html) gebruikt absolute `/api/...`-routes. De demo op `/` en de oude padredirects veranderen die requests daarom niet. `POST /api/session` maakt een begrensde sessie in [`RunStore`](../src/runs.rs). `POST /api/runs` legt een contextsnapshot vast, start een achtergrondtaak en geeft een pending run terug. De browser pollt daarna `GET /api/runs/{id}`.
-
-[`ResponsesRunner::run`](../src/responses.rs) geeft de uitvoering aan de Rig-agent in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). `AgentBuilder` registreert uitsluitend de typed `SearchTool`, een native JSON-antwoordschema en per-uitvoering `RunPolicy`-hooks. Rig bestuurt de model-/toolstappen; COA bouwt geen tweede eigen agentlus. De provider verstuurt de vraag via HTTPS naar `https://api.openai.com/v1/responses` met `model: gpt-6.1-sol`, reasoning `low`, service tier `default` en `store: false`. De bestaande taal-, bron- en promptinjectieregels worden gedeeld met de webprompt in [`codex.rs`](../src/codex.rs); de gebruikersvraag staat als afzonderlijk data-item in `input`. Het antwoord blijft direct en kort, met noodzakelijke onzekerheid in de tekst en bronmetadata/letterlijke citaten in de gestructureerde velden. Het model krijgt uitsluitend de function tool `search_document(query, top_k, search_goal)`, geen shell, bestanden, webzoekfunctie, Codex-proces of code-mode-host. Dit is lokale function calling; de webroute heeft geen MCP-transport. De vaste zoekmethode is servercontext, geen door het model wijzigbaar argument. Het nieuwe webveld `search_goal` is een expliciet agentargument voor een korte publieke zoektaak (1–80 tekens, één regel), geen redeneerspoor of resultaatclaim. De Rig-route koppelt het aan dezelfde uitgevoerde zoekactie en voegt het pas na de bestaande antwoord-/citaatvalidatie aan de web-JSON toe. De gedeelde `codex::ToolCall` en oude uitvoeringen blijven ongewijzigd; een ontbrekend oud doel blijft ontbrekend.
-
-Rig bewaart en encodeert de oorspronkelijke input en ontvangen outputitems voor iedere vervolgaanroep, inclusief encrypted reasoning en assistant phases, gevolgd door de juiste `function_call_output`. Dat gebeurt alleen binnen het RAM van deze uitvoering, zonder `previous_response_id`; raw/encrypted reasoning wordt niet in publieke runrecords of bestanden opgenomen. Een response moet `completed` zijn. Refusals, onbekende tools, ongeldige argumenten en ongeldige eind-JSON worden geweigerd. Commentary-items blijven voor de vervolgcontext behouden; alleen het uiteindelijke antwoord wordt inhoudelijk verwerkt. De bestaande exacte bron-/citaatcontrole uit `validate_retrieved_answer` blijft bindend, inclusief gelijke brondata en manifesten. Dit bewijst herkomst, geen volledige antwoordjuistheid.
-
-De `RunPolicy`-hook verplicht in de eerste modelcall een echte bronzoekactie; daarna kan het model gericht verderzoeken. Maximaal vier zoekacties, vijf modelrequests en vijf gratis input-token-tellingen zijn toegestaan, zonder automatische retries. Na de vierde zoekactie staat tool choice op `none`. De hele loop, inclusief tellingen, HTTP-body lezen en zoeken, heeft één deadline van 120 seconden. Iedere modelpoging reserveert vóór de telling een blijvend slot in het versie-2-budget. De telling gebruikt exact dezelfde tokenbepalende velden, inclusief tools, antwoordschema en versleutelde replay; onbekende velden of een ongeldige telling stoppen vóór generatie. Maximaal 300.000 getelde inputtokens, 4096 outputtokens (inclusief reasoning) en 512 KiB responsebody zijn toegestaan; de geserialiseerde requestcontext is maximaal 1 MiB. Het telantwoord is begrensd op 16 KiB. Het model, Standard-tier, `30m`-cachebeleid en de outputlimiet staan vast. Zoekvragen zijn 1–1000 tekens, top-k is 1–6; toolargumenten zijn maximaal 16 KiB en weigeren onbekende velden. HTTP-redirects staan uit. Publieke fouten bevatten vaste meldingen, geen providerbody, sleutel of pad. Het eigen [`BoundedTransport`](../src/responses/transport.rs) implementeert hiervoor Rig's `HttpClientExt`; het controleert deze grenzen vóór de Rig-codec en verstuurt de oorspronkelijke generatiebytes ongewijzigd. Een mislukte of ongeldige typed tool stopt via een hook, ook waar Rig normaal toolfeedback zou teruggeven. Multipart en streaming zijn op deze ene route niet beschikbaar.
-
-[`web::serve`](../src/web.rs) bewaart één `Index` achter een mutex, via een vaste zoekcallback. Alleen de korte lokale zoekactie houdt die mutex vast in `spawn_blocking`; de tien model-HTTP-requests wachten onafhankelijk op de provider. Er worden geen tien kopieën van MiniLM of Codex-processen gestart. [`Index::load_for_corpus`](../src/lib.rs) en [`CorpusId::DemoTwelve`](../src/corpus.rs) leggen voor de live demo twaalf documenten en 72 secties vast, met referentiedatum 13 november 2026. De eerste tien bronnen blijven exact gelijk aan `ExpandedTen`; de twee nieuwe bronbestanden hebben eigen IDs en brondatum. De bron-, instellingen- en embeddingmanifesten onderscheiden de nieuwe live-versie van historische uitvoeringen. De gedeelde webprompt vermeldt twaalf documenten; oude vijf-/tienbronnenprompts blijven ongewijzigd. CLI-, lab- en experimentroutes houden hun bestaande Codex/MCP-uitvoering en afzonderlijke corpusscope.
-
-Een centrale semaphore in `WebState` laat tien actieve vragen toe. Nummer elf krijgt HTTP 429; er is geen wachtrij. Eén sessie mag één pending run hebben (HTTP 409 bij overlap, of HTTP 429 wanneer een aanvullende gebruikslimiet eerder ingrijpt). Het permit leeft tot afronding of fout/time-out en wordt daarna vrijgegeven. `RunStore` gebruikt 256-bit willekeurige sessietokens, maximaal 256 sessies, 40 runs per sessie en 256 runs totaal. Een run is maximaal 256 KiB geserialiseerd, inclusief reserve voor beoordelingen. Bij capaciteit schuiven uitsluitend inactieve sessies/afgeronde runs op; alle invoercontrole vindt vóór deze eviction plaats. Sessies vervallen 30 minuten na aanmaken of de laatste gestarte vraag; cleanup gebeurt bij API-toegang en beschermt pending runs. Polling verlengt deze termijn niet. Alle dynamische API-responses, ook fouten en rapporten, krijgen `Cache-Control: no-store`. Het RAM verdwijnt bij herstart, geen garantie over swap, downloads of providerkopieën.
-
-[`DemoLimits`](../src/demo_limits.rs) bewaart een schuivend venster per netwerkadres: maximaal tien gestarte modelvragen per uur en dertig nieuwe sessies per tien minuten. Binnen één sessie geldt bovendien vijf seconden tussen starts. De start- en replay-route gebruiken dezelfde controle; een nieuwe sessie geeft geen nieuwe IP-teller. Een afgewezen start verbruikt geen modelcall. Bij deze limiterafwijzingen bevat HTTP 429 een vaste foutcode en een afgeronde resterende wachttijd in `Retry-After`; de afzonderlijke afwijzing wegens tien actieve vragen heeft geen wachttijdvoorspelling. De browser vertaalt die foutcategorie naar een rustige Nederlandse of Engelse wachtmelding.
-
-De identiteit komt standaard uit het echte TCP-peeradres via `ConnectInfo`, met normalisatie van IPv4-mapped IPv6 en IPv6 tot /64. `X-Forwarded-For` wordt niet gebruikt. Alleen wanneer het peeradres exact overeenkomt met `COA_TRUSTED_PROXY_IP`, accepteert de server één geldig adres uit `X-Real-IP`; bij ontbrekende/ongeldige waarde weigert de aanvraag. De proxy moet die header overschrijven met het bezoekersadres en mag geen door de bezoeker aangeleverde waarde doorgeven. De app blijft op loopback gebonden. De [lokale setup](LOCAL_SETUP.md#bescherming-tegen-herhaald-gebruik) geeft de Caddy-configuratie voor hosting; de aparte [deploymenthandleiding](public-deployment.md) beschrijft de publieke route en vrijgavevoorwaarden.
-
-Adres- en kortlevende sessietellers staan in proces-RAM, maximaal 4096 netwerkadressen. Verlopen gebeurtenissen worden bij een volgende limietcontrole opgeschoond; een volle tabel weigert een nieuw adres en wist geen actieve teller. De app schrijft deze adressen niet naar runrecords, rapporten of logs. Herstart wist de tellers. Bezoekers op dezelfde wifi delen hun limiet; een ander netwerk kan een andere teller krijgen. Dit is begrenzing van herhaald gebruik, geen accountidentiteit, verdeelde-aanvalsbeveiliging of hard kostenbudget.
-
-`ResponsesRunner::from_env` leest `OPENAI_API_KEY` of expliciet `COA_OPENAI_API_KEY_FILE`. Een sleutelbestand moet regulier zijn, van de huidige gebruiker, zonder symlink/hardlink of groep-/anderrechten en maximaal 4096 bytes na trimmen. Alleen de server heeft de sleutel; configuratie en gezondheid publiceren geen sleutel/pad. Ontbrekende configuratie laat website en bronnen starten met een duidelijke niet-beschikbaarmelding, zonder Codex-fallback. `runtime_ready` betekent geconfigureerd, niet dat providerquota of tegoed zijn bewezen. `store: false` is geen ZDR-belofte. De debug-only loopbackmock gebruikt altijd een vaste fake key en leest de echte sleutel niet; een release weigert die override.
-
-De creditclaimdialoog, gecontroleerd op 10 november 2026, waarschuwt dat activering van het Pro-API-voordeel Codex via API-keys van de gekozen organisatie uitschakelt, ook bij gekocht tegoed. Gewone Responses API-calls en Codex via het abonnement blijven volgens die dialoog werken. Dit project gebruikt de gewone API; activatie en saldo zijn niet door deze implementatie gecontroleerd.
-
-Nieuwe runcontext gebruikt `model_configuration`, met `provider: openai`, `transport: responses_api` en `runtime: rig-0.46.0`. Het resultaat vermeldt dezelfde runtime in `client_version`. Nieuwe resultaten behouden die herkomst, het aantal providerrequests en op succes de som van de beschikbare usage over alle calls. Reasoningtokens zijn onderdeel van outputtokens. Als een usage ontbreekt, blijft het totaal onbekend. Fouten kunnen na een betaalde call ontstaan en hebben geen volledig kostenoverzicht; dit is geen kostenledger. Een clientdeadline garandeert evenmin annulering of kostenstop bij de provider. De bevroren Codex-resultaten blijven ongewijzigd met hun eigen runtime; hun gemeten retrievalkwaliteit is geen nieuwe API-kwaliteitsclaim.
-
-De taalwissel staat alleen in de demo op `/`, met één knop die de huidige vlag toont. Die opent een native `details`-keuze met **🇳🇱 Nederlands** en **🇬🇧 English**. De knop gebruikt `aria-expanded`/`aria-controls` en een toegankelijke taalnaam; de keuzeknoppen behouden `aria-pressed` en toetsenbordbediening. Kiezen of Escape sluit de keuze en herstelt focus naar de vlagknop; buiten klikken sluit zonder focus van de aangeklikte control af te nemen. Openen start geen request of taalwissel. [`language.js`](../static/site/language.js) bewaart de voorkeur onder `localStorage['coa-demo-language']`; ontbrekende of onbekende voorkeuren worden Nederlands. Als browseropslag is geblokkeerd, werkt de keuze voor het huidige bezoek zonder persistentie. De gedeelde navigatie en footer volgen de voorkeur ook op de andere routes; de oorspronkelijke pagina-inhoud heeft daar `lang="nl"`. In de demo zijn activiteitnamen en sectiekoppen schermlabels. Bronparagrafen en citaatpassages blijven exacte Nederlandse brontekst met `lang="nl"` en een herkenbaar bronlabel.
-
-`POST /api/runs` accepteert optioneel `answer_language: "nl" | "en"`. Een ontbrekend veld betekent Nederlands; ongeldige waarden worden door de bestaande JSON-validatie afgewezen met HTTP 422, zonder run. De `activity-demo-responses-v1`-context bewaart de antwoordtaal en zoekmethode; beide webtalen krijgen promptversie `responses-activity-v1`. De replay-API hergebruikt de taal uit de oorspronkelijke context en controleert daarmee dezelfde invoer. De UI-taal kan tijdens een lopende uitvoering veranderen, maar de antwoordtaal van die uitvoering staat al vast. [`demo.js`](../static/site/demo.js) bewaart status als vertaalsleutels en hertekent schermlabels in de huidige taal. Wisselen verstuurt geen request, bewaart vraagtekst en geopende bronnen, en verandert geen bestaand antwoord, `unknowns` of citaten.
-
-`POST /api/runs` accepteert daarnaast optioneel `retrieval_method: "dense" | "bm25"`, standaard `dense`; onbekende waarden worden met HTTP 422 geweigerd. De context bewaart de gevraagde methode vóór de uitvoering. `ResponsesRunner::run` legt de methode vast in de lokale zoekcallback; de gebruiker of het model kan de methode niet tussen zoekacties wijzigen. De bestaande grenzen blijven gelden: top-k 1 tot 6, maximaal vier zoekacties en 120 seconden. Dit gebruikt de gewone demo-route, zonder labfilters of de contextlimiet van het lab. Replay behoudt de oorspronkelijke methode en antwoordtaal.
-
-[`Index::search_for_method`](../src/lib.rs) kiest bij `dense` de bestaande MiniLM-/cosinusroute en bij `bm25` de bestaande BM25-berekening op documenttitel, sectiekop en volledige sectietekst (k1=1.2, b=0.75, Unicodewoorden, geen stemming). Een BM25-query embedt de vraag niet en gebruikt geen vectorrangschikking. De gedeelde demo-index initialiseert bij starten nog het lokale model en hetzelfde corpus-/vectormanifest om de vastgelegde bronidentiteit te behouden. BM25-hits hebben `bm25_score`; dense-hits behouden `similarity`. Geen van beide scores staat in de demo-interface.
-
-Iedere succesvolle zoekactie bevat de werkelijk gebruikte `retrieval_method`. De runner weigert resultaten met een andere of gemengde methode. De weblaag vult `run.result.retrieval_method` pas na die controle uit de werkelijke toolresultaten. De rustige methoderegel bij het antwoord gebruikt uitsluitend dat veld; een lopende of oudere uitvoering zonder dit veld krijgt geen verzonnen methodenaam. De selector boven de zoekknop bepaalt alleen nieuwe vragen: wijzigen start geen call en verandert geen bestaand antwoord of de vastgelegde methode van een lopende uitvoering.
-
-Elke echte zoekactie krijgt een eigen blok met een genummerde kop, de exacte query en de aangeboden passages, in de oorspronkelijke volgorde. Gelijke passages in meerdere acties worden niet samengevoegd. Hittitels tonen activiteit en menselijk sectiekopje; één rustige datum komt rechtstreeks uit `hit.section.source_date`. IDs, top-k, referentiedatum, cosinusovereenkomst en voltooide statussen worden niet weergegeven. Mislukte of onafgeronde zoekacties houden een zichtbare fout-/wachtmelding. Letterlijke citaatmarkeringen blijven gekoppeld aan dezelfde bron-ID, brondatum en sectie-ID. De aparte `unknowns`-weergave is verwijderd; de backenddata blijft intact. Er is geen tekstfilter of regex die antwoordinhoud, haakjes of datums verwijdert.
-
-Een geaccepteerde run moet aan de bron-/citaatvalidatie voldoen en bij de contextsnapshot passen. Letterlijke citaatcontrole bewijst herkomst, geen volledige antwoordcorrectheid. De website heeft geen dossiermutatie, berichten- of aanmeldfunctie. De bestaande interne beoordelings-API's worden niet als demo-flow aangeboden.
-
-## Opgeslagen resultaten zijn geen nieuwe modeluitvoering
-
-Onder eerdere resultaten selecteert de pagina alleen bewaarde gegevens. Die historische model-/herhalingskeuze start niets. De drie nieuwe bronproeven bovenaan starten uitsluitend na een expliciete klik lokale retrieval; hun embeddingkeuze verandert het Rig-demomodel niet.
-
-De weergegeven proef gebruikt de dataset `strengthened-10-20261106`, twee modellen en drie herhalingen. Beide modellen gebruikten de methode `dense` op dezelfde zestig secties. Deze pagina vergelijkt dus geen vier zoekmethoden onder beide modellen. De zes eerdere afgebroken pogingen blijven buiten de zestig vergelijkingssessies en worden als afzonderlijke geschiedenis vermeld. De geschreven antwoorden hebben geen inhoudelijke kwaliteitsscore.
-
-[`export_site_results.ts`](../evals/rag/scripts/export_site_results.ts) controleert de verzegelde bronartefacten, de recordhashes en de native beoordelingen. Vervolgens schrijft het uitsluitend:
-
-- tien vraagteksten en de volledige geldige combinaties van verwachte bronstukjes;
-- de tien fictieve documenten, hun datums en zestig exacte secties;
-- model/herhaling, bronvolledigheid en werkelijke zoekactietelling;
-- zichtbare zoekopdrachten, daadwerkelijk aangeboden bronidentiteiten en het eerste moment waarop de verwachte bronset compleet was.
-
-De export neemt geen ruwe reasoning, prompts, runtimepaden, aanmeldgegevens of willekeurige recordvelden over. Een whitelist bepaalt de projectie. Geheime sentinelvelden en gewijzigde broninhoud worden in de exporttests gecontroleerd. Complete broncombinaties worden per geldig alternatief beoordeeld; tijd van activiteit A en locatie van activiteit B vormen niet samen een geldige optie.
-
-De browser haalt de kleine, gecureerde `results.json` op. Alle bronquotes verschijnen als tekstnodes, niet als HTML uit de data. Alleen werkelijk opgehaalde verwachte passages krijgen groene markering; andere passages worden niet automatisch als onjuist gelabeld. De voorafgaande bronverwachtingen blijven neutraal. Bij een geopende vraag staan ze boven de resultaten. Het aantal zoekacties omvat alle werkelijk uitgevoerde acties; een eerder compleet moment verschijnt alleen aanvullend in de details.
-
-## Opnieuw exporteren en controleren
-
-Vanaf een eigen bestaande experimentmap:
-
-```sh
-node evals/rag/scripts/export_site_results.ts --experiment-dir /pad/naar/de/bevroren/proef
-node --test evals/rag/scripts/export_site_results.test.ts
-cargo test --locked learning_site_routes_share_navigation
+```mermaid
+flowchart LR
+    Browser --> Web["Rust web server"]
+    Web --> Rig["Rig / OpenAI Responses API"]
+    Rig --> Search["Local Index: MiniLM or BM25"]
+    Web --> Results["Saved evaluation projections"]
+    Web --> LocalJob["Local promptfoo retrieval job"]
+    CLI["CLI / model evaluations"] --> Codex["Codex + read-only MCP"]
+    Codex --> Search
 ```
 
-Dit exporteren gebruikt geen model. Een nieuwe live vraag in de demo doet dat wel. De bronverwachtingen uit de publieke resultaatasset worden niet aan de nieuwe API-prompt, zoekindex of stopbeslissing toegevoegd. De historische Codex-evaluaties blijven eveneens gescheiden van hun verwachtingen tijdens generatie.
+The application is Rust. Browser assets remain JavaScript/HTML/CSS; owned evaluation tools are TypeScript. Node.js and Codex are not website dependencies. Evaluation modules remain in the same Rust crate through `#[path]` declarations, while their source and evidence live under `evals/`.
 
-De nieuwe deterministische checks in `responses::tests`, `runs::tests` en `web::tests` gebruiken alleen lokale HTTP-mocks en fictieve fixtures. De tien-vragen-test wacht op tien daadwerkelijk overlappende providerrequests, controleert afzonderlijke antwoorden/traces en weigering van de elfde vraag. Twee toolrondes met encrypted reasoning en commentary/final phases, bodygrenzen, time-outs, foutredactie, sessieverval en afgewezen requests worden afzonderlijk gecontroleerd. De aanvullende echte API-rookproef van 13 november 2026 gebruikte de eerdere tienbronnenset en startte één batch van tien korte fictieve vragen, verdeeld over Nederlands/Engels en dense/BM25. Alle tien runlevensduren overlapten; alle tien eindigden succesvol binnen samen 9,74 seconden, met 24 providerrequests. Dit bevestigt die ene uitvoering met de toen beschikbare sleutel en provider; het bewijst geen blijvende quota, volledige antwoordkwaliteit of facturatie. De onafhankelijke browser-/API-doorloop leverde 98 checks op en de limietmeldingen 18 aanvullende NL/EN-checks; [PR #114](https://github.com/Daanvdplas/meedoenbalie-rag-learning/pull/114) legt de verificatie vast. Vóór de Rig-migratie was de twaalfbronnenset uitsluitend lokaal op bronidentiteit, retrieval en browsergedrag gecontroleerd, zonder nieuwe betaalde modelcalls.
+[`main.rs`](../src/main.rs) starts `serve` by default, loads the live corpus/index and passes it to [`web::serve`](../src/web.rs). `WebState` binds to loopback, port 8766 unless `COA_PORT` overrides it. Assets are embedded with `include_str!`; changing one requires rebuilding and restarting. There is no general file server exposing the checkout or raw experiment directories.
 
-Providercontract: [function calling](https://developers.openai.com/api/docs/guides/function-calling), [reasoning/stateless replay](https://developers.openai.com/api/docs/guides/reasoning) en [API-data controls](https://developers.openai.com/api/docs/guides/your-data), officiële pagina's opgehaald 10 november 2026; function-calling- en reasoningpagina hebben HTTP Last-Modified 10 november 2026. Dit is transportdocumentatie, geen bevestiging van accounttegoed of inhoudelijke antwoordkwaliteit.
+| Route | Behavior |
+| --- | --- |
+| `/` | Live demo: fictional sources, a free question, answer and actual search actions. |
+| `/demo`, `/demo/` | HTTP 308 redirect to `/`. |
+| `/techniek/` | Human explanation of the architecture. |
+| `/resultaten/` | Three local retrieval tests plus separately opened saved results. |
+| `/api/session`, `/api/runs`, `/api/runs/{id}` | Create a session, submit a question, poll its run. |
+| `/api/evals/rag` | Read the curated saved promptfoo projection. |
+| `/api/evals/rag/catalog`, `/api/evals/rag/runs` | Read the fixed local test catalog; start/read/cancel an owned local evaluation job. |
 
-Rig-basis: [stabiele release 0.46.0](https://github.com/0xPlaygrounds/rig/releases/tag/v0.46.0), gepubliceerd **31 oktober 2026**. Alleen de agentlibrary is gekoppeld; de Rig-terminalagent, shelltools, geheugenopslag en embeddingadapter zijn niet ingeschakeld. De bestaande FastEmbed 7.1.2-index blijft behouden.
+Hosting adds a separate route allowlist; the local evaluation worker is not a supported public endpoint. See [deployment](public-deployment.md).
 
-De Rig-migratie is vervolgens op **13 november 2026** gecontroleerd met 64 onafhankelijke lokale browser-/HTTP-checks, inclusief tien werkelijk overlappende mock-providerrequests en weigering van de elfde run. Drie echte fictieve vragen op de twaalf bronnen voltooiden daarna met samen tien providerrequests: dense/Nederlands (vier zoekacties, vijf requests), BM25/Engels (twee/drie) en onbekende actuele beschikbaarheid (één/twee). De onafhankelijke livecontrole omvatte 38 checks op runtime, broncitaten, taal, methode, usage en limieten. De dense-tuinvraag vond de locatiepassage niet en liet het precieze adres onbekend, hoewel de bron het vermeldt. Dit is een tijdens de rookproef waargenomen kwaliteitsbeperking. De proef bevestigt runtimecompatibiliteit, maar bevat geen vergelijkende kwaliteitsmeting vóór en na de migratie en geen capaciteitsgarantie.
+## Trace one question
 
-## Waar de evaluaties staan
+[`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question, `answer_language` (`nl`/`en`, default `nl`) and `retrieval_method` (`dense`/`bm25`, default `dense`) before starting background work. Invalid enum values return HTTP 422. Later selector changes apply only to new questions; replay retains the original context.
 
-[`evals/rag/`](../evals/rag/README.md) bevat lokale retrieval, agentisch vervolgzoeken en de Sol/Luna-bronvergelijking. [`evals/coa-assistent/`](../evals/coa-assistent/README.md) bevat gegenereerde antwoorden, judge en kalibratie. Beiden hergebruiken de bytevast verplaatste [vraagsets](../evals/shared/README.md). De modules blijven in dezelfde crate: `experiment` en `retrieval_lab` verwijzen via `#[path]` naar de nieuwe code, en de CLI-opdracht `eval` gebruikt de verplaatste tuinregressie. Productzoekcode, Codex-runtime en fictieve activiteitbronnen blijven in `src/` en `fixtures/`. De bestaande web-URL’s en modelroutes veranderen niet.
+[`ResponsesRunner::run`](../src/responses.rs) delegates model/tool steps to Rig in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). The agent registers only the typed `SearchTool`, native structured-answer schema and `RunPolicy` hooks. Rig owns the agent loop; COA does not run a second competing loop.
 
-## Promptfoo en de eigen resultaatpagina
+The request goes to OpenAI's Responses API with `gpt-6.1-sol`, reasoning `low`, service tier `default` and `store: false`. The web prompt shares language, source and prompt-injection rules with [`codex.rs`](../src/codex.rs); the question is a separate input data item. The only model tool is `search_document(query, top_k, search_goal)`. It cannot access shell, arbitrary files, URLs, web search, Codex or a code-mode host. This is local function calling, without MCP transport in the web path.
 
-`evals/rag/promptfoo/config.cjs` bepaalt de RAG-matrix; de TypeScriptprovider voert alleen gevalideerde vragen/configuraties uit. De assertions laden beschermde bronverwachtingen afzonderlijk. `run_promptfoo.mjs` begrenst uitvoering, zet lokale opslag/telemetrie/cache-instellingen en exporteert een publieke whitelist naar `evals/rag/site/promptfoo-results.json`. `GET /api/evals/rag` leest uitsluitend dat historische operatorbestand. De nieuwe `GET /api/evals/rag/catalog` levert drie vaste vragen en hun bronverwachtingen; `POST /api/evals/rag/runs` start één lokale promptfoo-job, en GET/DELETE op de run-URL leest of annuleert alleen de eigen uitvoering. De start-/stoproute vereist loopback zonder forwardedheaders, passende Host/Origin en een geldige sessie. Eén actieve job, 300 seconden en aparte 60/uur- plus 5/minuutlimieten begrenzen CPU/uitvoer. Geen HTTP-invoer kan een suite, model-URL, opdracht, bestandspad, Codex- of API-modelpad kiezen. De worker gebruikt vaste argv en verwijdert gevoelige modelinstellingen. PID/startidentiteit bewaakt ook detached-childopruiming bij annuleren. De browser houdt bronkwaliteit, N/A en uitvoeringsfouten uit elkaar. Ruwe configs, auditpaden, procesomgeving en reasoning blijven uit deze projectie. Native zoektijd en promptfoo-doorlooptijd hebben verschillende labels. De oude `results.json` en rapportlezers behouden hun historische betekenis.
+The first model call must perform a real source search. The model can then make focused follow-up searches. `search_goal` is a public one-line task label, 1–80 characters, supplied by the model for that executed action; it is not private reasoning or a result claim. It is added to web JSON only after source/answer validation. Older runs and the shared Codex tool-call schema do not receive invented goals.
+
+The fixed callback invokes [`Index::search_for_method`](../src/lib.rs). A mutex protects the shared index only during the short local `spawn_blocking` search; model HTTP requests wait independently. The website does not start ten model copies or ten Codex processes. The selected search method is server context and cannot change between tool calls.
+
+Rig preserves original input/output items for subsequent calls, including encrypted reasoning, assistant phases and matching `function_call_output`, without `previous_response_id`. This replay exists only in the run's RAM; raw/encrypted reasoning is absent from public records. Only the final answer is interpreted as the answer. Refusals, incomplete responses, unknown tools, malformed arguments and invalid final JSON fail the run.
+
+`validate_retrieved_answer` checks that source IDs, dates, manifests and exact citation text agree with passages actually returned. Repeated section IDs are namespaced by document. This proves provenance, not that every conclusion follows from the evidence. Missing evidence and honest unknowns remain possible even when the run completes.
+
+## Bound transport and spending
+
+[`BoundedTransport`](../src/responses/transport.rs) implements Rig's `HttpClientExt` and enforces the application policy before the codec. Original generation bytes are sent unchanged. Redirects, streaming and multipart are disabled on this route; invalid typed tools fail through a hook.
+
+| Limit | Current contract |
+| --- | --- |
+| Whole run | One 120-second deadline, including counting, body reads and retrieval. |
+| Tool work | At most four searches; after the fourth, tool choice is `none`. |
+| Model work | At most five generations and five free exact input-token preflights; no automatic retries. |
+| Tokens per generation | At most 300,000 counted input tokens and 4096 output tokens, including reasoning. |
+| Bodies | 512 KiB provider response, 1 MiB serialized request context, 16 KiB count response. |
+| Search input | Query 1–1000 characters; top-k 1–6; tool arguments at most 16 KiB; unknown fields refused. |
+
+Each attempt receives a durable, atomic reservation in the schema-2 budget **before** input counting. The count includes all token-bearing fields, tools, schema and encrypted replay; unknown fields or invalid counts stop generation. Model, Standard pricing tier, `30m` cache policy and output ceiling stay fixed. Missing/corrupt/replaced/unwritable state fails closed. Restarts preserve usage; the same budget cannot be opened concurrently. [`demo_budget.rs`](../src/demo_budget.rs) owns this policy; [setup](LOCAL_SETUP.md#token-and-price-assumptions) records price assumptions and initialization.
+
+`ResponsesRunner::from_env` reads `OPENAI_API_KEY` or an explicit external `COA_OPENAI_API_KEY_FILE`. The file must be regular, owned by the user, without links or group/other access, and bounded to 4096 trimmed bytes. Public configuration exposes neither key nor path. Missing setup permits source/result browsing with answers unavailable, without a Codex fallback. `runtime_ready` means configured, not proven quota or credit. The debug-only loopback mock uses a fixed fake key and does not read a real one; release builds refuse that override.
+
+New run metadata identifies `provider: openai`, `transport: responses_api`, `runtime: rig-0.46.0` and matching `client_version`. Successful runs sum available usage across provider requests; reasoning tokens are part of output. Missing usage remains unknown. Failed runs may already have incurred charges. These records are not a billing ledger, and a local timeout cannot guarantee provider cancellation.
+
+## Corpus and retrieval contracts
+
+[`CorpusId::DemoTwelve`](../src/corpus.rs) selects twelve documents, six sections each, with reference date **13 November 2026**. The first ten preserve `ExpandedTen` bytes; Schaken and Naaicafé have their own source IDs/dates. CLI `search`/`ask` defaults and legacy evaluations still use the original five documents unless a corpus is selected explicitly:
+
+```sh
+cargo run --locked -- search --corpus demo-twelve 'Wanneer kan ik schaken?'
+```
+
+The parser accepts at most twelve documents and rejects missing/duplicate IDs, invalid dates, empty headings/sections and duplicate section IDs within a document. Each passage retains document ID, section ID, title, heading and source date. Source dates are distinct from observations of available places; a schedule never proves current capacity.
+
+The local quantized multilingual MiniLM model uses fastembed 7.1.2, 384 dimensions and a 512-token input ceiling. Original MiniLM input is title, newline, heading, newline and exact section text, without prefixes. The index keeps document vectors in memory. Manifests record source/corpus hashes, exact embedding inputs, vector hashes and model/encoding identity. Mutable upstream model downloads and platform differences prevent a promise of bit-identical future embeddings.
+
+`dense` ranks by cosine similarity. BM25 uses title, heading and full section text, Unicode words, k1=1.2, b=0.75 and no stemming. A BM25 query does not embed its text; the shared website index still loads MiniLM on startup to retain the established index identity. Dense hits expose `similarity`, BM25 hits `bm25_score`; neither is a probability or calibrated no-match threshold. The runner rejects mixed or unexpected methods and publishes the actual method only after validation.
+
+The retrieval lab additionally offers RRF/weighted hybrid methods and document/SQLite profiles. Both stores feed the same canonical sections and exact f32 vectors to the same Rust scorer; SQLite is a storage/cache comparison, not a separate SQL vector or FTS ranker. Activity expansion adds whole related sections under a context ceiling. Typed user filters cannot come from expectations or case IDs; unknown source fields remain unknown. [Retrieval procedures and metrics](../evals/rag/docs/retrieval-lab.md) give the full contract.
+
+## Sessions, concurrency and network limits
+
+A semaphore allows ten active model questions; the eleventh gets HTTP 429 without a hidden queue. Each session can have only one pending run. The permit is released on completion, failure or timeout. `RunStore` uses random 256-bit session tokens and limits RAM to 256 sessions, 40 runs per session and 256 total runs. Each run is at most 256 KiB serialized, reserving space for assessment metadata.
+
+Sessions expire 30 minutes after creation or the latest started question. API access performs cleanup; pending runs are protected and polling does not extend the lifetime. Capacity eviction removes only inactive sessions/completed runs after input validation. Dynamic API responses, including errors/reports, use `Cache-Control: no-store`. Restart removes application RAM, not swap, downloads or provider copies.
+
+[`DemoLimits`](../src/demo_limits.rs) limits each network address to ten started model questions/hour and thirty new sessions/ten minutes, plus five seconds between starts in one session. Start and replay share the limit; new tabs/sessions do not reset the address counter. Rejections start no model attempt and include HTTP 429 plus `Retry-After` where a remaining wait is known. Capacity rejection has no predicted wait.
+
+Identity comes from the TCP peer, normalizing IPv4-mapped IPv6 and IPv6 to /64. `X-Forwarded-For` is ignored. Only an exact `COA_TRUSTED_PROXY_IP` peer may supply a single valid `X-Real-IP`; missing/invalid values are refused. The proxy must overwrite the header. Counters hold at most 4096 addresses in RAM, are not written to run records/reports/logs, and expire on subsequent checks or restart. A full table refuses a new address. Shared wifi shares limits; this is neither user identity nor an account-wide spending cap.
+
+## Browser behavior
+
+The demo shows compact expandable activities, one question, the literal answer and inspected search actions. Each action retains its exact query, ordered hits and any repeated passages. Citation highlights refer to the same document, date and section. IDs, top-k, similarity scores and internal statuses are not displayed as answer content. There is no separate unknowns list or judgment flow; backend fields remain available.
+
+The language menu selects Dutch/English UI and the language of **new** answers. `localStorage['coa-demo-language']` stores the preference; unknown/blocked storage falls back safely. `sessionStorage['coa-test-session']` stores the current session ID. Changing language sends no model/search request and preserves question text, opened sources and existing answers. Source paragraphs and exact quotes remain Dutch. Activity names and section headings are translated screen labels. Shared navigation/footer follow the preference; the explanatory page has its own authored content.
+
+## Retrieval tests and saved results
+
+The three local browser tests use P01/T02/T05 on the original five activities, top-k 5, candidate-k 30, context ceiling 1200 and `documents_sections`. Their encoder choice is real MiniLM or multilingual E5 Small, with E5 `query: ` / `passage: ` prefixes; BM25 loads no encoder. The twelve-document demo has no newly invented gold benchmark.
+
+[`eval_jobs.rs`](../src/web/eval_jobs.rs) runs only the fixed promptfoo browser configuration and source assertions. Start/cancel requires loopback without forwarded headers, valid Host/Origin and an owned session. One heavy job at a time, no queue, 300 seconds, sixty starts/hour and five/minute per address bound local work. Fixed argv and a cleaned child environment prevent request input from choosing commands, paths, model URLs or a model-generation route. PID/start identity protects detached-child cleanup. Raw output stays under ignored `results/local/browser/`.
+
+Promptfoo controls RAG questions/configurations/repetitions/assertions; Rust performs local retrieval or explicitly bounded Codex sessions. Protected expectations are loaded only by assertions. [`run_promptfoo.mjs`](../evals/rag/scripts/run_promptfoo.mjs) exports a public allowlist projection, excluding raw configs, machine paths, credentials and private reasoning. Source quality, N/A and execution failures stay distinct. Native retrieval time and promptfoo elapsed time have different labels.
+
+The historical sixty sessions use `strengthened-10-20261106`, ten questions, Sol/Luna and three repetitions, both with dense retrieval over sixty sections. Model/repetition selection reads saved records and starts nothing. Six earlier aborted attempts stay separate. Source completeness is not answer correctness.
+
+[`export_site_results.ts`](../evals/rag/scripts/export_site_results.ts) validates sealed source artifacts, record hashes and native assessments before exporting questions, valid alternative source combinations, fictional source text, model/repetition, observed searches and completion timing. It excludes raw reasoning, prompts, authentication and local paths. Browser text is inserted as text nodes; only retrieved expected support receives a success mark, and other hits are not automatically wrong.
+
+```sh
+node evals/rag/scripts/export_site_results.ts --experiment-dir /path/to/existing/frozen/run
+node --test evals/rag/scripts/export_site_results.test.ts
+```
+
+Exporting/reassessing saved records makes no model calls. New web answers do. Expectations never enter the live prompt, search index or stop decision. Complete-assistant generation/judging remains separately documented under [evals/coa-assistent](../evals/coa-assistent/README.md).
+
+## Recent architectural changes
+
+| Date | Change |
+| --- | --- |
+| 2026-11-17 | Policy 2 binds durable schema-2 reservations to exact input counting and fixed token/model/tier/cache limits. |
+| 2026-11-16 | Three bounded local promptfoo retrieval tests with real MiniLM/E5 selection added to the results page. |
+| 2026-11-13 | RAG orchestration moved to promptfoo; evaluation source/data/evidence grouped under `evals/`. |
+| 2026-11-13 | Live corpus grew to twelve activities; frozen five-/ten-document evaluations stayed unchanged. |
+| 2026-11-13 | Rig 0.46.0 took over web model/tool/history handling; bounded transport and application source guards remained. |
+| 2026-11-10 | Website switched to direct Responses API; Codex/MCP remained the CLI/evaluation route. |
+
+Dependencies: [Rig 0.46.0](https://github.com/0xPlaygrounds/rig/releases/tag/v0.46.0), published **31 October 2026**; [fastembed 7.1.2](https://github.com/anush008/fastembed-rs/releases/tag/v7.1.2), published **19 October 2026**. Only Rig's agent library is enabled; terminal-agent shell tools, memory storage and its embedding adapter are not part of this integration. Dated verification belongs in the [runtime report](runtime-report.md), not an implied permanent quality or capacity guarantee.

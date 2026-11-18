@@ -1,27 +1,27 @@
-# Vergelijk zoeken over meerdere stappen
+# Compare iterative search
 
-**Actuele runner:** [promptfoo](../README.md) bestuurt de RAG-proeven. De native commando’s hieronder beschrijven de behouden uitvoeringsonderlaag of historische rapportage, niet een tweede actuele benchmark/scorer.
+**Current orchestrator:** [promptfoo](../README.md). Native commands below document the retained layer and historical reporting, not a second current benchmark scorer.
 
-Deze proef gebruikt voor tien vastgelegde vragen steeds dezelfde Codex-assistent met vier zoekmethodes. Alleen de zoekmethode verandert. Elke zoekactie geeft maximaal drie bronstukken terug; iedere sessie mag maximaal vier zoekpogingen doen en duurt maximaal 120 seconden. Een ongeldige of mislukte zoekpoging telt mee.
+This comparison uses the same Codex assistant for ten fixed questions with four retrieval methods; only the method changes. Each search returns at most three passages, each session has at most four attempts and 120 seconds. Invalid/failed attempts count.
 
-De assistent krijgt de gebruikersvraag en de gevonden teksten. Hij bepaalt zelf of informatie ontbreekt en welke vervolgvraag nodig is. De beschermde bronverwachtingen worden uitsluitend achteraf geladen door `agent-assess` en `agent-report`; zij sturen de zoeklus niet.
+The assistant receives the question and actual retrieved text, deciding whether a focused follow-up is needed. Protected expectations are loaded only afterwards by `agent-assess`/`agent-report`, never by the search loop.
 
-## Eerst de planning bekijken
+## Inspect the plan
 
-Dit maakt geen modelaanroepen:
+No model calls:
 
 ```sh
 cargo run --locked --release -- lab agent-plan
 cargo run --locked --release -- lab agent-plan --cases T02,P06
 ```
 
-De volledige planning bevat 40 sessies: tien vragen maal vier zoekmethodes. De kleine proef bevat acht sessies. De methodevolgorde wordt per vraag geroteerd; het is geen algemene snelheidsbenchmark met herhaalmetingen.
+The full plan has forty sessions, ten questions × four methods; the small check has eight. Method order rotates per question. This is not a repeated general speed benchmark.
 
-## Echte sessies uitvoeren
+## Historical native execution procedure
 
-Gebruik een aangemelde, passende Codex-runtime en de bestaande modelcache. Kies één beschikbaar model via `COA_CODEX_MODEL` als je de standaard niet wilt gebruiken. Wijzig model, programma of brondata niet tussen de kleine en de resterende proef: de runtimeconfiguratie bevat ook de hashes van de gebruikte programma’s.
+New RAG model trials use [promptfoo](../README.md#model-trials-use-codex). If reproducing the native protocol with explicit model authorization, use an authenticated compatible Codex runtime and existing cache. `COA_CODEX_MODEL` can explicitly select an available model. Keep model, runtime programs and sources unchanged between pilot and remainder; runtime identity includes executable hashes.
 
-Bouw eenmaal en gebruik voor alle sessies exact dezelfde executable. Kies nieuwe uitvoerbestanden en één gezamenlijk ledger. De limiet van 40 generaties telt alle pogingen, ook mislukkingen; AI-beoordelaars worden niet aangeroepen.
+Build once and use exactly that executable. Choose new output files and one shared ledger. The forty-session ceiling includes failures, with no AI judge:
 
 ```sh
 cargo build --locked --release
@@ -35,7 +35,7 @@ cp target/release/meedoen-retrieval /tmp/coa-agentic-fixed
   --model-cache .model-cache
 ```
 
-Controleer de acht opgeslagen pogingen voordat je verdergaat. Als code, brondata, model en limieten ongewijzigd zijn gebleven, tellen deze acht direct mee in de uiteindelijke 40. Voer ze niet opnieuw uit om een gunstiger resultaat te kiezen.
+Review all eight saved attempts before continuing. If code, sources, model and limits are unchanged, they count within the final forty; do not rerun them to select a better result.
 
 ```sh
 /tmp/coa-agentic-fixed lab agent-run --live \
@@ -46,11 +46,11 @@ Controleer de acht opgeslagen pogingen voordat je verdergaat. Als code, brondata
   --model-cache .model-cache
 ```
 
-Een technische fout stopt de batch. Er zijn geen verborgen herhalingen of automatische budgetvernieuwingen. Bekijk eerst de oorspronkelijke fout en gegevens; verander een ledger niet om eerdere pogingen te verbergen.
+Technical errors stop the batch. There are no hidden retries or automatic budget renewals. Preserve the original failure and never edit a ledger to hide attempts.
 
-## Opgeslagen bronnen beoordelen en rapporteren
+## Assess saved evidence
 
-Deze opdrachten starten geen nieuwe Codex-sessies, zoekacties of AI-beoordelaars. Beide invoerbestanden blijven ongewijzigd.
+These commands start no Codex session, retrieval or judge; inputs remain unchanged:
 
 ```sh
 /tmp/coa-agentic-fixed lab agent-assess \
@@ -63,10 +63,10 @@ Deze opdrachten starten geen nieuwe Codex-sessies, zoekacties of AI-beoordelaars
   --output /tmp/coa-agentic-report.json
 ```
 
-De beoordeling controleert de vraag, dataset, vaste instellingen, oorspronkelijke uitvoerbytes, runtimeconfiguratie en MCP-trace. Daarna telt zij uitsluitend de werkelijk aan het model aangeboden bronstukken over alle zoekacties samen. Dubbelen tellen eenmaal. Geldige alternatieven blijven geldig: voor de natuurvraag is het tijdstip nodig plus één van de twee geaccepteerde natuurstukken.
+Assessment validates question/dataset, settings, original output bytes, runtime and MCP trace, then counts only passages actually offered across searches, deduplicated by source identity. Valid evidence alternatives remain valid: the historical nature question needs the time plus one of two accepted nature passages. Use the dataset version matching the run, not revised development labels.
 
-Het rapport bevat het werkelijke totale aantal zoekpogingen en de gemeten volledige sessieduur. De eerste stap waarop alle verwachte bronnen aanwezig waren wordt afzonderlijk bewaard: als het systeem daarna nog doorzoekt, verdwijnt dat extra werk niet uit het hoofdcijfer.
+Reports retain actual total search attempts and full measured session duration. The first step reaching complete evidence is additional detail; subsequent searches do not disappear from total work.
 
-Een technisch mislukte sessie krijgt geen inhoudelijke succesbeoordeling. Ontbreekt het volledige runtimeverslag, dan blijft het aantal zoekpogingen onbekend; het aantal succesvolle sidecarregels is geen vervanging daarvoor. Een afgewezen verkeerde-modelstart blijft als fout zichtbaar met de waargenomen en verwachte runtime-identiteit.
+A failed session receives no successful content assessment. Without a complete runtime trace, attempt count remains unknown; successful sidecar rows are no substitute. Wrong-model rejection stays a failure with observed/expected identity.
 
-Bronvolledigheid is geen beoordeling van de juistheid van het geschreven antwoord. De vrije AI-beoordelaar blijft uit en menselijke beoordelingen worden niet door agents ingevuld.
+Source completeness is not written-answer correctness. Free-form AI judging stays off; agents never populate human judgments.

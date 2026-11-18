@@ -1,79 +1,44 @@
-# Vastgelegde kwaliteitsvergelijking
+# Predeclared quality comparison
 
-**Actuele runner:** [promptfoo](../README.md) bestuurt de RAG-proeven. De native commando’s hieronder beschrijven de behouden uitvoeringsonderlaag of historische rapportage, niet een tweede actuele benchmark/scorer.
+**Current orchestrator:** [promptfoo](../README.md). Native commands below describe retained execution/measurement layers and historical reporting, not a second current benchmark scorer.
 
-`lab` houdt zoekresultaten, beschermde verwachtingen en beoordelingen apart. Een
-opgeslagen zoekactie opnieuw beoordelen voert geen zoekactie of modelaanroep uit.
-De vrije AI-beoordelaar blijft gepauzeerd. Menselijke beoordelingen starten leeg.
+`lab` separates retrieval records, protected expectations and assessments. Reassessing a saved search repeats neither retrieval nor model calls. Free-form AI judging stays paused; human judgments start empty.
 
-## Twee afzonderlijke vraagsets
+## Separate datasets
 
-- `--dataset legacy` (standaard): de bestaande achttien eerder bekeken vragen.
-  Bestaande raw-schema-1 bestanden en v2-beoordelingen blijven leesbaar; hun
-  vraag- en verwachtingenhash blijven ongewijzigd.
-- `--dataset independent-20261103`: twaalf vóór de eerste meting vastgelegde
-  vragen, door afzonderlijke agents geschreven en op de bronnen gecontroleerd.
-  Dit zijn vragen over dezelfde vijf bekende documenten, geen menselijke ijking
-  of bewijs van kwaliteit op nieuwe organisaties, documenten of vraagsoorten.
-  Elf vragen hebben brononderbouwing als doel; één vraagt om verduidelijking en
-  telt niet mee in retrievalnoemers.
+- `--dataset legacy` (default): eighteen seen development/regression questions. Original v1 bytes remain under `legacy/v1/`; use `--dataset legacy-v1` for those old traces. The current development dataset contains the revised P06, described in [shared datasets](../../shared/README.md). Historical hashes are not rewritten to look current.
+- `--dataset independent-20261103`: twelve questions independently authored, source-reviewed and frozen before first measurement. They concern the same five known documents, not unseen organizations/documents or human-calibrated truth. Eleven have source-support targets; one requests clarification and is excluded from retrieval denominators.
 
-De datasetkeuze is expliciet bij **plan, run, assess en report**. Een verkeerde
-keuze wordt geweigerd voordat een beoordelings- of rapportbestand ontstaat.
-Vragen, bronidentiteit, getypeerde gebruikersinput en verwachtingen krijgen elk
-hun eigen binding. Geïmporteerde deterministische scores worden volledig opnieuw
-berekend; alleen een overeenkomende hash is onvoldoende.
+Select the dataset explicitly for **plan, run, assess and report**. Wrong bindings fail before an assessment/report is written. Questions, sources, typed inputs and expectations have separate identities. Imported deterministic grades are fully recomputed; matching a hash alone is insufficient.
 
-## Vooraf vastgelegde scenario’s
+## Fixed scenarios
 
 ```sh
 cargo run --locked -- lab plan --dataset independent-20261103 --protocol quality-v1
 ```
 
-Dit plant **336 rijen**: twaalf vragen × 28 configuraties.
+This plans **336 rows**: twelve questions × 28 configurations.
 
-| Scenario | Profielen | Methoden | Selectie | Top-k | Filters |
+| Scenario | Profiles | Methods | Selection | Top-k | Filters |
 | --- | --- | --- | --- | --- | --- |
-| Baseline | alle vier | alle vier | secties | 3 | uit |
-| Activiteitcontext | documenten/secties | alle vier | activiteituitbreiding | 3 | uit |
-| Meer secties | documenten/secties | alle vier | secties | 6 | uit |
-| Gebruikersfilters | documenten/secties | alle vier | activiteituitbreiding | 3 | aan |
+| Baseline | All four | All four | Sections | 3 | Off |
+| Activity context | Documents/sections | All four | Activity expansion | 3 | Off |
+| More sections | Documents/sections | All four | Sections | 6 | Off |
+| User filters | Documents/sections | All four | Activity expansion | 3 | On |
 
-Alle scenario’s houden candidate-k 30, contextlimiet 1200 en MMR uit. De zestien
-baselineconfiguraties blijven apart van de twaalf extra configuraties. Top-k 3
-betekent drie startscores bij activiteituitbreiding; complete, ongewijzigde
-bronsecties kunnen daarna toegevoegd worden binnen dezelfde contextlimiet.
+Candidate-k remains 30, context ceiling 1200 and MMR off. Sixteen baseline configurations remain separate from twelve additions. Top-k three in expansion means three seeds; whole unchanged related sections can then be added within the same context ceiling.
 
-De legacy-set gebruikt met `quality-v1` **432 rijen**: achttien × 24 configuraties.
-De filterbehandeling ontbreekt daar bewust: er zijn geen vooraf afzonderlijk
-beoordeelde, getypeerde gebruikersfilters voor die vragen. `lab plan` zonder
-protocol blijft de oorspronkelijke 288 baseline-rijen plannen.
+Legacy `quality-v1` has **432 rows**, eighteen × 24. It excludes filter treatment because those questions lack separately reviewed typed-input sidecars. `lab plan` without the protocol retains the original 288-row baseline.
 
-De frozen set bevat een afzonderlijk `user-query-inputs.json`. Dit bestand bevat
-uitsluitend de letterlijke gebruikersvragen en ondersteunde harde voorwaarden:
-dagen, binnen/buiten en volledige beschikbaarheidsvensters. Het gebruikt geen
-verwachte activiteiten, bronpassages, rollen of antwoorden. Een voorkeur voor
-buiten wordt geen harde filter. Een eis zoals “rolstoeltoegankelijk”, betaald werk
-of een exacte starttijd wordt niet verzonnen als een ondersteund veld. De huidige
-roosters werken op minuten: “vóór 11:00” is daarom uiterlijk 10:59.
+Frozen `user-query-inputs.json` contains literal questions and supported hard conditions only: weekdays, indoor/outdoor and complete availability windows. It includes no expected activities, passages, roles or answers. Outdoor preference does not become a hard filter. Wheelchair access, paid work or unsupported exact-start conditions cannot be invented as fields. Schedules have minute resolution: “before 11:00” means at latest 10:59.
 
-De onafhankelijk beoordeelde invoerbytes zijn afzonderlijk vastgelegd in
-`INPUTS_FROZEN.json`. De runtime controleert dit goedgekeurde bestand, de exacte
-invoerhash, de oorspronkelijke freeze en de vraaghashes vóór planning, zoeken of
-beoordelen. Een geldig invoerschema met gewijzigde filterwaarden kan daardoor
-niet dezelfde frozen dataset blijven heten.
+`INPUTS_FROZEN.json` separately binds independently reviewed input bytes. Before planning, retrieval or assessment, runtime validates that approval, exact input hash, original freeze and question hashes. A valid schema with changed filter values cannot retain the frozen identity.
 
-Vijf vragen hebben ten minste één ondersteunde filter; zeven niet. Het rapport
-onderscheidt filters uit, geen filters gevraagd, geen aangetoond effect en een
-werkelijk kleinere kandidatenverzameling. Dat laatste betekent minder geschikte
-kandidaten na filtering, **niet** automatisch minder uitgevoerde vectorscores.
-Bij deze kleine Rust-ranker blijft het scoren van het corpus afzonderlijk gemeten.
+Five questions have supported filters; seven do not. Reports distinguish filters off, none requested, no demonstrated effect and an actually smaller candidate set. A smaller candidate set does **not** automatically mean fewer vector scores; this small scorer records corpus-scoring work separately. Unknown source values are neither confirmed matches nor confirmed exclusions.
 
-## Uitvoeren en opnieuw beoordelen
+## Run and reassess
 
-Eerste neurale meting: uitsluitend na onafhankelijke review van de input-sidecar
-én expliciete vrijgave van het frozen protocol. Dit commando plant geen Codex- of
-judge-aanroepen. SQLite werkt alleen in een build met de optionele feature.
+The first neural measurement requires independent input-sidecar review and explicit protocol release. These commands make no Codex/judge calls; SQLite needs its optional build feature:
 
 ```sh
 cargo run --locked --features sqlite -- lab run \
@@ -91,30 +56,14 @@ cargo run --locked --features sqlite -- lab report \
   --output /tmp/coa-quality-independent.html
 ```
 
-Gebruik steeds nieuwe uitvoerbestanden. Oude bestanden worden niet overschreven.
-Een batch deelt bron-/modelvoorbereiding en query-embeddings tussen configuraties;
-het rapport bewaart die gezamenlijke tellers één keer. Tel herhaalde
-voorbereidingsvelden niet op. Het kan zonder SQLite: die geplande configuraties
-krijgen dan zichtbaar `unsupported` in plaats van een verzonnen meting.
+Always use new output files. Batches share source/model preparation and query embeddings across settings; reports retain shared counts once. Do not add duplicate preparation fields. Without SQLite, planned SQLite rows remain `unsupported`, not invented measurements.
 
-## Wat het rapport wel en niet bewijst
+## Interpretation and capacity
 
-De voornaamste retrievalmaat is **alle verwachte brononderbouwing aanwezig**,
-met gedeeltelijke dekking daarnaast. Een eerste relevante passage of een hoge
-cosinusscore is geen compleet antwoord. Onbekende voorwaarden, uitsluitingsbewijs
-en verduidelijkingsvragen blijven herkenbaar; zonder gegenereerd antwoord blijft
-de antwoordbeoordeling open. De nieuwe maat is afzonderlijk geversioneerd als
-`retrieval-task-metrics-v1`; de historische v2-beoordelaar verandert niet.
+The primary measure is **all required source support found**, reported as complete cases/eligible cases. Partial coverage is separate. OR joins alternative evidence groups; AND joins references within each. A first relevant passage or high cosine score is not a complete answer. Supported unknowns, exclusion evidence and clarification remain identifiable; no generated answer means answer quality remains unassessed. `retrieval-task-metrics-v1` is a separate derived view and does not redefine historical v2 grades.
 
-Activiteituitbreiding kan maximaal top-k verschillende startactiviteiten bereiken.
-Het rapport berekent daarom ook het kleinste aantal benodigde bronactiviteiten
-over alle AND/OR-bewijskeuzes. Meer benodigde activiteiten dan beschikbare
-startpassages bewijst een onhaalbaar bewijsdoel. Onder die grens blijft
-haalbaarheid onbekend: de tokenlimiet en filters kunnen nog steeds blokkeren.
-Tekstueel uitsluitingsbewijs ontbreekt soms door filtering; dat maakt een nog
-niet gegenereerd antwoord niet automatisch fout.
+First goal-support reciprocal rank uses required goal references, excluding relevance-only exclusion evidence; it differs from historical relevance MRR. Technical validity, work and timings remain separate. No positive source target means N/A, not a perfect or zero source-quality score.
 
-Het rapport bevat per rij de dataset, frozen referentiehash, getypeerde-inputhash,
-exacte configuratie, scenario en filtereffect. Referentierollen en verwachte
-acties worden pas bij beoordeling/rapportage geladen. Zij worden nooit aan de
-zoekfunctie of het antwoordmodel gegeven.
+In section mode, the exact minimum distinct sections across AND/OR alternatives bounds capacity: T05 needs four, so top-k three cannot complete it. Expansion can reach at most top-k distinct seed activities; reports also compute the minimum required activities across alternatives. More required activities than seeds proves infeasibility. Below that bound feasibility remains unknown because tokens/filters can still block support. Filtered-out exclusion text does not automatically make an unwritten answer wrong.
+
+Each row records dataset, frozen-reference hash, typed-input hash, exact settings, scenario and filter effect. Expected roles/actions are loaded only during assessment/reporting, never into retrieval or the answer model. Preserve old raw records, recompute derived grades against correct criteria, and never tune an unseen claim on its observed scores.
