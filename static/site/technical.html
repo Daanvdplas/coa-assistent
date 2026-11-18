@@ -1,79 +1,66 @@
-<!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title data-i18n="technicalPageTitle">Hoe het werkt · COA Assistent</title><link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand"><script src="/assets/language.js?v=20261110-grouped-header" defer></script></head><body><nav class="site-nav" aria-label="Hoofdnavigatie"><span class="site-brand"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a></nav><main class="site-main" lang="nl"><article class="technical-summary">
-  <header>
-    <h1>Zo werkt de assistent</h1>
-    <p>De assistent zoekt informatie op voordat hij een antwoord maakt. Hier lees je wat de onderdelen doen, welke gegevens ze gebruiken en wat we al testen.</p>
-  </header>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>How it works · COA Assistent</title>
+  <link rel="stylesheet" href="/assets/site.css?v=20261116-coa-brand">
+  <style>
+    .how-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;list-style:none;padding:0;margin:24px 0 12px}
+    .how-flow li{border-top:2px solid var(--heading);padding:12px 0;margin:0}.how-flow strong,.how-flow span{display:block}.how-flow span{font-size:.9rem;margin-top:5px}
+    .how-example{border-left:2px solid var(--heading);padding-left:18px;margin:20px 0}.how-example blockquote{margin:8px 0;font-size:1.15rem;max-width:58ch}.how-example cite{font-style:normal;font-size:.85rem;color:var(--muted)}
+    .technical-summary details> :not(summary){margin-left:14px;margin-right:14px}.technical-summary pre{overflow:auto;font-size:.85rem;line-height:1.65;padding:12px;background:var(--surface)}.technical-summary code{font-size:.9em}.technical-summary .how-end{margin-top:30px}
+    @media(max-width:650px){.technical-summary .how-flow{padding-left:0;gap:10px}.how-flow strong{font-size:.9rem}.how-flow span{font-size:.8rem}.how-example{padding-left:12px}}
+  </style>
+</head>
+<body>
+<nav class="site-nav" aria-label="Main navigation">
+  <span class="site-brand"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span>COA Assistent</span></span>
+  <a href="/">Demo</a>
+  <a href="/techniek/" aria-current="page">How it works</a>
+</nav>
+<main class="site-main">
+<article class="technical-summary">
+  <header><h1>Search first. Then answer.</h1><p>The assistant retrieves text from twelve fictional activities before answering. You can inspect the passages that support its answer.</p></header>
+  <ol class="how-flow" aria-label="From question to answer">
+    <li><strong>1. You ask a question</strong><span>About a time, location or language support, for example.</span></li>
+    <li><strong>2. The assistant searches</strong><span>A local search function retrieves passages. It can search again.</span></li>
+    <li><strong>3. You check the source</strong><span>The answer shows quotes with the activity and source date.</span></li>
+  </ol>
 
-  <section aria-labelledby="tech-question">
-    <h2 id="tech-question">Van vraag naar gevonden tekst</h2>
-    <ol>
-      <li><strong>De bronnen worden voorbereid.</strong> Twaalf verzonnen activiteitendocumenten zijn verdeeld in 72 tekststukjes. Elk stukje behoudt de activiteit, de sectie en de eigen brondatum.</li>
-      <li><strong>De tekst wordt doorzoekbaar.</strong> Een lokaal MiniLM-model maakt van ieder stukje een lijst getallen: een <em>embedding</em>. De titel, tussenkop en tekst tellen mee. Woorden met een vergelijkbare betekenis kunnen zo bij elkaar uitkomen.</li>
-      <li><strong>Sol doet een zoekopdracht.</strong> Rig bestuurt de model- en toolstappen. Het model krijgt jouw vraag en kan onze bestaande zoekfunctie aanroepen. Voor zoeken op betekenis maakt het lokale model ook een embedding van die zoekopdracht. Rust vergelijkt die met de opgeslagen documentvectoren en kiest de meest gelijkende stukjes.</li>
-      <li><strong>Sol krijgt gewone tekst terug.</strong> Het model ontvangt de gevonden passages met hun bron en datum, niet de vectoren. Het kan gerichter verderzoeken als bijvoorbeeld een tijdstip of adres ontbreekt.</li>
-      <li><strong>Het antwoord wordt getoond.</strong> De applicatie controleert of citaten letterlijk voorkomen in de werkelijk aangeboden passages van de juiste bron. De demo laat ook de echte zoekopdrachten en gevonden tekst zien.</li>
-    </ol>
-    <p>Dit heet <em>retrieval-augmented generation</em>, afgekort RAG: informatie ophalen en gebruiken om een antwoord te maken. Een geldig citaat bewijst de herkomst. Het bewijst nog niet dat iedere conclusie in het antwoord klopt.</p>
-    <details>
-      <summary>Waar staat dit in de code?</summary>
-      <ul>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/lib.rs#L109">Lokale index: teksten voorbereiden, embeddings maken en zoeken</a></li>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/responses/rig_runtime.rs">De Rig-agent met alleen onze lokale zoektool</a></li>
-        <li><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/docs/retrieval-codex.md">Historische Codex-verbinding voor CLI en evaluaties</a></li>
-      </ul>
-    </details>
+  <section aria-labelledby="en-example">
+    <h2 id="en-example">Where and when can I garden?</h2>
+    <p>This question needs two pieces of text: the time and location of the same activity. The search function passes retrieved text to the answer model. That model can make a more focused search if something is missing.</p>
+    <div class="how-example"><p>The fictional gardening source records the time in Dutch:</p><blockquote lang="nl">Iedere dinsdag van 10.00 tot 12.00 uur.</blockquote><cite>Gardening · section S2 · source date 20 October 2026</cite></div>
+    <p>That means Tuesday, 10:00–12:00. An initial search may miss the address. Searching again can help, but does not guarantee a complete answer. Missing information should remain unknown. An old number of free places does not establish availability today.</p>
+    <details><summary>How does search find the text?</summary><p>The twelve documents contain 72 sections. Each keeps its activity, heading and source date. MiniLM locally turns the text into a list of numbers: an <em>embedding</em>. Meaning-based search compares these with the search query's numbers, so related words can lead to the same passage.</p><p>The demo also offers word-based search with BM25. It considers matching words and how distinctive they are. Neither search score is a probability that an answer is correct. Search can return related text even when the requested fact is missing.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/lib.rs">The local index and both search routes in the code</a>.</p></details>
   </section>
 
-  <section aria-labelledby="tech-search">
-    <h2 id="tech-search">Vier manieren van zoeken</h2>
-    <dl>
-      <dt><strong>Op betekenis</strong></dt>
-      <dd>Vergelijkt embeddings. Andere woorden kunnen toch naar een verwante passage leiden. Dit is de standaard in de demo.</dd>
-      <dt><strong>Op woorden</strong></dt>
-      <dd>BM25 zoekt overeenkomende woorden en houdt rekening met hoe vaak en hoe kenmerkend ze zijn. Hiervoor is geen embeddingmodel nodig.</dd>
-      <dt><strong>Combinatie op volgorde</strong></dt>
-      <dd>Voegt de ranglijsten van woord- en betekeniszoeken samen. Een passage die bij beide hoog staat kan naar voren komen.</dd>
-      <dt><strong>Gewogen combinatie</strong></dt>
-      <dd>Brengt de verschillende scores op een afgesproken schaal en combineert ze met vaste gewichten.</dd>
-    </dl>
-    <p>Een hoge zoekscore is geen kans dat het antwoord juist is. Ook bij een vraag zonder passend antwoord kan de zoeker nog vergelijkbare tekst vinden.</p>
-    <details>
-      <summary>De zoekmethodes in de code</summary>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/engine.rs#L122">De gedeelde zoekberekening</a> en <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/config.rs#L7">de beschikbare instellingen</a>.</p>
-    </details>
+  <section aria-labelledby="en-answer">
+    <h2 id="en-answer">What does the assistant check?</h2>
+    <p>Sol writes the answer using retrieved text. The application then checks that each quote occurs exactly in an actual retrieved passage from the right activity, section and date. You can inspect those passages and the searches that were performed.</p>
+    <p>A valid quote establishes where the words came from. It does not prove every conclusion or show that all suitable activities were found. A staff member checks the sources and discusses the options with the resident.</p>
+    <details><summary>How do the model and search function work together?</summary><p>The Rust app uses Rig to call Sol through the OpenAI Responses API. The model has one tool: <code>search_document</code>. It calls the local Rust search function directly. The first search is required; the model can then make focused follow-up searches.</p><pre>Question → Rig and Sol → local search
+                         ↓ source passages
+             Sol → answer → quote validation</pre><p>A question may use at most four searches and five model attempts within 120 seconds. Before each attempt, OpenAI counts the complete input. An unknown count or more than 300,000 input tokens blocks generation. A persistent budget limits the total number of attempts.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/responses/rig_runtime.rs">The model and search loop</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/src/codex.rs#L570">The shared citation check</a>.</p></details>
   </section>
 
-  <section aria-labelledby="tech-storage">
-    <h2 id="tech-storage">Waar staan de gegevens?</h2>
-    <p>De gewone demo laadt de bronstukjes en hun vectoren in het geheugen. De bronbestanden zijn onderdeel van het programma. De lokale map met modelbestanden bevat het MiniLM-model; dat is iets anders dan de documentvectoren.</p>
-    <p>Het experimentgedeelte ondersteunt daarnaast SQLite. Daar kunnen secties apart worden opgeslagen, of aan een activiteit worden gekoppeld. Opslag en zoeken zijn afzonderlijke keuzes: gegevens anders bewaren verandert niet vanzelf welke tekst de zoekfunctie vergelijkt.</p>
-    <p>De opgeslagen experimenten gebruiken de eerdere bronset van tien activiteiten. Als alle varianten daarin dezelfde zestig secties met dezelfde zoekberekening gebruiken, kunnen ze exact dezelfde resultaten geven. Dat bewijst niet dat zoeken in hele activiteiten hetzelfde werkt als zoeken in losse secties.</p>
-    <details>
-      <summary>De opslagvarianten bekijken</summary>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/storage/mod.rs#L70">Opslagstructuren en profielen</a> zijn los gedefinieerd van <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval/config.rs#L15">de selectie van tekststukjes of een activiteit</a>.</p>
-    </details>
+  <section aria-labelledby="en-data">
+    <h2 id="en-data">What stays local, and what leaves?</h2>
+    <p>Source sections, embeddings and search computation stay on the server. OpenAI processes your question and retrieved passages to write an answer. Public-demo traffic passes through Cloudflare. Use fictional information only.</p>
+    <p>Questions and answers live temporarily in server memory. Inactive sessions expire after thirty minutes when cleanup next runs. That does not automatically remove data held by external services. The demo does not update resident records, send messages or register anyone. Participation remains the resident's choice.</p>
+    <details><summary>The server and the separate evaluations</summary><p>The ordinary demo keeps its index in RAM, without a database. Model files are cached locally. One Rust program serves the website and calls the search function; the web route starts no Codex or MCP processes. OpenAI receives text, not embedding vectors.</p><p>The separate CLI and model experiments do use Codex with a read-only MCP search tool. Evaluation tools use TypeScript and promptfoo. Optional SQLite storage and additional search methods belong to those experiments, not the ordinary web demo.</p><p><a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/runtime-report.md">Public runtime report</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/CODEBASE_GUIDE.md">Architecture and code paths</a>.</p></details>
   </section>
 
-  <section aria-labelledby="tech-evals">
-    <h2 id="tech-evals">Wat controleren de tests?</h2>
-    <p>Per testvraag ligt vooraf vast welke bronstukjes nodig zijn. Bijvoorbeeld de tijd én de locatie van één passende activiteit. Als meerdere activiteiten geldig zijn, blijven die alternatieven toegestaan; losse stukjes van verschillende activiteiten vormen niet zomaar één compleet antwoord.</p>
-    <p>Na een sessie controleert vaste code welke verwachte stukjes daadwerkelijk aan het model zijn aangeboden. Die verwachtingen sturen de zoekvragen of het stoppen van de agent niet. We tellen ook de uitgevoerde zoekacties. Minder zoeken is pas nuttig als de benodigde informatie gevonden wordt.</p>
-    <p>De opgeslagen vergelijking gebruikte de eerdere Codex-route, niet de nieuwe Responses API-route. De API-route is ook met tien gelijktijdige echte vragen op die eerdere bronset gecontroleerd. Vóór Rig was de twaalfbronnenset alleen lokaal gecontroleerd. De Rig-route is daarna op 13 november 2026 met drie echte fictieve vragen op twaalf bronnen gecontroleerd; alle drie voltooiden, met samen tien providerrequests. Dit is technische compatibiliteit, geen vergelijkende kwaliteitsmeting vóór en na de migratie.</p>
-    <p>De laatste vergelijking gebruikte tien vragen, twee modellen en drie herhalingen: zestig sessies. Beide modellen gebruikten zoeken op betekenis met dezelfde instellingen. Deze proef vergelijkt dus niet tegelijk alle zoekmethodes. <a href="/resultaten/">Bekijk de resultaten en de drie herhalingen per vraag</a>.</p>
-    <p>De inhoudelijke kwaliteit van de geschreven antwoorden is nog niet beoordeeld. Scores voor ruis en rangorde zijn hier evenmin actief: daarvoor moeten we vollediger vastleggen welke overige bronstukjes relevant zijn.</p>
-    <details>
-      <summary>Hoe we dit reproduceerbaar houden</summary>
-      <p>Vragen, bronnen, verwachte stukjes, instellingen en programma-identiteiten worden vastgelegd. Opgeslagen zoektraces kunnen zonder nieuwe modelcalls opnieuw worden beoordeeld. De zes eerdere afgebroken pogingen blijven apart van de nieuwe vergelijking bewaard.</p>
-      <p>De proef gaf per sessie maximaal drie stukjes per zoekactie, vier zoekpogingen en 120 seconden. Dezelfde instellingen maken de vergelijking controleerbaar; ze garanderen geen volledige bronset. Bij beide modellen ontbrak in alle drie herhalingen bijvoorbeeld de exacte verzamelplek van Parkonderhoud.</p>
-      <p><a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/src/retrieval_lab/agent_assessment.rs#L98">De beoordeling gebeurt achteraf</a>. Lees ook de bestaande <a href="https://github.com/Daanvdplas/coa-assistent/blob/d8080540b7a97c2fe6f4fd939b83ccc345b2576d/docs/evaluation/reproduce.md">reproduceerhandleiding</a>.</p>
-    </details>
+  <section aria-labelledby="en-evidence">
+    <h2 id="en-evidence">What do we know about quality?</h2>
+    <p>Retrieval evaluations check whether the required source passages were actually found: a time and location for one valid activity, for example. That differs from checking the written answer. Answer quality has not yet been validated against human reference judgments.</p>
+    <p>Saved comparisons use earlier source sets and the Codex route. They do not measure the current Rig demo's quality. The Rig route was checked with three fictional questions on twelve sources; one address was missed. Working software does not mean every source fact is found.</p>
+    <details><summary>What exactly do the evaluations measure?</summary><p>Expected source combinations stay outside the search index and model input. Fixed code scores them afterwards. When several activities are valid, a complete combination for one activity counts; the time of one and location of another do not form a valid combination.</p><p>Local tests with mock models also check citation errors, bounded usage, session isolation and ten concurrent questions. They do not prove current OpenAI capacity. Provenance, completeness and answer quality remain separate properties.</p><p><a href="/resultaten/">View saved results</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/evals/README.md">Evaluation guide</a>.</p></details>
   </section>
-
-  <section aria-labelledby="tech-boundaries">
-    <h2 id="tech-boundaries">Wat blijft lokaal?</h2>
-    <p>MiniLM draait lokaal via fastembed 7.1.2. De vraag en geselecteerde bronpassages gaan via Rig en de OpenAI Responses API naar Sol. De huidige webdemo start hiervoor geen Codex-processen. Lokale embeddings betekenen dus niet dat de hele verwerking lokaal blijft.</p>
-    <p>Alle activiteitendata in dit prototype zijn verzonnen. De assistent schrijft niets naar dossiers, verstuurt geen berichten en meldt niemand aan. Het is een onafhankelijk leerproject, geen intern COA-systeem. De medewerker en bewoner houden de keuze over deelname.</p>
-    <p><a href="/">Probeer de demo</a> of <a href="https://github.com/Daanvdplas/coa-assistent">bekijk de broncode en bestaande documentatie</a>.</p>
-  </section>
+  <p class="how-end"><a href="/">Back to the demo</a></p>
 </article>
-</main><footer class="site-footer"><span data-i18n="projectShortNotice">Eigen leerproject, geïnspireerd door de COA-use case. Alle activiteiten zijn verzonnen.</span> <a href="https://github.com/Daanvdplas/coa-assistent" data-i18n="code">Bekijk de code</a>.</footer></body></html>
+</main>
+<footer class="site-footer">An independent learning project inspired by the COA use case. All activities are fictional. <a href="https://github.com/Daanvdplas/coa-assistent">View the code</a>.</footer>
+</body>
+</html>
