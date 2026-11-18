@@ -7,6 +7,7 @@ const { execFileSync } = require('node:child_process');
 const ROOT = path.resolve(__dirname, '../../..');
 const METHODS = ['dense', 'bm25', 'hybrid_rrf', 'hybrid_weighted'];
 const PROFILES = ['documents_sections', 'documents_activities', 'sqlite_sections', 'sqlite_activities'];
+const DEMO = 'demo-12-20261118';
 const DATASETS = ['legacy', 'independent-20261103', 'expanded-10-20261105', 'strengthened-10-20261106'];
 const BASE = { mode: 'local', method: 'dense', profile: 'documents_sections', top_k: 3, candidate_k: 30, context_token_limit: 1200, selection: 'sections', apply_filters: false, mmr: false, rrf_k: 60, vector_weight: 0.7, mmr_lambda: 0.7, model: 'gpt-6.1-sol', filters: {} };
 function read(relative) {
@@ -17,7 +18,7 @@ function read(relative) {
 }
 function questions(dataset) {
   if (dataset === 'garden') return read('evals/rag/datasets/garden/questions.json').map(row => ({ dataset, case_id: row.id, question: row.text }));
-  if (!DATASETS.includes(dataset)) throw new Error('Unknown dataset');
+  if (![...DATASETS, DEMO].includes(dataset)) throw new Error('Unknown dataset');
   const base = `evals/shared/datasets/${dataset}/`;
   const inputs = dataset === 'independent-20261103' ? new Map(read(base + 'user-query-inputs.json').cases.map(row => [row.case_id, row.filters])) : null;
   return (dataset === 'legacy' ? ['questions.json', 'heldout-questions.json'] : ['questions.json']).flatMap(name => read(base + name).cases.map(row => ({ dataset, case_id: row.id, question: row.question, ...(inputs ? { filters: inputs.get(row.id) || {} } : {}) })));
@@ -27,11 +28,17 @@ function configurationName(config) {
 }
 function testCase(input, config, suite, repeat = 1) {
   const vars = { ...BASE, ...config, ...input };
-  return { description: `${suite} ${input.dataset}/${input.case_id} ${configurationName(vars)}`, vars, metadata: { suite, dataset: input.dataset, case_id: input.case_id, configuration: configurationName(vars), reference_scope: input.dataset === 'independent-20261103' ? 'frozen_question_holdout_on_known_five_documents_not_human' : 'existing_development_or_regression_dataset', answer_quality: 'not_assessed' }, options: { repeat, disableVarExpansion: true } };
+  return { description: `${suite} ${input.dataset}/${input.case_id} ${configurationName(vars)}`, vars, metadata: { suite, dataset: input.dataset, case_id: input.case_id, configuration: configurationName(vars), reference_scope: input.dataset === DEMO ? 'adapted_development_questions_on_twelve_known_documents_not_human' : input.dataset === 'independent-20261103' ? 'frozen_question_holdout_on_known_five_documents_not_human' : 'existing_development_or_regression_dataset', answer_quality: 'not_assessed' }, options: { repeat, disableVarExpansion: true } };
 }
 function selected(value) { return value ? new Set(value.split(',').map(part => part.trim()).filter(Boolean)) : null; }
+function suitesFor(suite, dataset) {
+  if (dataset === DEMO && !['all-local', 'retrieval', 'quality', 'agentic', 'browser'].includes(suite))
+    throw new Error('This historical suite has a fixed source protocol; select retrieval, quality, agentic or browser for the twelve-document dataset');
+  return suite === 'all-local' ? (dataset === DEMO ? ['retrieval', 'quality'] : ['garden', 'retrieval', 'quality', 'compact']) : [suite];
+}
 function buildConfig(env = process.env) {
   const suite = env.COA_PROMPTFOO_SUITE || 'retrieval';
+  suitesFor(suite, env.COA_PROMPTFOO_DATASET);
   let tests = [];
   if (suite === 'browser') {
     const cases = { 'garden-time-location':'P01', 'indoor-tuesday':'T02', 'two-activities':'T05' };
@@ -41,19 +48,19 @@ function buildConfig(env = process.env) {
     const embeddingModel = env.COA_PROMPTFOO_EMBEDDING_MODEL || 'minilm-multilingual';
     if (!METHODS.includes(method)) throw new Error('Unknown browser retrieval method');
     if (!['minilm-multilingual','e5-small-multilingual'].includes(embeddingModel)) throw new Error('Unknown embedding model');
-    const input=questions('legacy').find(row=>row.case_id===cases[evalId]);
+    const input=questions(DEMO).find(row=>row.case_id===cases[evalId]);
     tests=[testCase({...input,browser_eval_id:evalId,embedding_model:embeddingModel},{method,top_k:5,profile:'documents_sections'},suite)];
   } else if (suite === 'garden') {
     tests = questions('garden').flatMap(input => ['dense', 'keyword_overlap'].map(method => testCase(input, { mode: 'garden', method }, suite)));
   } else if (suite === 'retrieval') {
-    tests = DATASETS.flatMap(dataset => questions(dataset).flatMap(input => METHODS.flatMap(method => PROFILES.map(profile => testCase(input, { method, profile }, suite)))));
+    tests = (env.COA_PROMPTFOO_DATASET === DEMO ? [DEMO] : DATASETS).flatMap(dataset => questions(dataset).flatMap(input => METHODS.flatMap(method => PROFILES.map(profile => testCase(input, { method, profile }, suite)))));
   } else if (suite === 'quality') {
     const inputs = read('evals/shared/datasets/independent-20261103/user-query-inputs.json').cases;
     const filters = new Map(inputs.map(row => [row.case_id, row.filters]));
     const variants = METHODS.flatMap(method => [ ...PROFILES.map(profile => ({ method, profile })), { method, selection: 'activity_expansion' }, { method, top_k: 6 }, { method, selection: 'activity_expansion', apply_filters: true } ]);
-    tests = ['legacy', 'independent-20261103'].flatMap(dataset => questions(dataset).flatMap(input => variants.filter(config => !config.apply_filters || dataset === 'independent-20261103').map(config => testCase(input, { ...config, filters: config.apply_filters && dataset === 'independent-20261103' ? filters.get(input.case_id) || {} : {} }, suite))));
+    tests = (env.COA_PROMPTFOO_DATASET === DEMO ? [DEMO] : ['legacy', 'independent-20261103']).flatMap(dataset => questions(dataset).flatMap(input => variants.filter(config => !config.apply_filters || dataset === 'independent-20261103').map(config => testCase(input, { ...config, filters: config.apply_filters && dataset === 'independent-20261103' ? filters.get(input.case_id) || {} : {} }, suite))));
   } else if (suite === 'agentic') {
-    const selection = read('evals/rag/datasets/presentation-selection.json').cases;
+    const selection = env.COA_PROMPTFOO_DATASET === DEMO ? questions(DEMO).map(row => ({dataset_id:DEMO,case_id:row.case_id})) : read('evals/rag/datasets/presentation-selection.json').cases;
     tests = selection.flatMap(row => {
       const input = questions(row.dataset_id).find(input => input.case_id === row.case_id);
       if (!input) throw new Error('Frozen agentic selection refers to an unknown question');
@@ -93,4 +100,4 @@ function buildConfig(env = process.env) {
   if (!tests.length) throw new Error('No matching existing tests selected');
   return { description: `COA RAG / ${suite} / existing frozen data`, prompts: ['{{question}}'], providers: [{ id: 'file://provider.ts', label: `coa-${suite}-runtime`, config: {} }], tests, defaultTest: { assert: [{ type: 'javascript', value: suite === 'models' ? 'file://assertions.ts:getModelAssert' : 'file://assertions.ts:getAssert' }] }, evaluateOptions: { maxConcurrency: 1, maxRetries: 0, cache: false }, commandLineOptions: { cache: false, maxConcurrency: 1, maxRetries: 0 } };
 }
-module.exports = { buildConfig, questions, configurationName, ROOT };
+module.exports = { suitesFor, buildConfig, questions, configurationName, ROOT };

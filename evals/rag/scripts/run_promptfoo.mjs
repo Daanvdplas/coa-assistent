@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { project, saveProjection } from './export_promptfoo_results.mjs';
 
@@ -19,6 +20,8 @@ for (let i=0;i<args.length;i++) {
   options[key]=args[++i];
 }
 const suite = options.suite || 'retrieval';
+const { suitesFor } = createRequire(import.meta.url)('../promptfoo/cases.cjs');
+const suites = suitesFor(suite, options.dataset);
 if (suite!=='browser' && (options['eval-id'] || options['embedding-model'])) throw new Error('--eval-id en --embedding-model horen uitsluitend bij browser.');
 if (suite==='browser' && !options['eval-id']) throw new Error('Browser vereist --eval-id voor één bestaande test.');
 if (suite==='browser' && options.live) throw new Error('Browser zoekt uitsluitend lokaal, zonder live-generaties.');
@@ -60,7 +63,6 @@ async function execute(command, values, capture=false) {
     child.once('error',reject);child.once('close',code=>{process.removeListener('SIGINT',stop);resolvePromise({code:code??1,output});});
   });
 }
-const suites = suite==='all-local' ? ['garden','retrieval','quality','compact'] : [suite];
 let exitCode=0;
 for (const selected of suites) {
   if (interrupted) break;

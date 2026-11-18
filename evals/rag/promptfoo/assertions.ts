@@ -34,6 +34,7 @@ const DATASETS = new Set([
   "expanded-10-20261105",
   "strengthened-10-20261106",
   "garden",
+  "demo-12-20261118",
 ]);
 function requireCondition(
   condition: unknown,
@@ -168,7 +169,7 @@ export function goalMetrics(
     minimum_required_sections: Math.min(...frontier.map((set) => set.size)),
   };
 }
-export function canonicalSources(expanded = false): Map<string, Section> {
+export function canonicalSources(expanded = false, demo = false): Map<string, Section> {
   const names = [
     "document.md",
     "bicycle-workshop.md",
@@ -176,11 +177,14 @@ export function canonicalSources(expanded = false): Map<string, Section> {
     "community-cooking.md",
     "walking.md",
   ];
-  if (expanded)
+  if (expanded || demo)
     for (let i = 6; i <= 10; i++)
       names.push(
         `expanded-10-20261105/activity-${String(i).padStart(3, "0")}.md`,
       );
+  if (demo)
+    for (const number of [11, 12])
+      names.push(`demo-12-20261113/activity-${String(number).padStart(3, "0")}.md`);
   const pins = readJson<{ files: Record<string, string> }>(
       resolve(HERE, "data-pins.json"),
     ).files,
@@ -257,7 +261,7 @@ function browserEmbedding(record: NativeRecord, variables: Variables): string {
   };
   requireCondition(
     cases[variables.browser_eval_id] === variables.case_id &&
-      variables.dataset === "legacy",
+      ["legacy", "demo-12-20261118"].includes(variables.dataset),
     "Browser case differs from its existing reference",
   );
   const fixed = {
@@ -921,6 +925,7 @@ export function measure(
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       envelope.dataset_id,
     ),
+    envelope.dataset_id === "demo-12-20261118",
   );
   const [hits, seeds, config, calls] = observations(
     envelope,
@@ -1106,6 +1111,7 @@ function compactAssert(envelope: Envelope, variables: Variables): Grade {
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       variables.dataset,
     ),
+    variables.dataset === "demo-12-20261118",
   );
   for (const hit of full.hits)
     requireCondition(

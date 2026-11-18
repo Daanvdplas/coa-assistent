@@ -49,6 +49,33 @@ fn validates_bundled_data_without_authentication() {
 }
 
 #[test]
+fn validates_the_current_twelve_document_dataset_without_a_model() {
+    let result = Command::new(env!("CARGO_BIN_EXE_meedoen-retrieval"))
+        .args([
+            "experiment",
+            "validate",
+            "--questions",
+            "evals/shared/datasets/demo-12-20261118/questions.json",
+            "--expectations",
+            "evals/shared/datasets/demo-12-20261118/expectations.json",
+        ])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("COA_CODEX_BIN", "/missing/PRIVATE-CANARY")
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["corpus_id"], "demo-twelve");
+    assert_eq!(value["source_count"], 12);
+    assert_eq!(value["as_of"], "2026-11-13");
+    assert_eq!(value["cases"], value["criteria"]);
+}
+
+#[test]
 fn live_run_checks_selection_before_runtime_or_creating_artifacts() {
     let result = std::process::Command::new(env!("CARGO_BIN_EXE_meedoen-retrieval"))
         .args([

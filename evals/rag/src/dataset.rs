@@ -131,6 +131,54 @@ const STRENGTHENED_FROZEN: &str =
 const STRENGTHENED_FROZEN_SHA256: &str =
     "08e4febda02e92237b03966c285f086eb9e2b5c1623e84ee6463edee4e9626b0";
 
+pub const DEMO_ID: &str = "demo-12-20261118";
+pub const DEMO_QUESTIONS: &str =
+    include_str!("../../shared/datasets/demo-12-20261118/questions.json");
+pub const DEMO_EXPECTATIONS: &str =
+    include_str!("../../shared/datasets/demo-12-20261118/expectations.json");
+pub const DEMO_DETAILS: &str =
+    include_str!("../../shared/datasets/demo-12-20261118/reference-details.json");
+pub const DEMO_SELECTION: &str =
+    include_str!("../../shared/datasets/demo-12-20261118/presentation-selection.json");
+const DEMO_FROZEN: &str = include_str!("../../shared/datasets/demo-12-20261118/FROZEN.json");
+const DEMO_FROZEN_SHA256: &str = "cbb8ee60a00a79d5df863d5cbcce9dc7d7aec88b0b65b3b4640410ad2c1ac576";
+
+pub(super) fn verify_demo_artifact(name: &str, text: &str) -> Result<(), String> {
+    let freeze: serde_json::Value =
+        serde_json::from_str(DEMO_FROZEN).map_err(|error| error.to_string())?;
+    let corpus = crate::corpus::CorpusId::DemoTwelve;
+    if crate::manifest::hash(DEMO_FROZEN.as_bytes()) != DEMO_FROZEN_SHA256
+        || freeze["review"]["approved"] != true
+        || freeze["reference_date"] != corpus.as_of()
+        || freeze["integrity"]["corpus_sha256"] != corpus.sha256()
+    {
+        return Err(
+            "Twelve-document source reference is awaiting independent approval or has changed"
+                .into(),
+        );
+    }
+    let path = format!("evals/shared/datasets/{DEMO_ID}/{name}");
+    let digest = crate::manifest::hash(text.as_bytes());
+    let matched = freeze["integrity"]["artifacts"]
+        .as_array()
+        .ok_or("Missing demo freeze artifacts")?
+        .iter()
+        .filter(|artifact| artifact["path"] == path && artifact["sha256_bytes"] == digest)
+        .count();
+    if matched != 1 {
+        return Err("Twelve-document artifact differs from its reviewed freeze".into());
+    }
+    Ok(())
+}
+
+pub(super) fn source_dataset_id(id: &str) -> Option<&'static str> {
+    if id == DEMO_ID {
+        Some(DEMO_ID)
+    } else {
+        ten_source_dataset_id(id)
+    }
+}
+
 pub(super) fn ten_source_dataset_id(id: &str) -> Option<&'static str> {
     match id {
         EXPANDED_ID => Some(EXPANDED_ID),
@@ -194,7 +242,9 @@ pub struct QuestionDataset {
 
 impl QuestionDataset {
     pub fn corpus(&self) -> crate::corpus::CorpusId {
-        if ten_source_dataset_id(&self.id).is_some() {
+        if self.id == DEMO_ID {
+            crate::corpus::CorpusId::DemoTwelve
+        } else if ten_source_dataset_id(&self.id).is_some() {
             crate::corpus::CorpusId::ExpandedTen
         } else {
             crate::corpus::CorpusId::BaselineFive
@@ -256,6 +306,12 @@ pub fn load(id: &str) -> Result<QuestionDataset, String> {
                 query_inputs_sha256: Some(crate::manifest::hash(USER_INPUTS.as_bytes())),
             })
         }
+        DEMO_ID => {
+            verify_demo_artifact("questions.json", DEMO_QUESTIONS)?;
+            let mut catalog = questions_for_corpus(&[DEMO_QUESTIONS], false, crate::corpus::CorpusId::DemoTwelve)?;
+            catalog.identity.limitation = "Seventeen adapted AI-authored source-reviewed development questions on twelve fictional documents; not a blind holdout, human calibration or answer-quality judgment".into();
+            Ok(QuestionDataset { id: id.into(), catalog, query_inputs: Default::default(), query_inputs_sha256: None })
+        }
         EXPANDED_ID => {
             verify_expanded_artifact("questions.json", EXPANDED_QUESTIONS)?;
             let catalog = questions_for_corpus(&[EXPANDED_QUESTIONS], true, crate::corpus::CorpusId::ExpandedTen)?;
@@ -273,7 +329,7 @@ pub fn load(id: &str) -> Result<QuestionDataset, String> {
             catalog.identity.limitation = "Prospectively frozen source-based development questions on ten known fictional documents; four retained and six new or refined, AI-authored and independently AI-reviewed, not human calibration or a blind heldout benchmark".into();
             Ok(QuestionDataset { id: id.into(), catalog, query_inputs: Default::default(), query_inputs_sha256: None })
         }
-        _ => Err("Unknown dataset; select legacy, independent-20261103, expanded-10-20261105 or strengthened-10-20261106 explicitly".into()),
+        _ => Err("Unknown dataset; select legacy, independent-20261103, expanded-10-20261105 strengthened-10-20261106 or demo-12-20261118 explicitly".into()),
     }
 }
 

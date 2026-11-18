@@ -1,0 +1,804 @@
+{
+  "schema_version": "1",
+  "dataset_version": "demo-12-20261118-v1",
+  "questions_sha256": "11cbf945f4848b57c431291c36d009098fe86a8ef68e6f5ca54a23d75f16f342",
+  "evaluation_only_canary": "demo-12-20261118-evaluation-only",
+  "review_note": "Protected source goals for the twelve-document development corpus. Minimal sufficient AND/OR evidence plans; relevance labels are not exhaustive. New source review required before first measurement. Retrieval coverage does not assess answer correctness.",
+  "cases": [
+    {
+      "case_id": "RAG26-01",
+      "facts": [
+        {
+          "id": "rag26-01-sources",
+          "description": "Tijd en locatie uit twee stukjes samenbrengen.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TUIN-001",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-TUIN-001",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-TUIN-001",
+          "section_id": "S3"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-02",
+      "facts": [
+        {
+          "id": "rag26-02-sources",
+          "description": "Alle passende activiteiten vinden, ook het nieuwe atelier.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TUIN-001",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-MAAK-006",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-TUIN-001",
+          "section_id": "S2"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-03",
+      "facts": [
+        {
+          "id": "rag26-03-sources",
+          "description": "Een volledig juiste optie accepteren; geen tijden en locaties door elkaar halen.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S3"
+              }
+            ],
+            [
+              {
+                "source_id": "ACT-MAAK-006",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-MAAK-006",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "section_id": "S3"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-04",
+      "facts": [
+        {
+          "id": "rag26-04-sources",
+          "description": "Twee activiteiten vinden en hun verschillende adressen uit elkaar houden.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-WANDEL-005",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-WANDEL-005",
+                "section_id": "S3"
+              },
+              {
+                "source_id": "ACT-PARK-007",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-PARK-007",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-PARK-007",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "section_id": "S3"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-05",
+      "facts": [
+        {
+          "id": "rag26-05-sources",
+          "description": "Taalvoorwaarden vergelijken en de B1-eis alleen op voorlezen toepassen.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S1"
+              },
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S4"
+              },
+              {
+                "source_id": "ACT-BIEB-008",
+                "section_id": "S4"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-BIEB-008",
+          "section_id": "S4"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S4"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-06",
+      "facts": [
+        {
+          "id": "rag26-06-sources",
+          "description": "Een Engelse vraag beantwoorden met Nederlandse bronnen over ervaring, materiaal, tijd en begeleiding.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-MUZIEK-009",
+                "section_id": "S1"
+              },
+              {
+                "source_id": "ACT-MUZIEK-009",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-MUZIEK-009",
+                "section_id": "S4"
+              },
+              {
+                "source_id": "ACT-MUZIEK-009",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "section_id": "S1"
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "section_id": "S4"
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "section_id": "S5"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-07",
+      "facts": [
+        {
+          "id": "rag26-07-sources",
+          "description": "Praktische voorwaarden combineren en de computerruimte van de fietsenwerkplaats onderscheiden.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-DIGI-010",
+                "section_id": "S3"
+              },
+              {
+                "source_id": "ACT-DIGI-010",
+                "section_id": "S4"
+              },
+              {
+                "source_id": "ACT-DIGI-010",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-DIGI-010",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "section_id": "S4"
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "section_id": "S5"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-08",
+      "facts": [
+        {
+          "id": "rag26-08-sources",
+          "description": "Een afgebakende negatieve uitkomst onderbouwen met de twee genoemde roosters.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-MUZIEK-009",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-DIGI-010",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-DIGI-010",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "section_id": "S2"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-09",
+      "facts": [
+        {
+          "id": "rag26-09-sources",
+          "description": "Ontbrekende informatie herkennen en aanwezige materialen vinden.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-KOKEN-004",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [
+        "De bron bevestigt niet dat sesam vermeden kan worden."
+      ],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-KOKEN-004",
+          "section_id": "S5"
+        }
+      ]
+    },
+    {
+      "case_id": "RAG26-10",
+      "facts": [
+        {
+          "id": "rag26-10-sources",
+          "description": "Een recente brondatum onderscheiden van een oude telling van vrije plekken.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-PARK-007",
+                "section_id": "S6"
+              },
+              {
+                "source_id": "ACT-DIGI-010",
+                "section_id": "S6"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [
+        "Historische aantallen bevestigen geen actuele beschikbaarheid op 13 november 2026."
+      ],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-DIGI-010",
+          "section_id": "S6"
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "section_id": "S6"
+        }
+      ]
+    },
+    {
+      "case_id": "DEMO12-11",
+      "facts": [
+        {
+          "id": "demo12-11-sources",
+          "description": "Ik wil leren schaken. Waar en wanneer kan dat volgens dit aanbod, en moet ik zelf een schaakbord of stukken meenemen?",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-SCHAAK-011",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-SCHAAK-011",
+                "section_id": "S3"
+              },
+              {
+                "source_id": "ACT-SCHAAK-011",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen of aanwezig materiaal als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "section_id": "S5"
+        }
+      ]
+    },
+    {
+      "case_id": "DEMO12-12",
+      "facts": [
+        {
+          "id": "demo12-12-sources",
+          "description": "Ik wil een losse knoop leren vastzetten, maar heb geen naaiervaring en geen eigen kledingstuk om mee te nemen. Kan ik toch oefenen, is er materiaal en krijg ik hulp bij de naaimachine?",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-NAAI-012",
+                "section_id": "S1"
+              },
+              {
+                "source_id": "ACT-NAAI-012",
+                "section_id": "S4"
+              },
+              {
+                "source_id": "ACT-NAAI-012",
+                "section_id": "S5"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen of aanwezig materiaal als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S1"
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S4"
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S5"
+        }
+      ]
+    },
+    {
+      "case_id": "DEMO12-13",
+      "facts": [
+        {
+          "id": "demo12-13-sources",
+          "description": "Is er op 13 november 2026 nog plek bij Schaken en is er vervoer naar de ontmoetingsruimte geregeld?",
+          "kind": "unknown",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-SCHAAK-011",
+                "section_id": "S6"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen of aanwezig materiaal als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [
+        "Actuele vrije plekken bij Schaken zijn niet vastgelegd.",
+        "Vervoer naar Schaken is niet beschreven."
+      ],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "section_id": "S6"
+        }
+      ]
+    },
+    {
+      "case_id": "DEMO12-14",
+      "facts": [
+        {
+          "id": "demo12-14-sources",
+          "description": "Hoeveel vrije plekken waren voor het laatst vastgelegd bij het Naaicafé en op welke datum? Bevestigt dit dat er op 13 november 2026 nog plek is?",
+          "kind": "unknown",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-NAAI-012",
+                "section_id": "S6"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen of aanwezig materiaal als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [
+        "Actuele vrije plekken bij het Naaicafé op 13 november 2026 zijn onbekend."
+      ],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S6"
+        }
+      ]
+    },
+    {
+      "case_id": "P01",
+      "facts": [
+        {
+          "id": "garden-time",
+          "description": "Iedere dinsdag van 10.00 tot 12.00 uur.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TUIN-001",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "garden-location",
+          "description": "Buurttuin De Linde, achter het buurthuis aan Lindenlaan 12 in het fictieve Lindedorp.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TUIN-001",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Tuinieren vindt op donderdag of vrijdag plaats."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-TUIN-001",
+          "section_id": "S3"
+        }
+      ]
+    },
+    {
+      "case_id": "T02",
+      "facts": [
+        {
+          "id": "indoor-tuesday-valid-option",
+          "description": "Een volledig juiste optie accepteren; geen tijden en locaties door elkaar halen.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-FIETS-002",
+                "section_id": "S3"
+              }
+            ],
+            [
+              {
+                "source_id": "ACT-MAAK-006",
+                "section_id": "S2"
+              },
+              {
+                "source_id": "ACT-MAAK-006",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [],
+      "forbidden_claims": [
+        "Historische aantallen als bevestiging van actuele vrije plaatsen presenteren."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "section_id": "S3"
+        }
+      ]
+    },
+    {
+      "case_id": "T05",
+      "facts": [
+        {
+          "id": "language-time",
+          "description": "Het taalcafé is op woensdag van 14.00 tot 15.30 uur.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "language-address",
+          "description": "Het taalcafé is in Het Woordhuis, Kastanjelaan 4 in Lindedorp. De vermelding dat het binnen is, is optioneel.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-TAAL-003",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "cooking-time",
+          "description": "Samen koken is op vrijdag van 11.00 tot 13.00 uur.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-KOKEN-004",
+                "section_id": "S2"
+              }
+            ]
+          ]
+        },
+        {
+          "id": "cooking-address",
+          "description": "Samen koken is in De Pan, Beukenstraat 6 in Lindedorp. De vermelding dat het binnen is, is optioneel.",
+          "kind": "fact",
+          "evidence_alternatives": [
+            [
+              {
+                "source_id": "ACT-KOKEN-004",
+                "section_id": "S3"
+              }
+            ]
+          ]
+        }
+      ],
+      "conditions": [
+        "Koppel iedere tijd en ieder adres aan de juiste activiteit.",
+        "Het rooster bevestigt geen vrije plekken of inschrijving."
+      ],
+      "forbidden_claims": [
+        "Er is zeker plaats bij beide activiteiten.",
+        "De medewerker heeft je aangemeld."
+      ],
+      "required_unknowns": [],
+      "relevance_labels_complete": false,
+      "relevant_sections": [
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3"
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "section_id": "S2"
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "section_id": "S3"
+        }
+      ]
+    }
+  ]
+}

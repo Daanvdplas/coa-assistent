@@ -88,6 +88,7 @@ export function question(dataset: string, caseId: string): string {
       "independent-20261103",
       "expanded-10-20261105",
       "strengthened-10-20261106",
+      "demo-12-20261118",
     ].includes(dataset)
   )
     paths = ["evals/shared/datasets/" + dataset + "/questions.json"];
@@ -246,7 +247,7 @@ export function browserEmbeddingModel(
   };
   if (
     cases[evalId] !== variables.case_id ||
-    variables.dataset !== "legacy" ||
+    !["legacy", "demo-12-20261118"].includes(variables.dataset ?? "") ||
     (variables.mode ?? "local") !== "local"
   )
     throw new Error("Unknown existing browser question");
@@ -560,7 +561,7 @@ export async function callApi(
           method,
         );
         if (
-          ["expanded-10-20261105", "strengthened-10-20261106"].includes(dataset)
+          ["expanded-10-20261105", "strengthened-10-20261106", "demo-12-20261118"].includes(dataset)
         )
           command.push("--dataset", dataset);
       }

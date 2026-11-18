@@ -88,7 +88,35 @@ pub fn load(questions_path: &Path, labels_path: &Path) -> Result<(QuestionSet, L
         std::fs::read_to_string(questions_path).map_err(|_| "Cannot read evaluation questions")?;
     let labels =
         std::fs::read_to_string(labels_path).map_err(|_| "Cannot read evaluation expectations")?;
-    parse(&questions, &labels)
+    let parsed: QuestionSet = serde_json::from_str(&questions)
+        .map_err(|_| "Evaluation questions do not match the schema")?;
+    parse_for_corpus(&questions, &labels, corpus_for_questions(&parsed)?)
+}
+
+pub fn corpus_for_questions(questions: &QuestionSet) -> Result<crate::corpus::CorpusId, String> {
+    corpus_for_identity(&questions.as_of, &questions.corpus_sha256)
+}
+
+pub(super) fn corpus_for_identity(
+    as_of: &str,
+    sha256: &str,
+) -> Result<crate::corpus::CorpusId, String> {
+    [
+        crate::corpus::CorpusId::BaselineFive,
+        crate::corpus::CorpusId::ExpandedTen,
+        crate::corpus::CorpusId::DemoTwelve,
+    ]
+    .into_iter()
+    .find(|corpus| corpus.as_of() == as_of && corpus.sha256() == sha256)
+    .ok_or_else(|| "Unknown evaluation corpus or reference date".into())
+}
+
+pub fn validate_demo_twelve() -> Result<(QuestionSet, LabelSet), String> {
+    parse_for_corpus(
+        include_str!("../../shared/datasets/demo-12-20261118/questions.json"),
+        include_str!("../../shared/datasets/demo-12-20261118/expectations.json"),
+        crate::corpus::CorpusId::DemoTwelve,
+    )
 }
 
 pub fn parse(questions: &str, labels: &str) -> Result<(QuestionSet, LabelSet), String> {
@@ -129,6 +157,20 @@ pub fn validate(
     documents: &[&str],
 ) -> Result<(), String> {
     validate_for_date(questions, labels, sources, documents, crate::AS_OF)
+}
+
+pub(super) fn validate_for_corpus(
+    questions: &QuestionSet,
+    labels: &LabelSet,
+    corpus: crate::corpus::CorpusId,
+) -> Result<(), String> {
+    validate_for_date(
+        questions,
+        labels,
+        &corpus.sources()?,
+        corpus.documents(),
+        corpus.as_of(),
+    )
 }
 
 fn validate_for_date(
@@ -401,6 +443,46 @@ mod tests {
         assert_eq!(labels.cases[4].facts[0].kind, "unknown");
         labels.cases[4].required_unknowns.clear();
         assert!(validate(&questions, &labels, &sources, crate::DOCUMENTS).is_err());
+    }
+
+    #[test]
+    fn file_loader_selects_twelve_sources_without_accepting_changed_fingerprints() {
+        let (mut questions, mut labels, _) = fixtures();
+        let corpus = crate::corpus::CorpusId::DemoTwelve;
+        questions.as_of = corpus.as_of().into();
+        questions.corpus_sha256 = corpus.sha256();
+        questions.sources = corpus
+            .sources()
+            .unwrap()
+            .iter()
+            .zip(corpus.documents())
+            .map(|(source, raw)| CorpusSource {
+                id: source.id.clone(),
+                date: source.date.clone(),
+                sha256: hash(raw.as_bytes()),
+            })
+            .collect();
+        reseal(&questions, &mut labels);
+        let directory = std::env::temp_dir().join(format!(
+            "coa-twelve-dataset-{}-{}",
+            std::process::id(),
+            crate::experiment::budget::now_ms().unwrap()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let questions_path = directory.join("questions.json");
+        let labels_path = directory.join("expectations.json");
+        std::fs::write(&questions_path, serde_json::to_vec(&questions).unwrap()).unwrap();
+        std::fs::write(&labels_path, serde_json::to_vec(&labels).unwrap()).unwrap();
+        assert_eq!(
+            load(&questions_path, &labels_path).unwrap().0.sources.len(),
+            12
+        );
+        questions.sources[11].sha256 = "0".repeat(64);
+        reseal(&questions, &mut labels);
+        std::fs::write(&questions_path, serde_json::to_vec(&questions).unwrap()).unwrap();
+        std::fs::write(&labels_path, serde_json::to_vec(&labels).unwrap()).unwrap();
+        assert!(load(&questions_path, &labels_path).is_err());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

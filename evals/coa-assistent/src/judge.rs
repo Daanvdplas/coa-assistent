@@ -110,7 +110,9 @@ pub fn criterion_ids(criteria: &CaseCriteria) -> Vec<String> {
     ids
 }
 fn authoritative_sections(criteria: &CaseCriteria) -> Result<Vec<Section>, String> {
-    let sources = crate::source::parse_sources(crate::DOCUMENTS)?;
+    // The pinned twelve-source corpus preserves all historical source bytes.
+    // Only references explicitly present in the selected criteria are supplied.
+    let sources = crate::corpus::CorpusId::DemoTwelve.sources()?;
     Ok(sources
         .iter()
         .flat_map(|s| &s.sections)
@@ -625,6 +627,23 @@ mod tests {
             .cases
             .remove(0)
     }
+    #[test]
+    fn new_corpus_criteria_receive_their_pinned_reference_sections() {
+        let (_, labels) = super::super::dataset::validate_demo_twelve().unwrap();
+        let criteria = labels
+            .cases
+            .iter()
+            .find(|case| case.case_id == "DEMO12-11")
+            .unwrap();
+        let sections = authoritative_sections(criteria).unwrap();
+        assert!(!sections.is_empty());
+        assert!(
+            sections
+                .iter()
+                .all(|section| section.source_id == "ACT-SCHAAK-011")
+        );
+    }
+
     #[test]
     fn rejects_unsupported_fragments_missing_dimensions_and_conflicting_overall() {
         let criteria = criteria();

@@ -269,7 +269,7 @@ impl EvalJobs {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let (tx, rx) = watch::channel(false);
-        let snapshot = json!({"run_id":id,"eval_id":input.eval_id,"method":input.method,"requested_embedding_model":input.embedding_model,"embedding_model":null,"embedding_identity":null,"status":"preparing","progress":{"completed":0,"total":1}});
+        let snapshot = json!({"run_id":id,"eval_id":input.eval_id,"dataset":meedoen_retrieval::retrieval_lab::dataset::DEMO_ID,"method":input.method,"requested_embedding_model":input.embedding_model,"embedding_model":null,"embedding_identity":null,"status":"preparing","progress":{"completed":0,"total":1}});
         book.entries.insert(
             id.clone(),
             Entry {
@@ -291,28 +291,14 @@ pub(super) async fn catalog(
     headers: HeaderMap,
 ) -> Json<Value> {
     let can_run = require_local(peer, &headers).is_ok();
-    let questions = serde_json::from_str::<Value>(include_str!(
-        "../../evals/shared/datasets/legacy/questions.json"
-    ))
-    .unwrap();
-    let heldout = serde_json::from_str::<Value>(include_str!(
-        "../../evals/shared/datasets/legacy/heldout-questions.json"
-    ))
-    .unwrap();
-    let labels = serde_json::from_str::<Value>(include_str!(
-        "../../evals/shared/datasets/legacy/expectations.json"
-    ))
-    .unwrap();
-    let heldout_labels = serde_json::from_str::<Value>(include_str!(
-        "../../evals/shared/datasets/legacy/heldout-expectations.json"
-    ))
-    .unwrap();
-    let sources = meedoen_retrieval::corpus::CorpusId::BaselineFive
-        .sources()
-        .unwrap();
+    use meedoen_retrieval::retrieval_lab::dataset;
+    let questions: Value = serde_json::from_str(dataset::DEMO_QUESTIONS).unwrap();
+    let labels: Value = serde_json::from_str(dataset::DEMO_EXPECTATIONS).unwrap();
+    let corpus = meedoen_retrieval::corpus::CorpusId::DemoTwelve;
+    let sources = corpus.sources().unwrap();
     let evaluations:Vec<_>=EVALS.iter().map(|(id,case,title)| {
-        let question=questions["cases"].as_array().unwrap().iter().chain(heldout["cases"].as_array().unwrap()).find(|row|row["id"]==*case).unwrap();
-        let criteria=labels["cases"].as_array().unwrap().iter().chain(heldout_labels["cases"].as_array().unwrap()).find(|row|row["case_id"]==*case).unwrap();
+        let question=questions["cases"].as_array().unwrap().iter().find(|row|row["id"]==*case).unwrap();
+        let criteria=labels["cases"].as_array().unwrap().iter().find(|row|row["case_id"]==*case).unwrap();
         let goals:Vec<_>=criteria["facts"].as_array().unwrap().iter().filter(|fact|fact["evidence_alternatives"].as_array().is_some_and(|value|!value.is_empty())).map(|fact| {
             let alternatives:Vec<Vec<Value>>=fact["evidence_alternatives"].as_array().unwrap().iter().map(|option|option.as_array().unwrap().iter().map(|reference| {
                 let source=sources.iter().find(|source|source.id==reference["source_id"].as_str().unwrap()).unwrap();
@@ -321,7 +307,7 @@ pub(super) async fn catalog(
             }).collect()).collect();
             json!({"id":fact["id"],"description":fact["description"],"alternatives":alternatives})
         }).collect();
-        json!({"id":id,"title":title,"question":question["question"],"description":"Een vaste vraag op vijf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"corpus":{"document_count":5,"section_count":30,"as_of":"2026-10-20"},"expected_goals":goals})
+        json!({"id":id,"title":title,"question":question["question"],"description":"Een vaste vraag op twaalf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"dataset":dataset::DEMO_ID,"dataset_version":questions["dataset_version"],"corpus":{"id":corpus.id(),"sha256":corpus.sha256(),"document_count":12,"section_count":72,"as_of":corpus.as_of()},"expected_goals":goals})
     }).collect();
     let models:Vec<_>=ModelChoice::all().iter().map(|model|json!({"id":model.id(),"label":model.spec().label,"repository":model.spec().repository,"dimensions":model.spec().dimensions,"available":true,"cached":model.cached(&jobs.cache)})).collect();
     Json(
@@ -587,7 +573,7 @@ async fn execute(
     let expected = EVALS.iter().find(|row| row.0 == input.eval_id).unwrap();
     if rows.len() != 1
         || rows[0]["case_id"] != expected.1
-        || rows[0]["dataset"] != "legacy"
+        || rows[0]["dataset"] != meedoen_retrieval::retrieval_lab::dataset::DEMO_ID
         || rows[0]["configuration"]["method"] != input.method
         || !matches!(rows[0]["status"].as_str(), Some("passed" | "failed"))
         || !rows[0]["source_complete"].is_boolean()

@@ -2,6 +2,8 @@
 
 Hier staan de proeven met gegenereerde antwoorden: vier RAG-aanpakken, harde bron-/citaatcontroles, de afzonderlijke inhoudelijke beoordelaar en diens kalibratie. Generatie en AI-beoordeling gebruiken Codex CLI. De modelbeoordelaar blijft voorlopig en is niet menselijk geijkt.
 
+Dezelfde vier aanpakken kunnen ook de actuele twaalf fictieve activiteiten gebruiken: kies samen `--questions evals/shared/datasets/demo-12-20261118/questions.json` en `--expectations evals/shared/datasets/demo-12-20261118/expectations.json`. De vraagset bindt het broncorpus, de referentiedatum en de criteria; alle-documentencontext bevat dan 72 secties. Zonder deze keuze blijft de bestaande vijfbronnenpilot behouden. Dit meet de Codex-evalroute, niet de afzonderlijke Rig/Responses-webdemo. Nieuwe modelantwoorden zijn variabel; de broncontroles op opgeslagen uitvoer zijn vast.
+
 - [Actuele reproduceerhandleiding](docs/reproduce.md), [criteria](docs/metrics.md) en [datasetuitleg](docs/dataset.md).
 - `src/`: de bestaande `experiment`-harness, inclusief judge, budget en rapportbouw.
 - `fixtures/`: acht kalibratievoorbeelden, AI-referentie en handgemaakt rapportvoorbeeld.

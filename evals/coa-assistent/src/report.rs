@@ -174,6 +174,7 @@ fn catalog() -> Result<Vec<(QuestionSet, LabelSet)>, String> {
             crate::retrieval_lab::dataset::LEGACY_V1_QUESTIONS,
             crate::retrieval_lab::dataset::LEGACY_V1_EXPECTATIONS,
         )?,
+        dataset::validate_demo_twelve()?,
     ])
 }
 fn bind<'a>(
@@ -190,6 +191,8 @@ fn bind<'a>(
         .find(|q| q.id == record.case_id)
         .ok_or("De uitvoering hoort niet bij deze vragenset.")?;
     if dataset::questions_hash(questions)? != record.manifest.questions_sha256
+        || questions.corpus_sha256 != record.manifest.corpus_sha256
+        || questions.as_of != record.manifest.as_of
         || labels.dataset_version != record.manifest.expectations_version
         || crate::manifest::hash(
             &serde_json::to_vec(labels).map_err(|_| "Kan criteria niet controleren")?,

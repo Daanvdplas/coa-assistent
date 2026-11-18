@@ -82,15 +82,11 @@ pub fn validate_record(record: &ExperimentRecord) -> Result<(), String> {
             return Err("Invalid experiment fingerprint".into());
         }
     }
-    if manifest.as_of != crate::AS_OF
-        || manifest.corpus_sha256
-            != crate::manifest::hash(crate::DOCUMENTS.join("\n---document---\n").as_bytes())
-    {
-        return Err("Experiment corpus differs from this executable".into());
-    }
-    let sources = crate::source::parse_sources(crate::DOCUMENTS)?;
+    let corpus = record_corpus(record)?;
+    let sources = corpus.sources()?;
+    let section_count: usize = sources.iter().map(|source| source.sections.len()).sum();
     if manifest.sources.len() != sources.len()
-        || sources.iter().zip(crate::DOCUMENTS).any(|(source, raw)| {
+        || sources.iter().zip(corpus.documents()).any(|(source, raw)| {
             !manifest.sources.iter().any(|s| {
                 s.id == source.id
                     && s.title == source.title
@@ -125,7 +121,11 @@ pub fn validate_record(record: &ExperimentRecord) -> Result<(), String> {
             return Err("Invalid global experiment budget provenance".into());
         }
         let prompt = if record.arm == Arm::AgenticDense {
-            crate::codex::generation_prompt(&record.question, manifest.limits.top_k)
+            crate::codex::generation_prompt_for_corpus(
+                &record.question,
+                manifest.limits.top_k,
+                corpus,
+            )
         } else {
             super::arms::context_prompt(&record.question, &record.offered_sections)?
         };
@@ -178,7 +178,7 @@ pub fn validate_record(record: &ExperimentRecord) -> Result<(), String> {
             return Err("Offered context differs from the pinned corpus".into());
         }
     }
-    if record.offered_sections.len() > 30
+    if record.offered_sections.len() > section_count
         || record.tool_calls.len() > manifest.limits.max_search_calls
         || record.retrieval_steps.len() > 4
     {
@@ -223,7 +223,8 @@ pub fn validate_record(record: &ExperimentRecord) -> Result<(), String> {
                 if record.arm == Arm::AgenticDense && record.tool_calls.is_empty() {
                     return Err("Agent execution contains no real MCP call".into());
                 }
-                if record.arm == Arm::FullContext && record.offered_sections.len() != 30 {
+                if record.arm == Arm::FullContext && record.offered_sections.len() != section_count
+                {
                     return Err("Full-context execution did not offer all sections".into());
                 }
             }
@@ -313,6 +314,10 @@ pub fn validate_record(record: &ExperimentRecord) -> Result<(), String> {
     Ok(())
 }
 
+pub(super) fn record_corpus(record: &ExperimentRecord) -> Result<crate::corpus::CorpusId, String> {
+    super::dataset::corpus_for_identity(&record.manifest.as_of, &record.manifest.corpus_sha256)
+}
+
 /// Resolve only an exact, pinned bundled question/expectation pair; never trust self-supplied grader criteria.
 pub fn pinned_criteria(record: &ExperimentRecord) -> Result<super::dataset::CaseCriteria, String> {
     let pilot = super::dataset::validate_bundled()?;
@@ -320,7 +325,7 @@ pub fn pinned_criteria(record: &ExperimentRecord) -> Result<super::dataset::Case
         include_str!("../../shared/datasets/legacy/heldout-questions.json"),
         include_str!("../../shared/datasets/legacy/heldout-expectations.json"),
     )?;
-    for (questions, labels) in [pilot, heldout] {
+    for (questions, labels) in [pilot, heldout, super::dataset::validate_demo_twelve()?] {
         if super::dataset::questions_hash(&questions)? != record.manifest.questions_sha256
             || crate::manifest::hash(
                 &serde_json::to_vec(&labels).map_err(|_| "Cannot hash criteria")?,
@@ -334,6 +339,8 @@ pub fn pinned_criteria(record: &ExperimentRecord) -> Result<super::dataset::Case
             .find(|c| c.id == record.case_id)
             .ok_or("Missing pinned case")?;
         if case.question != record.question
+            || questions.corpus_sha256 != record.manifest.corpus_sha256
+            || questions.as_of != record.manifest.as_of
             || case.family != record.family
             || case.split != record.split
             || case.kind != record.kind
@@ -540,6 +547,57 @@ mod tests {
     }
 
     #[test]
+    fn twelve_document_context_is_validated_against_its_own_corpus() {
+        let corpus = crate::corpus::CorpusId::DemoTwelve;
+        let sources = corpus.sources().unwrap();
+        let mut item = record();
+        item.manifest.corpus_sha256 = corpus.sha256();
+        item.manifest.as_of = corpus.as_of().into();
+        item.manifest.sources = sources
+            .iter()
+            .zip(corpus.documents())
+            .map(|(s, raw)| SourceIdentity {
+                id: s.id.clone(),
+                title: s.title.clone(),
+                date: s.date.clone(),
+                sha256: crate::manifest::hash(raw.as_bytes()),
+            })
+            .collect();
+        item.offered_sections = sources.into_iter().flat_map(|s| s.sections).collect();
+        assert_eq!(item.offered_sections.len(), 72);
+        assert!(validate_record(&item).is_ok());
+        let (_, labels) = super::super::dataset::validate_bundled().unwrap();
+        item.case_id = labels.cases[0].case_id.clone();
+        let measured = super::super::metrics::evaluate(&item, &labels.cases[0]).unwrap();
+        assert!(
+            measured
+                .hard_checks
+                .iter()
+                .find(|c| c.id == "canonical_evidence")
+                .unwrap()
+                .passed
+        );
+        assert!(
+            measured
+                .hard_checks
+                .iter()
+                .find(|c| c.id == "retrieval_trace")
+                .unwrap()
+                .passed
+        );
+        assert!(
+            !measured
+                .hard_checks
+                .iter()
+                .find(|c| c.id == "live_trace")
+                .unwrap()
+                .passed
+        );
+        item.offered_sections[71].text.push_str("Changed source");
+        assert!(validate_record(&item).is_err());
+    }
+
+    #[test]
     fn artifact_validation_rejects_fake_live_identity_inconsistent_status_and_source_drift() {
         let mut item = record();
         assert!(validate_record(&item).is_ok());
@@ -689,6 +747,98 @@ mod tests {
         item.execution_status = ExecutionStatus::Failed;
         item.error = Some("invalid_output".into());
         assert!(validate_record(&item).is_ok());
+    }
+
+    #[tokio::test]
+    async fn twelve_source_orchestrator_supplies_current_context_and_renders_a_pinned_report() {
+        let directory = std::env::temp_dir().join(format!(
+            "coa-twelve-runner-{}-{}",
+            std::process::id(),
+            super::super::budget::now_ms().unwrap()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let (questions, labels) = super::super::dataset::validate_demo_twelve().unwrap();
+        let request = directory.join("request");
+        let events = [json!({"type":"item.completed","item":{"type":"agent_message","text":json!({"text":"Onbekend.","citations":[],"unknowns":["Niet vastgesteld."]}).to_string()}}), json!({"type":"turn.completed"})].iter().map(Value::to_string).collect::<Vec<_>>().join("\n");
+        let script = format!(
+            "#!/bin/sh\ncat > '{}'\ncat <<'COA_EVENTS'\n{}\nCOA_EVENTS\n",
+            request.display(),
+            events
+        );
+        let runtime = crate::codex::fixture_runner(&directory.join("runtime"), &script);
+        let output = directory.join("runs.jsonl");
+        run_with_runtime(
+            RunOptions {
+                output: output.clone(),
+                ledger: directory.join("ledger.json"),
+                arms: vec![Arm::Bm25, Arm::FullContext],
+                cases: vec!["DEMO12-11".into()],
+                limits: Limits {
+                    max_cases: 1,
+                    max_generations: 2,
+                    max_judgements: 0,
+                    max_seconds: 10,
+                    per_call_seconds: 3,
+                    concurrency: 1,
+                    max_search_calls: 4,
+                    top_k: 3,
+                },
+            },
+            questions,
+            labels.clone(),
+            Some(runtime),
+        )
+        .await
+        .unwrap();
+        let actual = std::fs::read_to_string(request).unwrap();
+        assert!(actual.contains("ACT-SCHAAK-011") && actual.contains("ACT-NAAI-012"));
+        assert!(!actual.contains(&labels.evaluation_only_canary));
+        let records = read_records(&output).unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[1].offered_sections.len(), 72);
+        assert_eq!(records[1].manifest.sources.len(), 12);
+        assert_eq!(records[1].manifest.as_of, "2026-11-13");
+        assert!(
+            records[0].retrieval_steps[0]
+                .hits
+                .iter()
+                .any(|hit| hit.section.source_id == "ACT-SCHAAK-011")
+        );
+        assert!(
+            records
+                .iter()
+                .all(|record| record.execution_kind == ExecutionKind::Fixture
+                    && record.execution_status == ExecutionStatus::Completed)
+        );
+        let report = directory.join("report.html");
+        assert_eq!(
+            super::super::report::write_report(&[output], &report).unwrap(),
+            2
+        );
+        assert!(
+            std::fs::read_to_string(report)
+                .unwrap()
+                .contains("DEMO12-11")
+        );
+        let (old_questions, old_labels) = super::super::dataset::validate_bundled().unwrap();
+        let old_case = &old_questions.cases[0];
+        let mut mismatched = records[1].clone();
+        mismatched.case_id = old_case.id.clone();
+        mismatched.question = old_case.question.clone();
+        mismatched.family = old_case.family.clone();
+        mismatched.split = old_case.split.clone();
+        mismatched.kind = old_case.kind.clone();
+        mismatched.manifest.questions_version = old_questions.dataset_version.clone();
+        mismatched.manifest.questions_sha256 =
+            super::super::dataset::questions_hash(&old_questions).unwrap();
+        mismatched.manifest.expectations_version = old_labels.dataset_version.clone();
+        mismatched.manifest.expectations_sha256 =
+            crate::manifest::hash(&serde_json::to_vec(&old_labels).unwrap());
+        assert!(
+            pinned_criteria(&mismatched).is_err(),
+            "five-source labels must not bind to twelve-source output"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]
@@ -923,15 +1073,20 @@ async fn run_with_runtime(
     {
         return Err("Experiment questions must be normalized before execution".into());
     }
+    let corpus = super::dataset::corpus_for_questions(&questions)?;
+    super::dataset::validate_for_corpus(&questions, &labels, corpus)?;
     let mut ledger = super::budget::Ledger::open(&options.ledger)?;
     let is_fixture = runtime_override.is_some();
     let runtime = match runtime_override {
         Some(runtime) => runtime,
         None => crate::codex::CodexRunner::new()?,
     };
-    let sources = crate::source::parse_sources(crate::DOCUMENTS)?;
+    let sources = corpus.sources()?;
     let mut index = if options.arms.contains(&Arm::DenseOnce) {
-        Some(crate::Index::load().map_err(|_| "Cannot load local embedding index")?)
+        Some(
+            crate::Index::load_for_corpus(corpus)
+                .map_err(|_| "Cannot load local embedding index")?,
+        )
     } else {
         None
     };
@@ -954,7 +1109,7 @@ async fn run_with_runtime(
     let mut output = creation.open(&options.output).map_err(
         |_| "Cannot create new experiment artifact (existing files are never overwritten)",
     )?;
-    let config = runtime.configuration();
+    let config = runtime.configuration_for_corpus(corpus);
     let text = |key: &str| config[key].as_str().unwrap_or_default().to_owned();
     let fingerprint = |key: &str| {
         config["binaries"][key]
@@ -974,7 +1129,7 @@ async fn run_with_runtime(
             let case_started = Instant::now();
             let mut record=ExperimentRecord {
             schema_version:1,run_id:format!("{experiment_id}-{}-{}",case.id,arm.name()),case_id:case.id.clone(),family:case.family.clone(),split:case.split.clone(),kind:case.kind.clone(),arm:*arm,execution_kind:if is_fixture {ExecutionKind::Fixture} else {ExecutionKind::Live},execution_status:ExecutionStatus::Skipped,question:case.question.clone(),
-            manifest:Manifest {schema_version:1,experiment_id:experiment_id.clone(),created_at_unix_ms:super::budget::now_ms()?,questions_version:questions.dataset_version.clone(),questions_sha256:super::dataset::questions_hash(&questions)?,expectations_version:labels.dataset_version.clone(),expectations_sha256:crate::manifest::hash(&serde_json::to_vec(&labels).map_err(|_|"Cannot hash criteria")?),corpus_sha256:questions.corpus_sha256.clone(),sources:sources.iter().zip(crate::DOCUMENTS).map(|(s,raw)|SourceIdentity{id:s.id.clone(),title:s.title.clone(),date:s.date.clone(),sha256:crate::manifest::hash(raw.as_bytes())}).collect(),as_of:crate::AS_OF.into(),generation_prompt_version:if *arm==Arm::AgenticDense {text("prompt_version")} else {super::arms::CONTEXT_PROMPT_VERSION.into()},generation_prompt_sha256:String::new(),rubric_version:super::judge::RUBRIC_VERSION.into(),rubric_sha256:crate::manifest::hash(super::judge::RUBRIC.as_bytes()),model:text("model"),client_version:text("client_version"),binary_sha256:fingerprint("mcp"),runtime_sha256:fingerprint("codex"),code_mode_host_sha256:fingerprint("code_mode_host"),generator_route:"OpenAI via locally authenticated Codex CLI".into(),grader_route:"not graded".into(),embedding_model:crate::MODEL.into(),embedding_files:embedding_files.clone(),embedding_revision:revision.clone(),reproducibility_limitations:vec!["Model alias/provider routing may change; binary and input hashes do not guarantee bitwise model reproduction.".into(),"Session budgets count Codex sessions, not hidden provider requests.".into(),"Elapsed time covers per-case preparation, retrieval and generation; dense index setup is shared and excluded, while agent MCP cold startup occurs inside each session.".into(),"Semantic grading is provisional; no human calibration.".into()],limits:options.limits.clone(),budget:Some(ledger.state.clone())},answer:None,tool_calls:vec![],retrieval_steps:vec![],trace_complete:false,offered_sections:vec![],elapsed_ms:0,usage:None,error:Some("not_run".into()),diagnostic:None,metrics:None,judgement:None,
+            manifest:Manifest {schema_version:1,experiment_id:experiment_id.clone(),created_at_unix_ms:super::budget::now_ms()?,questions_version:questions.dataset_version.clone(),questions_sha256:super::dataset::questions_hash(&questions)?,expectations_version:labels.dataset_version.clone(),expectations_sha256:crate::manifest::hash(&serde_json::to_vec(&labels).map_err(|_|"Cannot hash criteria")?),corpus_sha256:questions.corpus_sha256.clone(),sources:sources.iter().zip(corpus.documents()).map(|(s,raw)|SourceIdentity{id:s.id.clone(),title:s.title.clone(),date:s.date.clone(),sha256:crate::manifest::hash(raw.as_bytes())}).collect(),as_of:corpus.as_of().into(),generation_prompt_version:if *arm==Arm::AgenticDense {text("prompt_version")} else {super::arms::CONTEXT_PROMPT_VERSION.into()},generation_prompt_sha256:String::new(),rubric_version:super::judge::RUBRIC_VERSION.into(),rubric_sha256:crate::manifest::hash(super::judge::RUBRIC.as_bytes()),model:text("model"),client_version:text("client_version"),binary_sha256:fingerprint("mcp"),runtime_sha256:fingerprint("codex"),code_mode_host_sha256:fingerprint("code_mode_host"),generator_route:"OpenAI via locally authenticated Codex CLI".into(),grader_route:"not graded".into(),embedding_model:crate::MODEL.into(),embedding_files:embedding_files.clone(),embedding_revision:revision.clone(),reproducibility_limitations:vec!["Model alias/provider routing may change; binary and input hashes do not guarantee bitwise model reproduction.".into(),"Session budgets count Codex sessions, not hidden provider requests.".into(),"Elapsed time covers per-case preparation, retrieval and generation; dense index setup is shared and excluded, while agent MCP cold startup occurs inside each session.".into(),"Semantic grading is provisional; no human calibration.".into()],limits:options.limits.clone(),budget:Some(ledger.state.clone())},answer:None,tool_calls:vec![],retrieval_steps:vec![],trace_complete:false,offered_sections:vec![],elapsed_ms:0,usage:None,error:Some("not_run".into()),diagnostic:None,metrics:None,judgement:None,
 
         };
             if *arm != Arm::AgenticDense {
@@ -1013,7 +1168,11 @@ async fn run_with_runtime(
                 }
             }
             let prompt = if *arm == Arm::AgenticDense {
-                crate::codex::generation_prompt(&case.question, options.limits.top_k)
+                crate::codex::generation_prompt_for_corpus(
+                    &case.question,
+                    options.limits.top_k,
+                    corpus,
+                )
             } else {
                 super::arms::context_prompt(&case.question, &record.offered_sections)?
             };
@@ -1064,7 +1223,9 @@ async fn run_with_runtime(
                 };
                 let generation = async {
                     if *arm == Arm::AgenticDense {
-                        let run = runtime.run(&case.question, options.limits.top_k).await?;
+                        let run = runtime
+                            .run_for_corpus(&case.question, options.limits.top_k, corpus)
+                            .await?;
                         canonicalize_agent(&mut record, run)?;
                     } else {
                         let result = runtime
@@ -1131,7 +1292,7 @@ fn canonicalize_agent_inner(
     record: &mut ExperimentRecord,
     run: crate::codex::CodexRun,
 ) -> Result<(), String> {
-    let sources = crate::source::parse_sources(crate::DOCUMENTS)?;
+    let sources = record_corpus(record)?.sources()?;
     let mut calls = run.tool_calls;
     for call in &mut calls {
         if call.server != "coa" || call.tool != "search_document" {

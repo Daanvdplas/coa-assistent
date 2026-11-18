@@ -36,6 +36,13 @@
     "fixtures/expanded-10-20261105/activity-007.md": "6c49659f9565ea9dae1dcd3e69f4ec2c0b83e5b6c548e40d461aef679c07bc7e",
     "fixtures/expanded-10-20261105/activity-006.md": "002c356af337ded8eba62d259cb6665883d6e9c746116ed6a72287ee0f190a59",
     "evals/rag/datasets/presentation-selection.json": "289014b0fc5fcec5f49422c490e808fe350c5bf803ee523fb257a91d996bcaee",
-    "evals/rag/fixtures/regressions/t02-dense-search.json": "b9f614c69a93331aa11aa6fe90e00fdb5c2c735619f33b16d5660350b625e4dc"
+    "evals/rag/fixtures/regressions/t02-dense-search.json": "b9f614c69a93331aa11aa6fe90e00fdb5c2c735619f33b16d5660350b625e4dc",
+    "evals/shared/datasets/demo-12-20261118/FROZEN.json": "cbb8ee60a00a79d5df863d5cbcce9dc7d7aec88b0b65b3b4640410ad2c1ac576",
+    "evals/shared/datasets/demo-12-20261118/expectations.json": "2d76d635c0ae8c5fa15063b54836b7dea3f8f799b28557e6d668934d95ca7b66",
+    "evals/shared/datasets/demo-12-20261118/presentation-selection.json": "b853e704f1a7b0ae2894176f690f3ccb7fffc0b3178476f2b326f800963f937e",
+    "evals/shared/datasets/demo-12-20261118/questions.json": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
+    "evals/shared/datasets/demo-12-20261118/reference-details.json": "d469a6d74162da3399e2e1b1a19fbce7461dd86ca94b9ee98f8edf955075645f",
+    "fixtures/demo-12-20261113/activity-011.md": "1dcfabc4d81092a377167a9bb37fd59b7fcca91582339a6c8cd6566e2bfce9d5",
+    "fixtures/demo-12-20261113/activity-012.md": "1386cc26897a9dccb0ca719d8a860ad0c3f1c59543e1ce84560d4b846d0f7bce"
   }
 }

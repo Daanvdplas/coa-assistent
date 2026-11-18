@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "selection_id": "demo-12-20261118-seventeen-development-cases-v1",
+  "cases": [
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-01"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-02"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-03"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-04"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-05"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-06"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-07"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-08"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-09"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-10"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "DEMO12-11"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "DEMO12-12"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "DEMO12-13"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "DEMO12-14"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "P01"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "T02"
+    },
+    {
+      "dataset_id": "demo-12-20261118",
+      "case_id": "T05"
+    }
+  ]
+}

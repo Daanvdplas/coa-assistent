@@ -4,6 +4,18 @@ De evaluatie gebruikt vijf fictieve documenten: twaalf ontwikkel-/pilotvragen en
 
 ## 1. Begin zonder modelaanroepen
 
+### Actuele twaalfbronnenproef
+
+De nieuwe gedeelde ontwikkelvraagset gebruikt alle twaalf activiteiten, met nieuwe brongebonden verwachtingen voor Schaken en Naaicafé. Valideer die zonder een model te starten:
+
+```sh
+cargo run --locked -- experiment validate --questions evals/shared/datasets/demo-12-20261118/questions.json --expectations evals/shared/datasets/demo-12-20261118/expectations.json
+```
+
+Voor een expliciet gestarte nieuwe proef geef je deze twee opties ook mee aan `experiment run --live` en eventueel later `experiment grade --live`. De gekozen vraagset bepaalt automatisch de exacte twaalf bronbestanden en referentiedatum; MiniLM, BM25, de MCP-zoekroute en alle-documentencontext gebruiken dezelfde bronversie. Een run van alle 17 vragen met vier aanpakken omvat 68 generaties en past niet binnen het bestaande plafond van 40: kies vooraf een deelverzameling en behoud het ledger. De historische proeven hieronder blijven bij hun eigen vijfbronnenprotocol.
+
+Dit blijft een evaluatie via Codex CLI. De Rig/Responses-webdemo gebruikt dezelfde bronnen, maar heeft een ander model-/tooluitvoeringspad. De vaste bron- en citaatcontroles bewijzen geen inhoudelijk juist antwoord. Een eventuele afzonderlijke AI-beoordeling blijft voorlopig; deze wijziging voert geen modellen of beoordelingen uit.
+
 Voer dit vanuit de repository uit. Rust en de afhankelijkheden zijn nodig; Cargo kan die bij de eerste build downloaden. Voor deze opdrachten is geen Codex-aanmelding nodig.
 
 ```sh

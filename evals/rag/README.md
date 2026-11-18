@@ -4,9 +4,9 @@ Promptfoo bestuurt nu de RAG-vraagsets, configuratiematrix, herhalingen en asser
 
 ## Drie bronproeven in de browser
 
-De pagina `/resultaten/` begint met drie vaste tests op de oorspronkelijke vijf activiteiten (30 secties): P01 vraagt tijd en locatie van tuinieren; T02 vraagt een binnenactiviteit op dinsdag met tijd en adres; T05 vraagt de tijden en adressen van taalcafé en samen koken. De bestaande broncriteria blijven bytegelijk. Eén klik voert één vraag/configuratie uit, niet de grote matrices hieronder.
+De pagina `/resultaten/` begint met drie vaste tests op de huidige twaalf activiteiten (72 secties), uit `demo-12-20261118`: P01 vraagt tijd en locatie van tuinieren; T02 vraagt een binnenactiviteit op dinsdag met tijd en adres; T05 vraagt de tijden en adressen van taalcafé en samen koken. De verwachtingen zijn opnieuw tegen deze twaalf bronnen gecontroleerd. T02 accepteert een volledig onderbouwde fietsoptie of atelieroptie. Eén klik voert één vraag/configuratie uit, niet de grote matrices hieronder. De oorspronkelijke vijf- en tienbronnenvraagsets en hun bewaarde resultaten blijven afzonderlijke historische versies.
 
-Dit browserprotocol gebruikt vaste top-k **5**, kandidaat-k 30, contextlimiet 1200 en `documents_sections`. Daardoor is de minimaal benodigde vierdelige bewijsset van T05 structureel mogelijk. Deze instellingen worden niet als herhaling van oude top-3-metingen gepresenteerd. Iedere run gebruikt de volledige vijfbronnencorpus; verwachte sectie-ID’s worden geen zoekfilter of encoderinvoer. De twaalfdocumentendemo is geen nieuw gelabeld evaluatiecorpus.
+Dit browserprotocol gebruikt vaste top-k **5**, kandidaat-k 30, contextlimiet 1200 en `documents_sections`. Daardoor is de minimaal benodigde vierdelige bewijsset van T05 structureel mogelijk. Deze instellingen worden niet als herhaling van oude top-3-metingen gepresenteerd. Iedere run gebruikt de volledige twaalfbronnencorpus; verwachte sectie-ID’s worden geen zoekfilter of encoderinvoer. Dataset-, vraag-, criteria- en corpusidentiteit onderscheiden de nieuwe uitvoering van de oude metingen.
 
 Kies dense, BM25, hybrid RRF of gewogen hybrid. Dense/hybrid gebruiken echt MiniLM meertalig of multilingual E5 Small uit de gedeelde [modelcatalogus](embedding-models.json). E5 krijgt `passage: ` voor documentinvoer en `query: ` voor vragen; MiniLM houdt zijn bestaande ongewijzigde invoer. Model/revisie, artifacthashes, prefixen, dimensies, werkelijke inputhashes en vectorhash blijven aan de run/cache gebonden. BM25 downloadt of laadt geen encoder en toont geen gebruikt embeddingmodel. De catalogus gebruikt het bestaande SDK-contract uit [fastembed-rs 7.1.2, uitgebracht 19 oktober 2026](https://github.com/Anush008/fastembed-rs/releases/tag/v7.1.2); er is geen bibliotheekupgrade of algemene modelranglijstclaim.
 
@@ -30,6 +30,30 @@ De oude 13-call-payloadmeting blijft historische herkomst; die ruwe inputbundel 
 
 ## Lokaal uitvoeren
 
+### De huidige twaalf documenten
+
+`demo-12-20261118` bevat zeventien ontwikkelvragen: tien aangepaste bekende vragen, vier nieuwe vragen over Schaken/Naaicafé en de drie browservragen. Referentiedatum blijft **13 november 2026**, passend bij de vastgelegde bronversie. Onafhankelijke agentreview van de bronverwachtingen bewijst geen menselijke ijking of gegenereerde antwoordkwaliteit.
+
+```sh
+npm run eval:rag -- --suite all-local --dataset demo-12-20261118 --no-publish
+```
+
+Deze keuze voert uitsluitend de toepasselijke lokale suites uit: `retrieval` (17 × 16 = 272 rijen) en `quality` (17 × 24 = 408 rijen). De contextvergelijking gebruikt de bestaande basis-, activiteituitbreidings- en top-k-6-varianten; er zijn geen ongecontroleerde gebruikersfilters toegevoegd. Overlappende basisrijen zijn geen nieuwe unieke vragen. Een kleine, volledig modelvrije selectie:
+
+```sh
+npm run eval:rag -- --suite retrieval --dataset demo-12-20261118 --cases DEMO12-11,DEMO12-12 --methods bm25 --profiles documents_sections --no-publish
+```
+
+Ook de begrensde `agentic`-route kan expliciet deze dataset kiezen (17 × 4 = 68 geplande sessies, of een kleine selectie). Dit is een nieuwe ontwikkelvergelijking, niet de historische veertigsessiestudie:
+
+```sh
+npm run eval:rag:live -- --suite agentic --dataset demo-12-20261118 --cases DEMO12-11 --methods dense --ledger evals/rag/results/local/demo12-ledger.json --max-generations 1 --max-seconds 180 --no-publish
+```
+
+`garden`, `models`, `compact` en `compact-live` houden hun eigen vastgelegde bronnen/protocol. Zij weigeren de nieuwe dataset in plaats van resultaten stilzwijgend als twaalfbronnenmeting te presenteren. Zonder datasetkeuze blijven de bestaande CLI-matrices ongewijzigd. De browser gebruikt wel standaard de nieuwe twaalfbronnenversie.
+
+### Bestaande vastgelegde matrices
+
 Benodigd: Rust, Node 22.22 of nieuwer en de bestaande modelcache. Promptfoo is vastgezet op **0.125.1** (npm-publicatie 25 oktober 2026; gecontroleerd 13 november 2026). [Officiële versie](https://www.npmjs.com/package/promptfoo/v/0.125.1).
 
 Vanuit de repository:
@@ -41,7 +65,7 @@ npm run test:rag
 npm run eval:rag -- --suite all-local
 ```
 
-`all-local` doet verse retrieval, maar geen Codex-generaties of AI-judging. Het gebruikt alle bewaarde vraagsets; voor de nieuwe twaalfdocumentendemo zijn geen nieuwe goldlabels verzonnen. De SQLite-feature is nodig voor alle zestien profielen. Een kleine selectie kan met:
+`all-local` doet verse retrieval, maar geen Codex-generaties of AI-judging. Zonder datasetkeuze gebruikt het de bestaande vijf- en tienbronnenvraagsets plus de vaste tuin- en compactproef. De SQLite-feature is nodig voor alle zestien profielen. Een kleine selectie kan met:
 
 ```sh
 npm run eval:rag -- --suite retrieval --dataset legacy --cases T05,P05 --methods bm25 --profiles documents_sections
