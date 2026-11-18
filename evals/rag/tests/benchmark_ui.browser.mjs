@@ -198,6 +198,9 @@ async function fixture({
   comparison = false,
   many = false,
   current = false,
+  partial = false,
+  rawTiming = false,
+  filesOnly = false,
   common = false,
   genericRig = false,
 } = {}) {
@@ -228,6 +231,27 @@ async function fixture({
     (row) => ({ ...row, configuration_id: "dense" }),
   );
   if (comparison) stored.push(baseline);
+  if (partial) {
+    const partialRun = structuredClone(run);
+    partialRun.status = "cancelled";
+    partialRun.progress = { completed: 1, total: 18 };
+    partialRun.groups[0].execution_count = 18;
+    partialRun.groups[0].case_count = 18;
+    partialRun.groups[0].status = "cancelled";
+    partialRun.result.rows = [run.result.rows[0]];
+    stored = [partialRun];
+  }
+  if (rawTiming) {
+    const measured = structuredClone(run);
+    measured.result.rows = [
+      {
+        ...resultRow("T02", false),
+        retrieval_ms: 4.609042,
+        latency_eligible: false,
+      },
+    ];
+    stored = [measured];
+  }
   if (many) {
     const extra = structuredClone(run);
     extra.groups[0].configurations = [
@@ -241,24 +265,35 @@ async function fixture({
     stored = [extra];
   }
   if (common) {
-    stored=stored.map(value=>structuredClone(value));
+    stored = stored.map((value) => structuredClone(value));
     for (const value of stored) {
-      value.result.sources.extra={source_id:"ACT-TUIN-001",id:"S1",source_title:"Tuinieren",heading:"Activiteit",text:"Een gedeeld aanvullend bronfragment."};
-      for (const row of value.result.rows.filter(row=>row.case_id==="P01")) {
-        row.goals.push({...structuredClone(row.goals[0]),id:"same-source-other-fact"});
+      value.result.sources.extra = {
+        source_id: "ACT-TUIN-001",
+        id: "S1",
+        source_title: "Tuinieren",
+        heading: "Activiteit",
+        text: "Een gedeeld aanvullend bronfragment.",
+      };
+      for (const row of value.result.rows.filter(
+        (row) => row.case_id === "P01",
+      )) {
+        row.goals.push({
+          ...structuredClone(row.goals[0]),
+          id: "same-source-other-fact",
+        });
         row.calls[0].hits.push("extra");
       }
     }
   }
   if (genericRig) {
-    stored=stored.map(value=>structuredClone(value));
+    stored = stored.map((value) => structuredClone(value));
     for (const value of stored) {
-      value.groups[0].suite="assistant-rig";
-      value.groups[0].family="assistant";
+      value.groups[0].suite = "assistant-rig";
+      value.groups[0].family = "assistant";
       for (const row of value.result.rows) {
-        row.suite="assistant-rig";
-        row.answer_quality="not_assessed";
-        row.assertions=[{reason:"Broncontrole",pass:true}];
+        row.suite = "assistant-rig";
+        row.answer_quality = "not_assessed";
+        row.assertions = [{ reason: "Broncontrole", pass: true }];
       }
     }
   }
@@ -267,22 +302,59 @@ async function fixture({
       path = new URL(req.url()).pathname;
     if (path.endsWith("/catalog"))
       return route.fulfill({
-        json: current ? {...catalog,datasets:[...catalog.datasets,{id:"regression-12",label:"Volledige opties",document_count:12,case_count:1,suites:["retrieval","quality"],cases:[{id:"IND26-01",question:"Welke activiteiten voldoen aan alle voorwaarden?"}]}],default_selection:{...catalog.default_selection,datasets:["demo-12","regression-12"]}} : rig
+        json: current
           ? {
               ...catalog,
-              suites: [
-                ...catalog.suites,
+              datasets: [
+                ...catalog.datasets,
                 {
-                  id: "assistant-rig",
-                  label: "COA-assistent via Rig",
-                  family: "assistant",
-                  kind: "model",
-                  unit: "provider_attempts",
-                  datasets: ["demo-12"],
+                  id: "regression-12",
+                  label: "Volledige opties",
+                  document_count: 12,
+                  case_count: 1,
+                  suites: ["retrieval", "quality"],
+                  cases: [
+                    {
+                      id: "IND26-01",
+                      question:
+                        "Welke activiteiten voldoen aan alle voorwaarden?",
+                    },
+                  ],
                 },
               ],
+              default_selection: {
+                ...catalog.default_selection,
+                datasets: ["demo-12", "regression-12"],
+              },
             }
-          : catalog,
+          : rig
+            ? {
+                ...catalog,
+                suites: [
+                  ...catalog.suites,
+                  {
+                    id: "assistant-rig",
+                    label: "COA-assistent via Rig",
+                    family: "assistant",
+                    kind: "model",
+                    unit: "provider_attempts",
+                    datasets: ["demo-12"],
+                  },
+                ],
+              }
+            : filesOnly
+              ? {
+                  ...catalog,
+                  profiles: [
+                    ...catalog.profiles,
+                    { id: "sqlite_sections", label: "SQLite · secties" },
+                  ],
+                  default_selection: {
+                    ...catalog.default_selection,
+                    profiles: ["documents_sections"],
+                  },
+                }
+              : catalog,
       });
     if (path.endsWith("/discussion"))
       return route.fulfill({
@@ -407,37 +479,100 @@ test("benchmark is independent from demo navigation and starts only after a revi
   }
 });
 test("the current twelve-document profile keeps its regression independently selectable", async () => {
-  const {page,starts}=await fixture({current:true});
+  const { page, starts } = await fixture({ current: true });
   try {
-    assert.equal(await page.getByLabel("Vraagset",{exact:true}).inputValue(),"__current__");
+    assert.equal(
+      await page.getByLabel("Vraagset", { exact: true }).inputValue(),
+      "__current__",
+    );
     await page.locator("#benchmark-settings > summary").click();
-    assert.equal(await page.locator("#case-options").isVisible(),true);
-    assert.equal(await page.locator("#benchmark-cases input").count(),3);
+    assert.equal(await page.locator("#case-options").isVisible(), true);
+    assert.equal(await page.locator("#benchmark-cases input").count(), 3);
     await page.locator('#benchmark-cases input[value="P01"]').uncheck();
     await page.locator('#benchmark-cases input[value="T02"]').uncheck();
-    await page.getByRole("button",{name:"Start benchmark",exact:true}).click();
-    assert.deepEqual(starts[0].datasets,["demo-12","regression-12"]);
-    assert.deepEqual(starts[0].case_ids,["IND26-01"]);
-  } finally {await page.close();}
+    await page
+      .getByRole("button", { name: "Start benchmark", exact: true })
+      .click();
+    assert.deepEqual(starts[0].datasets, ["demo-12", "regression-12"]);
+    assert.deepEqual(starts[0].case_ids, ["IND26-01"]);
+  } finally {
+    await page.close();
+  }
+});
+
+test("a files-only server default never silently selects unavailable SQLite profiles", async () => {
+  const { page, starts } = await fixture({ filesOnly: true });
+  try {
+    await page
+      .getByRole("button", { name: "Start benchmark", exact: true })
+      .click();
+    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
+    assert.deepEqual(starts[0].profiles, ["documents_sections"]);
+  } finally {
+    await page.close();
+  }
 });
 test("shared expected and additional passages appear only once when comparing configurations", async () => {
-  const {page}=await fixture({saved:true,many:true,common:true});
+  const { page } = await fixture({ saved: true, many: true, common: true });
   try {
-    await page.getByRole("button",{name:"Bekijk vragen",exact:true}).click();
-    await page.getByRole("button",{name:/P01.*1\/1/}).first().click();
-    assert.equal(await page.locator(".benchmark-evidence blockquote").filter({hasText:"Een gedeeld aanvullend bronfragment."}).count(),1);
-    assert.equal(await page.locator(".benchmark-evidence blockquote").filter({hasText:"Dinsdag van 10.00 tot 12.00 uur."}).count(),1);
-  } finally {await page.close();}
+    await page
+      .getByRole("button", { name: "Bekijk vragen", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: /P01.*1\/1/ })
+      .first()
+      .click();
+    assert.equal(
+      await page
+        .locator(".benchmark-evidence blockquote")
+        .filter({ hasText: "Een gedeeld aanvullend bronfragment." })
+        .count(),
+      1,
+    );
+    assert.equal(
+      await page
+        .locator(".benchmark-evidence blockquote")
+        .filter({ hasText: "Dinsdag van 10.00 tot 12.00 uur." })
+        .count(),
+      1,
+    );
+  } finally {
+    await page.close();
+  }
 });
 test("generic current Rig source checks do not claim assessed answer quality", async () => {
-  const {page}=await fixture({saved:true,genericRig:true});
+  const { page } = await fixture({ saved: true, genericRig: true });
   try {
-    await page.getByRole("columnheader",{name:"Alle harde controles",exact:true}).waitFor();
-    assert.equal(await page.getByRole("columnheader",{name:"Vaste antwoordchecks",exact:true}).count(),0);
-    await page.getByRole("button",{name:"Bekijk vragen",exact:true}).click();
-    await page.getByRole("button",{name:/P01.*controles/}).first().click();
-    await page.getByText("Antwoordkwaliteit: niet beoordeeld.",{exact:true}).waitFor();
-  } finally {await page.close();}
+    await page
+      .getByRole("columnheader", { name: "Alle harde controles", exact: true })
+      .waitFor()
+      .catch(async (error) => {
+        throw new Error(
+          (await page.locator("main").innerText()) + "\n" + error.message,
+        );
+      });
+    assert.equal(
+      await page
+        .getByRole("columnheader", {
+          name: "Vaste antwoordchecks",
+          exact: true,
+        })
+        .count(),
+      0,
+    );
+    await page
+      .getByRole("button", { name: "Bekijk vragen", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: /P01.*controles/ })
+      .first()
+      .click();
+    await page
+      .getByText("Antwoordkwaliteit: niet beoordeeld.", { exact: true })
+      .waitFor();
+  } finally {
+    await page.close();
+  }
 });
 
 test("different configurations compare only shared cases and report coverage", async () => {
@@ -571,10 +706,51 @@ test("Codex handoff copies the path to a real discussion artifact supplied by th
     await page
       .getByRole("button", { name: "Bespreek in Codex", exact: true })
       .click();
-    await page.getByText("Overdracht gekopieerd.", { exact: true }).waitFor();
+    await page
+      .getByText("Terminalcommando gekopieerd.", { exact: true })
+      .waitFor();
     assert.equal(
       await page.evaluate(() => window.copiedHandoff),
       "codex --cd '/tmp/project' 'Lees /tmp/benchmark-run-one.md'",
+    );
+  } finally {
+    await page.close();
+  }
+});
+
+test("a cancelled partial run keeps unexecuted cases visible without treating them as failures", async () => {
+  const { page } = await fixture({ saved: true, partial: true });
+  try {
+    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
+    const summary = await page
+      .locator(".benchmark-group>.benchmark-table-scroll")
+      .first()
+      .innerText();
+    assert.match(summary, /1\/1.*17 niet uitgevoerd/);
+    assert.doesNotMatch(summary, /1\/18/);
+  } finally {
+    await page.close();
+  }
+});
+
+test("a missed case retains its measured raw time in the existing evidence detail", async () => {
+  const { page } = await fixture({ saved: true, rawTiming: true });
+  try {
+    await page
+      .getByRole("button", { name: "Bekijk vragen", exact: true })
+      .click();
+    await page.getByRole("button", { name: /T02.*0\/1/ }).click();
+    const row = page.locator(".benchmark-evidence tr").filter({
+      has: page.getByText("Gemeten zoektijd (ms)", { exact: true }),
+    });
+    await row.waitFor();
+    assert.match(await row.innerText(), /4,609/);
+    assert.equal(
+      await page
+        .locator(".benchmark-evidence")
+        .getByText("Gemeten zoektijd (ms)", { exact: true })
+        .count(),
+      1,
     );
   } finally {
     await page.close();

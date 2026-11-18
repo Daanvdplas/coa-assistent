@@ -606,6 +606,14 @@ pub(super) async fn execute_group(
                     checkpoint(&path, &progress)?;
                     return Ok(progress);
                 }
+                if Instant::now() >= deadline {
+                    progress["status"] = json!("failed");
+                    progress["error"] = json!(
+                        "Het toegestane uitvoeringsvenster is verstreken; er wordt geen nieuwe modelpoging gestart."
+                    );
+                    checkpoint(&path, &progress)?;
+                    return Ok(progress);
+                }
                 let method = match configuration["configuration"]["method"].as_str() {
                     Some("dense") => DemoSearchMethod::Dense,
                     Some("bm25") => DemoSearchMethod::Bm25,
@@ -616,9 +624,10 @@ pub(super) async fn execute_group(
                     .filter(|id| id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
                     .ok_or("Invalid Rig configuration identity")?;
                 let result = tokio::select! {
-                    result=runner.run(text,3,CorpusId::DemoTwelve,AnswerLanguage::Nl,method)=>result,
+                    biased;
                     _=cancel.changed()=>{progress["status"]=json!("cancelled");checkpoint(&path,&progress)?;return Ok(progress);},
                     _=tokio::time::sleep_until(deadline.into())=>Err("runtime: Het toegestane uitvoeringsvenster is verstreken.".into()),
+                    result=runner.run(text,3,CorpusId::DemoTwelve,AnswerLanguage::Nl,method)=>result,
                 };
                 let captured = result.as_ref().cloned().unwrap_or_else(
                     |_| json!({"status":"failed","question":text,"runtime":"responses-rig"}),

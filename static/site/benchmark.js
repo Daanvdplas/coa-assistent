@@ -173,8 +173,12 @@ function modelControls() {
 function populateCases() {
   const container = byId("benchmark-cases");
   container.replaceChildren();
-  const selected = state.catalog.datasets.filter((item) => datasets().includes(item.id));
-  const ids = selected.flatMap((item) => (item.cases || []).map((item) => item.id));
+  const selected = state.catalog.datasets.filter((item) =>
+    datasets().includes(item.id),
+  );
+  const ids = selected.flatMap((item) =>
+    (item.cases || []).map((item) => item.id),
+  );
   if (new Set(ids).size !== ids.length) {
     byId("case-options").hidden = true;
     return;
@@ -238,15 +242,20 @@ function populatePlanner() {
     option(select, "__current__", "Actueel aanbod · twaalf documenten");
   for (const item of catalog.datasets) option(select, item.id, item.label);
   option(select, "__all__", "Alle vraagsets");
-  select.value = catalog.default_selection.datasets.length > 1 ? "__current__" : catalog.default_selection.datasets[0];
-  for (const [id, items] of [
-    ["benchmark-methods", catalog.methods],
-    ["benchmark-profiles", catalog.profiles],
-    ["benchmark-embeddings", catalog.embedding_models],
-    ["benchmark-arms", catalog.assistant_arms || []],
+  select.value =
+    catalog.default_selection.datasets.length > 1
+      ? "__current__"
+      : catalog.default_selection.datasets[0];
+  for (const [id, items, field] of [
+    ["benchmark-methods", catalog.methods, "methods"],
+    ["benchmark-profiles", catalog.profiles, "profiles"],
+    ["benchmark-embeddings", catalog.embedding_models, "embedding_models"],
+    ["benchmark-arms", catalog.assistant_arms || [], "assistant_arms"],
   ]) {
     byId(id).replaceChildren();
-    for (const item of items) choice(byId(id), item);
+    const defaults = catalog.default_selection[field] || [];
+    for (const item of items)
+      choice(byId(id), item, !defaults.length || defaults.includes(item.id));
   }
   byId("benchmark-repeats").max = catalog.limits.max_repeats;
   byId("benchmark-repeats").value = catalog.default_selection.repeats;
@@ -287,7 +296,11 @@ function table(headers, className = "") {
     row = el("tr"),
     body = el("tbody");
   scroll.tabIndex = 0;
-  for (const title of headers) row.append(el("th", title));
+  for (const title of headers) {
+    const column = el("th", title);
+    column.scope = "col";
+    row.append(column);
+  }
   head.append(row);
   node.append(head, body);
   scroll.append(node);
@@ -439,9 +452,8 @@ function duration(rows, field, expectedCount) {
   const value = eligibleMean(rows, field, expectedCount);
   if (value === null) return "—";
   return (
-    new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1 }).format(
-      value,
-    ) + " ms"
+    new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1 }).format(value) +
+    " ms"
   );
 }
 function payloadBytes(rows, compact) {
@@ -566,7 +578,11 @@ function renderGroup(group) {
       "Gem. zoektijd",
     ];
   if (group.suite === "assistant") headers[1] = "Alle harde controles";
-  if (group.suite === "assistant-rig") headers[1] = group.dataset === "regression-12-20261118" ? "Vaste antwoordchecks" : "Alle harde controles";
+  if (group.suite === "assistant-rig")
+    headers[1] =
+      group.dataset === "regression-12-20261118"
+        ? "Vaste antwoordchecks"
+        : "Alle harde controles";
   if (group.family === "assistant") headers[3] = "Gem. uitvoertijd";
   if (group.family === "transport")
     headers.splice(
@@ -615,6 +631,20 @@ function renderGroup(group) {
         : executionStatus(group.status) || "Niet uitgevoerd";
     if (summary.not_applicable) value += ` · ${summary.not_applicable} n.v.t.`;
     if (summary.unknown) value += ` · ${summary.unknown} onbekend`;
+    if (!hasBaseline) {
+      const planned = group.execution_count / group.configuration_count;
+      const unexecuted =
+        Math.max(0, Math.ceil(planned) - matches.length) +
+        (summary.not_run || 0) +
+        (summary.cancelled || 0) +
+        (summary.interrupted || 0);
+      if (unexecuted) {
+        const pending =
+          ["queued", "running"].includes(run.status) && !group.block_reason;
+        const coverage = `${unexecuted} ${pending ? "wachtend" : "niet uitgevoerd"}`;
+        value = matches.length ? value + " · " + coverage : coverage;
+      }
+    }
     row.append(el("td", value, "numeric"));
     if (group.family === "transport")
       row.append(
@@ -630,7 +660,10 @@ function renderGroup(group) {
           duration(
             matches,
             group.family === "assistant" ? "native_elapsed_ms" : "retrieval_ms",
-            (() => { const planned = run.groups.find((item) => item.id === group.id); return planned?.execution_count / planned?.configuration_count; })(),
+            (() => {
+              const planned = run.groups.find((item) => item.id === group.id);
+              return planned?.execution_count / planned?.configuration_count;
+            })(),
           ),
           "numeric",
         ),
@@ -914,9 +947,15 @@ function renderEvidence(item, columns, repeat, close) {
       if (!goals.has(goal.id)) goals.set(goal.id, goal);
   const uniqueGoals = new Map();
   for (const goal of goals.values()) {
-    const key = goal.alternatives?.length ? JSON.stringify(goal.alternatives.map(alternative => alternative.map(refKey).sort()).sort()) : goal.id;
+    const key = goal.alternatives?.length
+      ? JSON.stringify(
+          goal.alternatives
+            .map((alternative) => alternative.map(refKey).sort())
+            .sort(),
+        )
+      : goal.id;
     if (uniqueGoals.has(key)) uniqueGoals.get(key).ids.push(goal.id);
-    else uniqueGoals.set(key, {...goal, ids:[goal.id]});
+    else uniqueGoals.set(key, { ...goal, ids: [goal.id] });
   }
   if (goals.size) {
     const view = table(
@@ -949,8 +988,16 @@ function renderEvidence(item, columns, repeat, close) {
       }
       tr.append(expectation);
       for (const { row } of records) {
-        const matches = goal.ids.map(id => row?.goals?.find(value => value.id === id)),
-          actual = {covered:matches.some(value => value?.covered === false) ? false : matches.every(value => value?.covered === true) ? true : undefined},
+        const matches = goal.ids.map((id) =>
+            row?.goals?.find((value) => value.id === id),
+          ),
+          actual = {
+            covered: matches.some((value) => value?.covered === false)
+              ? false
+              : matches.every((value) => value?.covered === true)
+                ? true
+                : undefined,
+          },
           text = !row
             ? "Niet uitgevoerd"
             : outcome(row) === "error"
@@ -970,44 +1017,78 @@ function renderEvidence(item, columns, repeat, close) {
     }
     section.append(view.scroll);
   }
-  const additional = new Map(), foundByColumn = new Map();
-  for (const {column,row} of records) {
-    const found = new Set(), sources = column.run.result.sources || {};
-    for (const call of row?.calls || []) for (const hit of call.hits || []) {
-      const ref = typeof hit === "string" ? sources[hit] : hit;
-      if (ref && !expectedKeys.has(refKey(ref))) {
-        additional.set(refKey(ref),ref);
-        found.add(refKey(ref));
+  const additional = new Map(),
+    foundByColumn = new Map();
+  for (const { column, row } of records) {
+    const found = new Set(),
+      sources = column.run.result.sources || {};
+    for (const call of row?.calls || [])
+      for (const hit of call.hits || []) {
+        const ref = typeof hit === "string" ? sources[hit] : hit;
+        if (ref && !expectedKeys.has(refKey(ref))) {
+          additional.set(refKey(ref), ref);
+          found.add(refKey(ref));
+        }
       }
-    }
-    foundByColumn.set(column.id,found);
+    foundByColumn.set(column.id, found);
   }
   if (additional.size) {
-    const view = table([goals.size ? "Overige gevonden bron" : "Gevonden bron",...columns.map(column=>column.label)]);
-    for (const [key,ref] of additional) {
-      const tr=el("tr"),source=el("th");
-      source.append(el("p",sourceLabel(ref),"benchmark-source-title"),el("blockquote",ref.text || "","benchmark-source-text"));
+    const view = table([
+      goals.size ? "Overige gevonden bron" : "Gevonden bron",
+      ...columns.map((column) => column.label),
+    ]);
+    for (const [key, ref] of additional) {
+      const tr = el("tr"),
+        source = el("th");
+      source.append(
+        el("p", sourceLabel(ref), "benchmark-source-title"),
+        el("blockquote", ref.text || "", "benchmark-source-text"),
+      );
       tr.append(source);
-      for (const {column,row} of records) tr.append(el("td", !row ? "Niet uitgevoerd" : foundByColumn.get(column.id).has(key) ? (assistant ? "Aangeboden" : "Gevonden") : "Niet opgehaald"));
+      for (const { column, row } of records)
+        tr.append(
+          el(
+            "td",
+            !row
+              ? "Niet uitgevoerd"
+              : foundByColumn.get(column.id).has(key)
+                ? assistant
+                  ? "Aangeboden"
+                  : "Gevonden"
+                : "Niet opgehaald",
+          ),
+        );
       view.body.append(tr);
     }
     section.append(view.scroll);
   }
-  for (const {column,row} of records) {
+  for (const { column, row } of records) {
     if (!row) continue;
-    const answer=row.answer || row.output?.answer;
-    if (answer || outcome(row)==="error" || (!goals.size && row.reason)) {
-      const detail=el("div");
-      if (columns.length>1) detail.append(el("h3",column.label));
-      if (outcome(row)==="error") detail.append(el("p",row.reason || "De uitvoering kon niet worden afgerond.","benchmark-error"));
-      if (answer) detail.append(el("p",answer,"benchmark-answer"));
-      if (!goals.size && row.reason && !assistant) detail.append(el("p",row.reason));
+    const answer = row.answer || row.output?.answer;
+    if (answer || outcome(row) === "error" || (!goals.size && row.reason)) {
+      const detail = el("div");
+      if (columns.length > 1) detail.append(el("h3", column.label));
+      if (outcome(row) === "error")
+        detail.append(
+          el(
+            "p",
+            row.reason || "De uitvoering kon niet worden afgerond.",
+            "benchmark-error",
+          ),
+        );
+      if (answer) detail.append(el("p", answer, "benchmark-answer"));
+      if (!goals.size && row.reason && !assistant)
+        detail.append(el("p", row.reason));
       section.append(detail);
     }
   }
   if (assistant) {
-    const rig = records.some(({row}) => row?.answer_quality === "deterministic_case_specific_not_human");
-    if (records.some(({row}) => row?.answer_quality === "not_assessed")) section.append(el("p", "Antwoordkwaliteit: niet beoordeeld."));
+    const rig = records.some(
+      ({ row }) =>
+        row?.answer_quality === "deterministic_case_specific_not_human",
+    );
+    if (records.some(({ row }) => row?.answer_quality === "not_assessed"))
+      section.append(el("p", "Antwoordkwaliteit: niet beoordeeld."));
     const checkNames = {
       execution_completed: "Uitvoering afgerond",
       live_trace: "Volledig uitvoeringsspoor",
@@ -1048,6 +1129,38 @@ function renderEvidence(item, columns, repeat, close) {
     )
   )
     section.append(el("p", "Geen broncontrole beschikbaar."));
+  const timingField = assistant ? "native_elapsed_ms" : "retrieval_ms";
+  const measured = records.map(
+    ({ row }) => row?.[timingField] ?? row?.metrics?.[timingField],
+  );
+  if (measured.some(Number.isFinite)) {
+    let body = section.querySelector("table tbody");
+    if (!body) {
+      const times = table(["Meting", ...columns.map((column) => column.label)]);
+      body = times.body;
+      section.append(times.scroll);
+    }
+    const tr = el("tr"),
+      label = el(
+        "th",
+        assistant ? "Gemeten uitvoertijd (ms)" : "Gemeten zoektijd (ms)",
+      );
+    label.scope = "row";
+    tr.append(label);
+    for (const value of measured) {
+      const td = el(
+        "td",
+        Number.isFinite(value)
+          ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 3 }).format(
+              value,
+            )
+          : "—",
+      );
+      if (Number.isFinite(value)) td.title = String(value) + " ms";
+      tr.append(td);
+    }
+    body.append(tr);
+  }
   return section;
 }
 async function loadComparison() {
@@ -1201,11 +1314,21 @@ byId("discuss-benchmark").addEventListener("click", async () => {
       typeof handoff.report_path !== "string"
     )
       throw new Error("De overdracht bevat geen lokaal bespreekrapport.");
-    const transfer = typeof handoff.command === "string" && handoff.command ? handoff.command : handoff.prompt;
+    const transfer =
+      typeof handoff.command === "string" && handoff.command
+        ? handoff.command
+        : handoff.prompt;
+    const terminal = transfer === handoff.command;
+    byId("handoff-fallback").querySelector("label").textContent = terminal
+      ? "Terminalcommando"
+      : "Overdracht naar Codex";
     byId("codex-handoff").value = transfer;
     try {
       await navigator.clipboard.writeText(transfer);
-      message("handoff-status", "Overdracht gekopieerd.");
+      message(
+        "handoff-status",
+        terminal ? "Terminalcommando gekopieerd." : "Overdracht gekopieerd.",
+      );
     } catch {
       byId("handoff-fallback").hidden = false;
       byId("codex-handoff").focus();
