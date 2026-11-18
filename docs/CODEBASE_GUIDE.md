@@ -21,7 +21,7 @@ The application is Rust. Browser assets remain JavaScript/HTML/CSS; owned evalua
 
 | Route | Behavior |
 | --- | --- |
-| `/` | Live demo: fictional sources, a free question, answer and actual search actions. |
+| `/` | Live demo: fictional sources, a free-text question, answer and actual search actions. |
 | `/demo`, `/demo/` | HTTP 308 redirect to `/`. |
 | `/techniek/` | Human explanation of the architecture. |
 | `/resultaten/` | Three local retrieval tests plus separately opened saved results. |
