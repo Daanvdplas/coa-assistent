@@ -12,6 +12,10 @@ struct Requirements {
     proofs: Vec<Proof>,
     has_alternatives: bool,
 }
+struct CanonicalCorpus {
+    sections: BTreeMap<Reference, Section>,
+    prepared_source_sha256: String,
+}
 
 fn unknown(applicable: Value, has_alternatives: bool) -> Value {
     json!({"found":null,"total":null,"unit":"sections","found_refs":[],"missing_refs":[],"has_alternatives":has_alternatives,"documents":{"found":null,"total":null},"applicable":applicable})
@@ -75,7 +79,7 @@ fn requirements(row: &Value) -> Result<Option<Requirements>, ()> {
     }))
 }
 
-fn canonical_corpora() -> BTreeMap<String, BTreeMap<Reference, Section>> {
+fn canonical_corpora() -> BTreeMap<String, CanonicalCorpus> {
     [
         CorpusId::BaselineFive,
         CorpusId::ExpandedTen,
@@ -83,33 +87,46 @@ fn canonical_corpora() -> BTreeMap<String, BTreeMap<Reference, Section>> {
     ]
     .into_iter()
     .filter_map(|corpus| {
-        let sections = corpus
+        let sections: Vec<_> = corpus
             .sources()
             .ok()?
             .into_iter()
-            .flat_map(|source| source.sections);
+            .flat_map(|source| source.sections)
+            .collect();
+        let prepared =
+            meedoen_retrieval::retrieval::PreparedCorpus::new(sections, None, None).ok()?;
         Some((
             corpus.sha256(),
-            sections
-                .map(|section| ((section.source_id.clone(), section.id.clone()), section))
-                .collect(),
+            CanonicalCorpus {
+                prepared_source_sha256: prepared.identity.source_sha256,
+                sections: prepared
+                    .sections
+                    .into_iter()
+                    .map(|section| ((section.source_id.clone(), section.id.clone()), section))
+                    .collect(),
+            },
         ))
     })
     .collect()
 }
 
-fn actual_hash_matches(row: &Value, expected: &str) -> bool {
+fn actual_hash_matches(row: &Value, document_hash: &str, section_hash: &str) -> bool {
+    // PreparedCorpus hashes serialized canonical sections; Manifest hashes raw
+    // documents. Bind each representation separately without changing evidence.
     [
-        "/corpus_identity/source_sha256",
-        "/manifest/source_sha256",
-        "/manifest/corpus_sha256",
-        "/source_manifest/corpus_sha256",
-        "/corpus_sha256",
+        ("/corpus_identity/source_sha256", section_hash),
+        ("/manifest/source_sha256", document_hash),
+        ("/manifest/corpus_sha256", document_hash),
+        ("/source_manifest/corpus_sha256", document_hash),
+        ("/corpus_sha256", document_hash),
     ]
     .into_iter()
-    .filter_map(|path| row.pointer(path))
-    .filter(|value| !value.is_null())
-    .all(|value| value.as_str() == Some(expected))
+    .filter_map(|(path, expected)| {
+        row.pointer(path)
+            .filter(|value| !value.is_null())
+            .map(|value| (value, expected))
+    })
+    .all(|(value, expected)| value.as_str() == Some(expected))
 }
 
 fn offered(
@@ -163,7 +180,7 @@ fn projection(
     row: &Value,
     sources: &Map<String, Value>,
     identity: Option<&str>,
-    corpora: &BTreeMap<String, BTreeMap<Reference, Section>>,
+    corpora: &BTreeMap<String, CanonicalCorpus>,
 ) -> Value {
     if row["metrics"]["source_quality_applicable"] == false {
         return unknown(json!(false), false);
@@ -180,12 +197,16 @@ fn projection(
     ) {
         return unassessed();
     }
-    let Some(identity) = identity.filter(|identity| actual_hash_matches(row, identity)) else {
+    let Some(identity) = identity else {
         return unassessed();
     };
-    let Some(canonical) = corpora.get(identity) else {
+    let Some(corpus) = corpora.get(identity) else {
         return unassessed();
     };
+    if !actual_hash_matches(row, identity, &corpus.prepared_source_sha256) {
+        return unassessed();
+    }
+    let canonical = &corpus.sections;
     let proofs: Vec<_> = required
         .proofs
         .iter()
@@ -469,6 +490,48 @@ mod tests {
             other["result"]["rows"][0]["required_source_coverage"]["total"],
             2
         );
+    }
+    #[test]
+    fn prepared_section_identity_is_not_the_raw_document_hash_and_wrong_corpora_stay_unknown() {
+        use meedoen_retrieval::retrieval::PreparedCorpus;
+        let prepared_hash = |corpus: CorpusId| {
+            PreparedCorpus::new(
+                corpus
+                    .sources()
+                    .unwrap()
+                    .into_iter()
+                    .flat_map(|source| source.sections)
+                    .collect(),
+                None,
+                None,
+            )
+            .unwrap()
+            .identity
+            .source_sha256
+        };
+        let current = prepared_hash(CorpusId::DemoTwelve);
+        assert_eq!(
+            current,
+            "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a"
+        );
+        assert_ne!(current, CorpusId::DemoTwelve.sha256());
+        let mut value = regression();
+        value["result"]["rows"][0]["corpus_identity"] = json!({"source_sha256":current});
+        enrich(&mut value);
+        assert_eq!(
+            value["result"]["rows"][0]["required_source_coverage"]["found"],
+            8
+        );
+        assert_eq!(
+            value["result"]["rows"][0]["corpus_identity"]["source_sha256"], current,
+            "raw provenance must not be rewritten"
+        );
+        for wrong in [CorpusId::BaselineFive, CorpusId::ExpandedTen] {
+            value["result"]["rows"][0]["corpus_identity"]["source_sha256"] =
+                json!(prepared_hash(wrong));
+            enrich(&mut value);
+            assert!(value["result"]["rows"][0]["required_source_coverage"]["found"].is_null());
+        }
     }
     #[test]
     fn unknown_or_wrong_corpus_binding_is_unassessed_and_no_targets_are_not_applicable() {

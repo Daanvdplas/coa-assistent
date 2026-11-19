@@ -258,7 +258,13 @@
 }
 .benchmark-evidence-heading {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  position: sticky;
+  left: 0;
+  width: max-content;
+  max-width: calc(100vw - 80px);
+  flex-wrap: wrap;
+  background: var(--surface);
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;

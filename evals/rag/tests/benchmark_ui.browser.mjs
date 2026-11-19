@@ -311,15 +311,13 @@ async function fixture({
     }
     return route.fulfill({ status: 404, json: { error: "Onbekend" } });
   });
-  const evals = questions
-    .slice(0, 3)
-    .map((question, i) => ({
-      ...question,
-      id: ["garden-time-location", "indoor-tuesday", "two-activities"][i],
-      expected_goals: [
-        { id: "time", description: "Tijd", alternatives: [[expected]] },
-      ],
-    }));
+  const evals = questions.slice(0, 3).map((question, i) => ({
+    ...question,
+    id: ["garden-time-location", "indoor-tuesday", "two-activities"][i],
+    expected_goals: [
+      { id: "time", description: "Tijd", alternatives: [[expected]] },
+    ],
+  }));
   await page.route("**/api/evals/rag/catalog", (route) =>
     route.fulfill({
       json: {
@@ -503,6 +501,14 @@ test("mobile keeps the page bounded while all variant columns can be panned", as
         .evaluate((node) => node.scrollWidth > node.clientWidth),
       true,
     );
+    await page.locator(".benchmark-coverage-value").first().click();
+    const close = page.getByRole("button", {
+      name: "Sluit broncontrole",
+      exact: true,
+    });
+    const bounds = await close.boundingBox();
+    assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 375);
+    await close.click();
     await page
       .getByRole("button", { name: "Benchmark wijzigen", exact: true })
       .click();
