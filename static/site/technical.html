@@ -25,7 +25,7 @@
     .embedding-numbers { font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace; white-space:nowrap; }
     .embedding-converter { text-align:center; margin:10px 0; font-size:.9375rem; }
     .embedding-converter .flow-arrow { display:block; }
-    .meaning-map { position:relative; height:190px; border-bottom:1px solid var(--line); }
+    .meaning-map { position:relative; height:190px; }
     .meaning-point { position:absolute; font-size:1rem; line-height:1.35; padding-top:16px; }
     .meaning-point::before { content:""; position:absolute; left:0; top:0; width:9px; height:9px; border-radius:50%; background:var(--heading); }
     .meaning-question { left:5%; top:14%; max-width:56%; }
@@ -33,6 +33,7 @@
     .meaning-bicycle { left:73%; top:62%; max-width:26%; color:var(--muted); }
     .meaning-bicycle::before { background:var(--muted); }
     .embedding-lesson .rag-architecture { --diagram-width:min(976px,calc(100vw - 64px)); width:var(--diagram-width); margin:20px calc((100% - var(--diagram-width))/2); }
+    .embedding-lesson header .rag-architecture { margin-top:0; }
     .architecture-scroll { max-width:100%; overflow-x:auto; }
     .architecture-scroll svg { display:block; width:976px; height:auto; max-width:none; }
     @media(max-width:650px) { .embedding-lesson .rag-architecture { --diagram-width:calc(100vw - 32px); } }
@@ -51,49 +52,10 @@
 <nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" data-i18n="demo">Demo</a><a href="/techniek/" aria-current="page" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
 <main class="site-main app-main info-main">
 <article class="embedding-lesson">
-  <header><h1><span class="locale-nl" lang="nl">Hoe het werkt</span><span class="locale-en" lang="en">How it works</span></h1></header>
-  <nav class="lesson-index" aria-labelledby="questions-label">
-    <span id="questions-label" class="sr-only"><span class="locale-nl" lang="nl">Onderwerpen</span><span class="locale-en" lang="en">Topics</span></span>
-    <a href="#embeddings"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></a>
-    <a href="#rag"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></a>
-  </nav>
-
-  <section id="embeddings" aria-labelledby="embeddings-heading">
-    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Zoeken op betekenis</span><span class="locale-en" lang="en">Searching by meaning</span></h2>
-    <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein model zet de tekst én je vraag om in lijsten getallen: <em>embeddings</em>. Voor de tekst en de vraag gebruiken we hetzelfde model. Zo kun je de getallen vergelijken.</p>
-    <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small model turns the text and your question into lists of numbers: <em>embeddings</em>. Both use the same model, so their numbers can be compared.</p>
-    <figure>
-      <div class="embedding-pair">
-        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Tekst over de activiteit</span><span class="locale-en" lang="en">Activity text</span></small><p><span class="locale-nl" lang="nl">Tuinieren: we kweken groenten en bloemen.</span><span class="locale-en" lang="en">Gardening: we grow vegetables and flowers.</span></p></div>
-        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Je vraag</span><span class="locale-en" lang="en">Your question</span></small><p><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></p></div>
-      </div>
-      <div class="embedding-converter"><span class="flow-arrow" aria-hidden="true">↓</span><span class="locale-nl" lang="nl">Hetzelfde embeddingmodel</span><span class="locale-en" lang="en">Same embedding model</span><span class="flow-arrow" aria-hidden="true">↓</span></div>
-      <div class="embedding-pair">
-        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de tekst</span><span class="locale-en" lang="en">Text’s numbers</span></small><p class="embedding-numbers">[0.2, 0.8, …]</p></div>
-        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de vraag</span><span class="locale-en" lang="en">Question’s numbers</span></small><p class="embedding-numbers">[0.3, 0.7, …]</p></div>
-      </div>
-      <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld. De getallen en posities op de kaart zijn verzonnen om het idee te laten zien.</span><span class="locale-en" lang="en">Simplified example. Numbers and map positions are made up to show the idea.</span></figcaption>
-    </figure>
-    <h3><span class="locale-nl" lang="nl">Vergelijk de betekenis</span><span class="locale-en" lang="en">Compare the meaning</span></h3>
-    <p class="locale-nl" lang="nl">Zie die getallen als plekken op een kaart. Verwante betekenissen liggen vaak dichtbij, ook als de woorden verschillen. De zoekfunctie kiest zo passende tekststukjes en geeft de oorspronkelijke woorden terug.</p>
-    <p class="locale-en" lang="en">Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. Search uses this similarity to pick passages and return their original text.</p>
-    <figure>
-      <div class="meaning-map">
-        <span class="meaning-point meaning-question"><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></span>
-        <span class="meaning-point meaning-garden"><span class="locale-nl" lang="nl">Tuinieren</span><span class="locale-en" lang="en">Gardening</span></span>
-        <span class="meaning-point meaning-bicycle"><span class="locale-nl" lang="nl">Fietsen repareren</span><span class="locale-en" lang="en">Bicycle repair</span></span>
-      </div>
-    </figure>
-    <p class="locale-nl" lang="nl">Dit voorbeeld zoekt op betekenis. De demo kan ook op overeenkomende woorden zoeken.</p>
-    <p class="locale-en" lang="en">This example searches by meaning. The demo can also match words.</p>
-  </section>
-
-  <section id="rag" aria-labelledby="rag-heading">
-    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Antwoorden met bronnen</span><span class="locale-en" lang="en">Answering with sources</span></h2>
-    <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
-    <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
+  <header>
+    <h1 id="overview-heading" class="sr-only"><span class="locale-nl" lang="nl">Hoe werkt de COA Assistent?</span><span class="locale-en" lang="en">How does the COA Assistant work?</span></h1>
     <figure class="rag-architecture">
-      <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="rag-heading">
+      <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="overview-heading">
         <div class="locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
   <title id="coa-diagram-nl-diagram-title">Hoe werkt de COA-assistent?</title>
   <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het AI-model roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het AI-model staat erbuiten.</desc>
@@ -148,6 +110,48 @@
 </svg></div>
       </div>
     </figure>
+  </header>
+  <nav class="lesson-index" aria-labelledby="questions-label">
+    <span id="questions-label" class="sr-only"><span class="locale-nl" lang="nl">Onderwerpen</span><span class="locale-en" lang="en">Topics</span></span>
+    <a href="#embeddings"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></a>
+    <a href="#rag"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></a>
+  </nav>
+
+  <section id="embeddings" aria-labelledby="embeddings-heading">
+    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></h2>
+    <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein model zet de tekst én je vraag om in lijsten getallen: <em>embeddings</em>. Voor de tekst en de vraag gebruiken we hetzelfde model. Zo kun je de getallen vergelijken.</p>
+    <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small model turns the text and your question into lists of numbers: <em>embeddings</em>. Both use the same model, so their numbers can be compared.</p>
+    <figure>
+      <div class="embedding-pair">
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Tekst over de activiteit</span><span class="locale-en" lang="en">Activity text</span></small><p><span class="locale-nl" lang="nl">Tuinieren: we kweken groenten en bloemen.</span><span class="locale-en" lang="en">Gardening: we grow vegetables and flowers.</span></p></div>
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Je vraag</span><span class="locale-en" lang="en">Your question</span></small><p><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></p></div>
+      </div>
+      <div class="embedding-converter"><span class="flow-arrow" aria-hidden="true">↓</span><span class="locale-nl" lang="nl">Hetzelfde embeddingmodel</span><span class="locale-en" lang="en">Same embedding model</span><span class="flow-arrow" aria-hidden="true">↓</span></div>
+      <div class="embedding-pair">
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de tekst</span><span class="locale-en" lang="en">Text’s numbers</span></small><p class="embedding-numbers">[0.2, 0.8, …]</p></div>
+        <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de vraag</span><span class="locale-en" lang="en">Question’s numbers</span></small><p class="embedding-numbers">[0.3, 0.7, …]</p></div>
+      </div>
+      <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld. De getallen en posities op de kaart zijn verzonnen om het idee te laten zien.</span><span class="locale-en" lang="en">Simplified example. Numbers and map positions are made up to show the idea.</span></figcaption>
+    </figure>
+    <h3><span class="locale-nl" lang="nl">Vergelijk de betekenis</span><span class="locale-en" lang="en">Compare the meaning</span></h3>
+    <p class="locale-nl" lang="nl">Zie die getallen als plekken op een kaart. Verwante betekenissen liggen vaak dichtbij, ook als de woorden verschillen. De zoekfunctie kiest zo passende tekststukjes en geeft de oorspronkelijke woorden terug.</p>
+    <p class="locale-en" lang="en">Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. Search uses this similarity to pick passages and return their original text.</p>
+    <figure>
+      <div class="meaning-map">
+        <span class="meaning-point meaning-question"><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></span>
+        <span class="meaning-point meaning-garden"><span class="locale-nl" lang="nl">Tuinieren</span><span class="locale-en" lang="en">Gardening</span></span>
+        <span class="meaning-point meaning-bicycle"><span class="locale-nl" lang="nl">Fietsen repareren</span><span class="locale-en" lang="en">Bicycle repair</span></span>
+      </div>
+    </figure>
+    <p class="locale-nl" lang="nl">Dit voorbeeld zoekt op betekenis. De demo kan ook op overeenkomende woorden zoeken.</p>
+    <p class="locale-en" lang="en">This example searches by meaning. The demo can also match words.</p>
+  </section>
+
+  <section id="rag" aria-labelledby="rag-heading">
+    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></h2>
+    <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
+    <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
+
     <p class="search-again"><span class="locale-nl" lang="nl">Ontbreekt er iets? Het model kan de zoekfunctie om nog een tekststukje vragen.</span><span class="locale-en" lang="en">Missing a detail? The model can ask the search function for another passage.</span></p>
     <p class="lesson-recap locale-nl" lang="nl">Het model schrijft met de gevonden tekst een antwoord met bronnen. Een bron helpt je het antwoord te controleren, maar garandeert niet dat elke conclusie klopt.</p>
     <p class="lesson-recap locale-en" lang="en">The model uses the found text to write an answer with sources. A source helps you check an answer; it does not guarantee that every conclusion is right.</p>
