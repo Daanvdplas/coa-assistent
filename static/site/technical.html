@@ -14,9 +14,6 @@
     .embedding-lesson h2 { margin:0 0 12px; }
     .embedding-lesson h3 { margin:24px 0 10px; }
     .embedding-lesson header h1 { text-align:center; margin-bottom:24px; }
-    .lesson-index { display:grid; justify-items:center; margin:0 0 28px; padding-bottom:12px; border-bottom:1px solid var(--line); }
-    .lesson-index a { display:flex; align-items:center; min-height:44px; width:fit-content; max-width:100%; padding-block:8px; text-decoration:none; }
-    .lesson-index a:hover,.lesson-index a:focus-visible { text-decoration:underline; }
     .embedding-lesson figure { margin:18px 0; }
     .embedding-lesson figcaption { font-size:.8125rem; color:var(--muted); margin-top:8px; }
     .embedding-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -59,7 +56,7 @@
       <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="overview-heading">
         <div class="architecture-canvas locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
   <title id="coa-diagram-nl-diagram-title">Hoe werkt de COA-assistent?</title>
-  <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het AI-model roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het AI-model staat erbuiten.</desc>
+  <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het antwoordmodel roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het antwoordmodel staat erbuiten.</desc>
   <defs><marker id="coa-diagram-nl-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
   
   <g id="coa-diagram-nl-rag-frame" role="group" aria-label="RAG-zoektool: zoekindex en zoekfunctie" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
@@ -79,13 +76,13 @@
     <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activiteiten</text></g>
 <g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekindex</text></g>
 <g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Zoekfunctie</text></g>
-<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI-model</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Antwoordmodel</text></g>
 <g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA-assistent</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
   </g>
 </svg></div>
         <div class="architecture-canvas locale-en" lang="en"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-en-diagram-title" id="coa-diagram-page-en" aria-describedby="coa-diagram-en-diagram-description">
   <title id="coa-diagram-en-diagram-title">How does the COA assistant work?</title>
-  <desc id="coa-diagram-en-diagram-description">Activities are prepared in the search index. The AI model calls the search function and uses the returned text passages to answer with sources. The RAG search tool frame contains only the search index and search function; the AI model is outside it.</desc>
+  <desc id="coa-diagram-en-diagram-description">Activities are prepared in the search index. The answer model calls the search function and uses the returned text passages to answer with sources. The RAG search tool frame contains only the search index and search function; the answer model is outside it.</desc>
   <defs><marker id="coa-diagram-en-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
   
   <g id="coa-diagram-en-rag-frame" role="group" aria-label="RAG search tool: search index and search function" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif"><path d="M350 560 H43 Q25 560 25 578 V772 Q25 790 43 790 H957 Q975 790 975 772 V578 Q975 560 957 560 H650" fill="none" stroke="oklch(81% .012 85)" stroke-width="2.4" stroke-dasharray="7 7" data-rag-boundary="true"/>
@@ -105,23 +102,18 @@
     <g data-node="activities"><text x="210" y="247" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Activities</text></g>
 <g data-node="index"><rect x="60" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="210" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search index</text></g>
 <g data-node="search"><rect x="650" y="610" width="280" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="790" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Search function</text></g>
-<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">AI model</text></g>
+<g data-node="model"><rect x="1210" y="610" width="300" height="110" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="676" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">Answer model</text></g>
 <g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA assistant</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
   </g>
 </svg></div>
       </div>
     </figure>
   </header>
-  <nav class="lesson-index" aria-labelledby="questions-label">
-    <span id="questions-label" class="sr-only"><span class="locale-nl" lang="nl">Onderwerpen</span><span class="locale-en" lang="en">Topics</span></span>
-    <a href="#embeddings"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></a>
-    <a href="#rag"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></a>
-  </nav>
 
   <section id="embeddings" aria-labelledby="embeddings-heading">
-    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Hoe werken embeddings?</span><span class="locale-en" lang="en">How do embeddings work?</span></h2>
-    <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein model zet de tekst én je vraag om in lijsten getallen: <em>embeddings</em>. Voor de tekst en de vraag gebruiken we hetzelfde model. Zo kun je de getallen vergelijken.</p>
-    <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small model turns the text and your question into lists of numbers: <em>embeddings</em>. Both use the same model, so their numbers can be compared.</p>
+    <h2 id="embeddings-heading"><span class="locale-nl" lang="nl">Hoe werkt de zoekindex?</span><span class="locale-en" lang="en">How does the search index work?</span></h2>
+    <p class="locale-nl" lang="nl">Je vraagt wanneer je met planten kunt werken. In de bron heet de activiteit tuinieren. Een klein embeddingmodel zet de brontekst om in lijsten getallen: <em>embeddings</em>. De zoekindex bewaart de tekst en die getallen. Hetzelfde model zet je vraag om in getallen, zodat de zoekfunctie ze kan vergelijken.</p>
+    <p class="locale-en" lang="en">You ask when you can work with plants. The source calls the activity gardening. A small embedding model turns the source text into lists of numbers: <em>embeddings</em>. The search index stores the text and those numbers. The same model turns your question into numbers, so the search function can compare them.</p>
     <figure>
       <div class="embedding-pair">
         <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Tekst over de activiteit</span><span class="locale-en" lang="en">Activity text</span></small><p><span class="locale-nl" lang="nl">Tuinieren: we kweken groenten en bloemen.</span><span class="locale-en" lang="en">Gardening: we grow vegetables and flowers.</span></p></div>
@@ -134,9 +126,9 @@
       </div>
       <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld. De getallen en posities op de kaart zijn verzonnen om het idee te laten zien.</span><span class="locale-en" lang="en">Simplified example. Numbers and map positions are made up to show the idea.</span></figcaption>
     </figure>
-    <h3><span class="locale-nl" lang="nl">Vergelijk de betekenis</span><span class="locale-en" lang="en">Compare the meaning</span></h3>
+    <h3><span class="locale-nl" lang="nl">Vergelijken</span><span class="locale-en" lang="en">Compare</span></h3>
     <p class="locale-nl" lang="nl">Zie die getallen als plekken op een kaart. Verwante betekenissen liggen vaak dichtbij, ook als de woorden verschillen. De zoekfunctie kiest zo passende tekststukjes en geeft de oorspronkelijke woorden terug.</p>
-    <p class="locale-en" lang="en">Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. Search uses this similarity to pick passages and return their original text.</p>
+    <p class="locale-en" lang="en">Think of those numbers as places on a map. Related meanings tend to be close, even when the words differ. The search function uses this similarity to pick passages and return their original text.</p>
     <figure>
       <div class="meaning-map">
         <span class="meaning-point meaning-question"><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></span>
@@ -149,7 +141,7 @@
   </section>
 
   <section id="rag" aria-labelledby="rag-heading">
-    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Hoe gebruikt het model RAG?</span><span class="locale-en" lang="en">How does the model use RAG?</span></h2>
+    <h2 id="rag-heading"><span class="locale-nl" lang="nl">Hoe gebruikt het antwoordmodel de zoekfunctie?</span><span class="locale-en" lang="en">How does the answer model use the search function?</span></h2>
     <p class="locale-nl" lang="nl">RAG betekent: eerst passende tekst opzoeken en die gebruiken voor een antwoord. Het antwoordmodel vraagt de zoekfunctie om passende tekst en krijgt die tekst terug. Het ziet gewone woorden, niet de getallenlijsten.</p>
     <p class="locale-en" lang="en">RAG means finding relevant text and using it to answer. The answer model asks the search function for relevant text and gets that text back. It sees ordinary text, not the lists of numbers.</p>
 
