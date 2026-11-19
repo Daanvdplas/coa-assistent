@@ -92,6 +92,8 @@ Without evidence, local policy enforcement, approved key access and release appr
 
 ## Stop date and rollback
 
+Optional execution traces and their separate dashboard are operator-only. Keep the trace directory private to the application user and exclude the dashboard port and its `/api/threads` routes from public Caddy/tunnel configuration. Use existing SSH access for private inspection as described in [local traces](traces.md). Trace setup or local preview does not authorize deployment or a new model allowance.
+
 Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
 Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the same v2 budget. An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.

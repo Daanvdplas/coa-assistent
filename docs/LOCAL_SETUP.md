@@ -19,7 +19,7 @@ From the repository, explicitly remove inherited provider and budget configurati
 
 ```sh
 env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE \
-  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
+  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS -u COA_TRACE_DB \
   COA_DISABLE_DOTENV=1 cargo run --locked
 ```
 
@@ -116,6 +116,7 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 | `COA_OPENAI_API_KEY_FILE` | Alternative explicit external provider-key file; takes precedence over `.env`. |
 | `COA_DISABLE_DOTENV` | Set to `1` to skip `.env`, including for a credential-free preview. |
 | `COA_DEMO_BUDGET_FILE` | Persistent approved schema-2 budget; required for real API attempts. |
+| `COA_TRACE_DB` | Optional private trace database outside the checkout; unset disables recording. See [local traces](traces.md). |
 | `COA_TRUSTED_PROXY_IP` | Exact trusted proxy peer; unset for direct local use. See [deployment](public-deployment.md). |
 
 The server binds to loopback. `/demo` and `/demo/` redirect to `/`; `/techniek/` serves the explanation and `/resultaten/` serves evaluations. A configured `runtime_ready` flag does not prove provider credit or quota. There is no Codex fallback for web answers.

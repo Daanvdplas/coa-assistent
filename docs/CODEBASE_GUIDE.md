@@ -13,6 +13,8 @@ flowchart LR
     Rig --> Search["Local Index: MiniLM or BM25"]
     Web --> Results["Saved evaluation projections"]
     Web --> LocalJob["Local promptfoo retrieval job"]
+    Web -. "optional" .-> Traces["Private SQLite trace store"]
+    Dashboard["Separate local trace dashboard"] --> Traces
     CLI["CLI / model evaluations"] --> Codex["Codex + read-only MCP"]
     Codex --> Search
 ```
@@ -34,6 +36,8 @@ The application is Rust. Browser assets remain JavaScript/HTML/CSS; owned evalua
 | `/api/evals/rag/catalog`, `/api/evals/rag/runs` | Read the fixed local test catalog; start/read/cancel an owned local evaluation job. |
 
 Hosting adds a separate route allowlist; the local evaluation worker is not a supported public endpoint. See [deployment](public-deployment.md).
+
+`COA_TRACE_DB` optionally records projected model/search events through [`traces.rs`](../src/traces.rs), with random thread IDs separate from visitor bearer sessions. [`trace_dashboard.rs`](../src/trace_dashboard.rs) serves a read-only dashboard through `traces serve --db PATH [--port 8767]`. This command dispatches before index/key/answer-service initialization, binds only to loopback, checks Host/Origin and exposes its own thread list/detail/JSON export routes. The visitor router has no trace-reading routes. See [trace setup](traces.md) for captured fields, retention and private access.
 
 ## Trace one question
 

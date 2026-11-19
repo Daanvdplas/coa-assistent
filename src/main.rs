@@ -1,6 +1,7 @@
 #[path = "../evals/rag/src/legacy.rs"]
 mod evaluation;
 mod operator_lock;
+mod trace_dashboard;
 mod web;
 use meedoen_retrieval::Index;
 use serde_json::json;
@@ -14,6 +15,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.remove(0)
     };
     match command.as_str() {
+        "traces" => {
+            trace_dashboard::cli(&args)
+                .await
+                .map_err(std::io::Error::other)?;
+            return Ok(());
+        }
         "demo-budget" => {
             meedoen_retrieval::demo_budget::cli(&args)?;
             return Ok(());
