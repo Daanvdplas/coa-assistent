@@ -15,11 +15,12 @@ cd coa-assistent
 
 ## Preview without model calls
 
-From the repository, explicitly remove inherited provider and budget configuration for this process:
+From the repository, explicitly remove inherited provider and budget configuration and disable `.env` loading for this process:
 
 ```sh
 env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE \
-  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS cargo run --locked
+  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
+  COA_DISABLE_DOTENV=1 cargo run --locked
 ```
 
 Open **http://127.0.0.1:8766/** when the server is ready. You can read the twelve fictional sources, technical explanation and saved results; new answers are unavailable. Do not start local evaluation jobs as part of this preview. The first launch builds Rust and downloads approximately 235 MB of MiniLM files to `.model-cache/` in the working directory. Later launches reuse them. Keep the terminal open; **Ctrl+C** stops the server.
@@ -30,7 +31,20 @@ Before proceeding, agree an explicit positive number of **model attempts** with 
 
 ### Store your own key
 
-Use an OpenAI API key with access to `gpt-6.1-sol` and available API credit. Ask the user for its external file path; never ask them to paste the key into chat. If they already have a securely configured file, skip this block. Otherwise the user can run this Bash block: input is hidden, omitted from command history, and an existing file is never overwritten.
+Use an OpenAI API key with access to `gpt-6.1-sol` and available API credit. Never paste the key into chat or a command. From the project root:
+
+```sh
+cp -n .env.example .env
+chmod 600 .env
+```
+
+Open `.env` in your local editor and fill in `OPENAI_API_KEY`. The web app automatically reads this file from its **current working directory**, so start it from the project root. It does not search parent directories. `.env` and `.env.*` are ignored by Git, except the empty `.env.example` template. Do not share or commit the populated file.
+
+Only `OPENAI_API_KEY` is read from `.env`; other settings are not imported into the process environment. An inherited nonempty `OPENAI_API_KEY` takes precedence, followed by an explicit `COA_OPENAI_API_KEY_FILE`, then `.env`. Set `COA_DISABLE_DOTENV=1` to skip `.env`. Missing keys leave source/result browsing available; malformed `.env` files disable new answers with a redacted error. A key alone does not authorize model use: the separately approved persistent budget below is still required.
+
+#### Alternative: external key file
+
+An existing external key file remains supported. Ask the user for its file path, never its contents. To create one, the user can run this Bash block: input is hidden, omitted from command history, and an existing file is never overwritten.
 
 ```sh
 bash <<'BASH'
@@ -47,7 +61,7 @@ chmod 600 "$HOME/.config/coa/openai-api-key"
 BASH
 ```
 
-The file must be owned by the current user, regular, mode `0600`, and neither a symlink nor a hardlink. Keep it outside the repository. The app does not automatically read `.env`. An inherited `OPENAI_API_KEY` takes precedence over the file; the start command below removes that ambiguity without printing either value.
+The file must be owned by the current user, regular, mode `0600`, and neither a symlink nor a hardlink. Keep this alternative key file outside the repository. An inherited `OPENAI_API_KEY` takes precedence over it.
 
 ### Initialize the budget once
 
@@ -65,7 +79,16 @@ Initialization refuses an existing file. Keep this file across restarts, updates
 
 ### Start and stop
 
-Substitute the approved external paths if they differ:
+With `.env` filled in, start from the project root and select the approved budget path:
+
+```sh
+env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DISABLE_DOTENV \
+  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
+  COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" \
+  cargo run --locked
+```
+
+For the alternative external key file, use this command instead. Substitute the approved external paths if they differ:
 
 ```sh
 env -u OPENAI_API_KEY -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
@@ -89,8 +112,9 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 | Setting | Purpose |
 | --- | --- |
 | `COA_PORT` | Local port; default `8766`, for example `COA_PORT=8767 cargo run --locked`. |
-| `COA_OPENAI_API_KEY_FILE` | Explicit external provider-key file; preferred setup route. |
-| `OPENAI_API_KEY` | Alternative inherited server-side key; never put its value in command arguments. |
+| `OPENAI_API_KEY` | Server-side key, inherited or read from working-directory `.env`; never put its value in command arguments. |
+| `COA_OPENAI_API_KEY_FILE` | Alternative explicit external provider-key file; takes precedence over `.env`. |
+| `COA_DISABLE_DOTENV` | Set to `1` to skip `.env`, including for a credential-free preview. |
 | `COA_DEMO_BUDGET_FILE` | Persistent approved schema-2 budget; required for real API attempts. |
 | `COA_TRUSTED_PROXY_IP` | Exact trusted proxy peer; unset for direct local use. See [deployment](public-deployment.md). |
 

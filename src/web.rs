@@ -481,7 +481,7 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("Open http://127.0.0.1:{port}/ · OpenAI Responses API + lokale bronzoekfunctie");
     if app.runner.is_none() {
         eprintln!(
-            "Antwoordservice niet ingesteld: gebruik OPENAI_API_KEY of COA_OPENAI_API_KEY_FILE buiten de repository."
+            "Antwoordservice niet ingesteld: zet OPENAI_API_KEY in .env of gebruik een externe sleutel; stel ook het gebruiksbudget in."
         );
     }
     axum::serve(

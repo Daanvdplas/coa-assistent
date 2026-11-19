@@ -26,7 +26,7 @@ For UI changes, serve locally and have an independent agent use the real browser
 
 ## Credentials and spending
 
-Ask for the user's own API key **file path**, never the key value. Keep secrets out of chat, Git, command arguments, browser data and reports. Do not inspect private key/authentication files. The app does not autoload `.env`.
+Ask for the user's own API key **file path**, never the key value. Keep secrets out of chat, Git, command arguments, browser data and reports. Do not inspect private key/authentication files. The web app reads only `OPENAI_API_KEY` from `.env` in its working directory as a fallback after inherited key/key-file settings. Set `COA_DISABLE_DOTENV=1` for a credential-free preview; see the safe preview command above. Never put budgets or spending authorization in `.env`.
 
 Before any new model use, obtain an explicit positive model-attempt limit or spending authorization and explain the applicable cost assumptions. A monetary limit must be converted into a bounded attempt count using verified model prices and token limits; it is not a provider-enforced dollar cap. There is no default budget. Other owners' fifty-attempt/$100 examples are not authorization.
 
