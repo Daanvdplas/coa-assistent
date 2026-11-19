@@ -13,7 +13,8 @@
     .embedding-lesson section + section { margin-top:32px; padding-top:28px; border-top:1px solid var(--line); }
     .embedding-lesson h2 { margin:0 0 12px; }
     .embedding-lesson h3 { margin:24px 0 10px; }
-    .lesson-index { display:grid; margin:0 0 28px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+    .embedding-lesson header h1 { text-align:center; margin-bottom:24px; }
+    .lesson-index { display:grid; justify-items:center; margin:0 0 28px; padding-bottom:12px; border-bottom:1px solid var(--line); }
     .lesson-index a { display:flex; align-items:center; min-height:44px; width:fit-content; max-width:100%; padding-block:8px; text-decoration:none; }
     .lesson-index a:hover,.lesson-index a:focus-visible { text-decoration:underline; }
     .embedding-lesson figure { margin:18px 0; }
@@ -32,10 +33,10 @@
     .meaning-garden { left:28%; top:58%; }
     .meaning-bicycle { left:73%; top:62%; max-width:26%; color:var(--muted); }
     .meaning-bicycle::before { background:var(--muted); }
-    .embedding-lesson .rag-architecture { --diagram-width:min(976px,calc(100vw - 64px)); width:var(--diagram-width); margin:20px calc((100% - var(--diagram-width))/2); }
-    .embedding-lesson header .rag-architecture { margin-top:0; }
+    .embedding-lesson .rag-architecture { --diagram-width:min(900px,calc(100vw - 64px)); width:var(--diagram-width); margin:0 calc((100% - var(--diagram-width))/2) 24px; }
     .architecture-scroll { max-width:100%; overflow-x:auto; }
-    .architecture-scroll svg { display:block; width:976px; height:auto; max-width:none; }
+    .architecture-canvas { width:900px; height:399.375px; overflow:hidden; }
+    .architecture-scroll svg { display:block; width:900px; height:auto; max-width:none; transform:translateY(-61.875px); }
     @media(max-width:650px) { .embedding-lesson .rag-architecture { --diagram-width:calc(100vw - 32px); } }
     .search-again { font-size:.9375rem; color:var(--muted); margin:12px 0 0; }
     .lesson-recap { margin-top:24px; }
@@ -53,10 +54,10 @@
 <main class="site-main app-main info-main">
 <article class="embedding-lesson">
   <header>
-    <h1 id="overview-heading" class="sr-only"><span class="locale-nl" lang="nl">Hoe werkt de COA Assistent?</span><span class="locale-en" lang="en">How does the COA Assistant work?</span></h1>
+    <h1 id="overview-heading"><span class="locale-nl" lang="nl">Hoe werkt de COA Assistent?</span><span class="locale-en" lang="en">How does the COA Assistant work?</span></h1>
     <figure class="rag-architecture">
       <div class="architecture-scroll" tabindex="0" role="region" aria-labelledby="overview-heading">
-        <div class="locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
+        <div class="architecture-canvas locale-nl" lang="nl"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-nl-diagram-title" id="coa-diagram-page-nl" aria-describedby="coa-diagram-nl-diagram-description">
   <title id="coa-diagram-nl-diagram-title">Hoe werkt de COA-assistent?</title>
   <desc id="coa-diagram-nl-diagram-description">Activiteiten worden vooraf klaargezet in de zoekindex. Het AI-model roept de zoekfunctie aan en gebruikt teruggevonden tekststukken voor een antwoord met bronnen. Het kader RAG-zoektool omvat alleen de zoekindex en zoekfunctie; het AI-model staat erbuiten.</desc>
   <defs><marker id="coa-diagram-nl-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
@@ -82,7 +83,7 @@
 <g data-node="interface"><rect x="1210" y="140" width="300" height="120" rx="26" fill="oklch(99.8% .001 85)" stroke="oklch(81% .012 85)" stroke-width="2.4"/><text x="1360" y="194" text-anchor="middle" font-size="32" font-weight="600" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">COA-assistent</text><text x="1360" y="227" text-anchor="middle" font-size="27" font-weight="400" font-family="&quot;Avenir Next&quot;, &quot;Segoe UI&quot;, sans-serif" fill="#002D36">interface</text></g>
   </g>
 </svg></div>
-        <div class="locale-en" lang="en"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-en-diagram-title" id="coa-diagram-page-en" aria-describedby="coa-diagram-en-diagram-description">
+        <div class="architecture-canvas locale-en" lang="en"><svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="coa-diagram-en-diagram-title" id="coa-diagram-page-en" aria-describedby="coa-diagram-en-diagram-description">
   <title id="coa-diagram-en-diagram-title">How does the COA assistant work?</title>
   <desc id="coa-diagram-en-diagram-description">Activities are prepared in the search index. The AI model calls the search function and uses the returned text passages to answer with sources. The RAG search tool frame contains only the search index and search function; the AI model is outside it.</desc>
   <defs><marker id="coa-diagram-en-arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L12 6 L0 12 Z" fill="oklch(44% .025 214)"/></marker></defs>
