@@ -517,6 +517,33 @@ test("mobile keeps the page bounded while all variant columns can be panned", as
       .first()
       .boundingBox();
     assert.ok(source.x >= 0 && source.x + source.width <= 375);
+    for (const zoom of [1, 2]) {
+      if (zoom === 2)
+        await page.addStyleTag({ content: "html{font-size:200%}" });
+      await page
+        .locator(".benchmark-table-scroll")
+        .first()
+        .evaluate((node) => (node.scrollLeft = node.scrollWidth));
+      const geometry = await page
+        .locator(".benchmark-evidence-table")
+        .first()
+        .evaluate((table) => {
+          const row = table.tBodies[0].rows[0],
+            source = row.cells[0].getBoundingClientRect(),
+            last = row.cells[row.cells.length - 1],
+            range = document.createRange();
+          range.selectNodeContents(last);
+          const text = range.getBoundingClientRect();
+          return {
+            sourceRight: source.right,
+            textLeft: text.left,
+            textRight: text.right,
+          };
+        });
+      assert.ok(
+        geometry.textLeft >= geometry.sourceRight && geometry.textRight <= 375,
+      );
+    }
     const closeAfterPan = await close.boundingBox();
     assert.ok(
       closeAfterPan.x >= 0 && closeAfterPan.x + closeAfterPan.width <= 375,

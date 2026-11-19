@@ -368,3 +368,33 @@
     outline: 1px solid Highlight;
   }
 }
+@media (max-width: 650px) {
+  .benchmark-main {
+    --mobile-source-width: min(9rem, 30vw);
+    --mobile-variant-width: calc(100vw - 64px - var(--mobile-source-width));
+  }
+  .benchmark-coverage > thead > tr > th:first-child,
+  .benchmark-coverage > tbody > tr[data-repeat] > th {
+    width: var(--mobile-source-width);
+    min-width: var(--mobile-source-width);
+    max-width: var(--mobile-source-width);
+  }
+  .benchmark-coverage > thead > tr > th:not(:first-child) {
+    width: var(--mobile-variant-width);
+    min-width: var(--mobile-variant-width);
+    max-width: var(--mobile-variant-width);
+  }
+  .benchmark-evidence table th:first-child {
+    width: var(--mobile-source-width);
+    min-width: var(--mobile-source-width);
+    max-width: var(--mobile-source-width);
+  }
+  .benchmark-evidence table th:not(:first-child),
+  .benchmark-evidence table td {
+    width: var(--mobile-variant-width);
+    min-width: var(--mobile-variant-width);
+    max-width: var(--mobile-variant-width);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
