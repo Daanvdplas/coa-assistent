@@ -6,6 +6,7 @@ import {
   readFileSync,
   mkdirSync,
   rmSync,
+  readdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -216,4 +217,79 @@ test("browser preparation pins the resolved model before retrieval", async (t) =
     raw = readFileSync(pin.path);
   assert.equal(sha256(raw), pin.sha256);
   assert.deepEqual(JSON.parse(raw.toString()).models[model], identity);
+});
+
+test("native model compilation failure keeps its safe cause instead of comparing an absent outcome", async (t) => {
+  const { root, rows } = setup(t);
+  const binary = process.env.COA_RAG_BINARY!;
+  const model = "e5-small-multilingual";
+  const identity = {
+    provider: "local-fastembed",
+    model: "test-e5@" + "a".repeat(40),
+    sdk: "fastembed 7.1.2",
+    dimensions: 384,
+    encoding: "fixture",
+    document_prefix: "passage: ",
+    query_prefix: "query: ",
+  };
+  const failed = {
+    ...(localRecord().record as NativeRecord),
+    execution_status: "failed",
+    outcome: null,
+    error:
+      "Preparation failed: ONNX runtime error: Error compiling model: compiler error: I/O error at /Users/private/model-cache/key-file",
+  };
+  writeFileSync(
+    binary,
+    `#!${process.execPath}\nconst fs=require('node:fs');const args=process.argv.slice(2);if(args[1]==='embedding-identity'){process.stdout.write(JSON.stringify(${JSON.stringify({ model_id: model, embedding_identity: identity })}));}else{fs.writeFileSync(args[args.indexOf('--output')+1],JSON.stringify(${JSON.stringify(failed)})+'\\n');}\n`,
+    { mode: 0o700 },
+  );
+  const output = join(root, "failed-prepared.json");
+  await assert.rejects(
+    prepare(
+      {
+        schema_version: 1,
+        execution_id: "failed-native-fixture",
+        tests: [
+          {
+            vars: {
+              ...rows[0].vars,
+              method: "dense",
+              top_k: 5,
+              browser_eval_id: "garden-time-location",
+              embedding_model: model,
+            },
+          },
+        ],
+      },
+      output,
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /ONNX/);
+      assert.match(error.message, /I\/O/);
+      assert.doesNotMatch(
+        error.message,
+        /Expected JSON protocol|\/Users\/|key-file/,
+      );
+      return true;
+    },
+  );
+  const diagnostic = readJson<{
+    code: string;
+    message: string;
+    native_run_id: string;
+  }>(join(process.env.COA_PROMPTFOO_ARTIFACT_DIR!, "preparation-error.json"));
+  assert.equal(diagnostic.code, "onnx_model_compile_io");
+  assert.equal(diagnostic.native_run_id, failed.run_id);
+  assert.doesNotMatch(JSON.stringify(diagnostic), /\/Users\/|key-file/);
+  const base = process.env.COA_PROMPTFOO_ARTIFACT_DIR!;
+  const directory = readdirSync(base).find((name) =>
+    name.startsWith("prepared-"),
+  )!;
+  assert.equal(
+    readFileSync(join(base, directory, "native.jsonl"), "utf8"),
+    JSON.stringify(failed) + "\n",
+    "the original failed native evidence stays byte-identical",
+  );
 });

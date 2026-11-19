@@ -41,6 +41,39 @@ interface Group {
   filters: Filters;
   tests: Variables[];
 }
+export const PREPARATION_FAILURES = {
+  onnx_model_compile_io:
+    "Het ONNX-model kon niet worden gecompileerd (I/O-fout).",
+  local_preparation_failed:
+    "De lokale voorbereiding is mislukt; de bronzoekactie is niet afgerond.",
+} as const;
+function preparationFailed(
+  base: string,
+  privateReason: string,
+  nativeRunId?: string,
+): never {
+  // Native errors can contain private cache paths. Publish the known cause,
+  // while leaving the complete original record in its private native.jsonl.
+  const code =
+    /ONNX/i.test(privateReason) &&
+    /compil/i.test(privateReason) &&
+    /I\/O/i.test(privateReason)
+      ? "onnx_model_compile_io"
+      : "local_preparation_failed";
+  const message = PREPARATION_FAILURES[code];
+  writeNew(join(base, "preparation-error.json"), {
+    schema_version: 1,
+    code,
+    message,
+    stage: "local_preparation",
+    native_run_id:
+      typeof nativeRunId === "string" &&
+      /^[a-zA-Z0-9_.-]{1,240}$/.test(nativeRunId)
+        ? nativeRunId
+        : null,
+  });
+  throw new Error(message);
+}
 export async function prepare(
   request: PrepareRequest,
   output: string,
@@ -129,9 +162,7 @@ export async function prepare(
         ROOT,
       );
       if (result.returncode !== 0)
-        throw new Error(
-          "Local embedding preparation failed; private process output not exported",
-        );
+        preparationFailed(base, result.stderr.toString());
       const resolved = parseJson<{
         model_id: string;
         embedding_identity: Embedding;
@@ -185,9 +216,7 @@ export async function prepare(
       command.push("--query-filters", JSON.stringify(group.filters));
     const result = await execute(command, childEnvironment(), 3600, ROOT);
     if (result.returncode !== 0)
-      throw new Error(
-        "Fresh local preparation failed; private process output not exported",
-      );
+      preparationFailed(base, result.stderr.toString());
     const rows = readFileSync(native, "utf8")
       .split("\n")
       .filter(Boolean)
@@ -205,13 +234,18 @@ export async function prepare(
       const row = byCase.get(variables.case_id)!;
       if (row.question !== variables.question)
         throw new Error("Prepared case query differs");
+      if (row.execution_status !== "completed" || !row.outcome) {
+        const reason =
+          "error" in row && typeof row.error === "string" ? row.error : "";
+        preparationFailed(base, reason, row.run_id);
+      }
       if (group.embedding_model) {
         const actual = row.outcome?.corpus_identity?.embedding,
           expected =
             group.settings.method === "bm25"
               ? null
               : embeddingModels[group.embedding_model];
-        if (!same(actual, expected))
+        if (actual === undefined || !same(actual, expected))
           throw new Error(
             "Retrieved evidence differs from independently prepared embedding model",
           );

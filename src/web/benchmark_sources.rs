@@ -182,6 +182,21 @@ fn projection(
     identity: Option<&str>,
     corpora: &BTreeMap<String, CanonicalCorpus>,
 ) -> Value {
+    if matches!(
+        row["status"].as_str(),
+        Some(
+            "error"
+                | "failed_execution"
+                | "not_run"
+                | "queued"
+                | "running"
+                | "preparing"
+                | "cancelled"
+                | "interrupted"
+        )
+    ) {
+        return unknown(Value::Null, false);
+    }
     if row["metrics"]["source_quality_applicable"] == false {
         return unknown(json!(false), false);
     }
@@ -248,6 +263,66 @@ fn projection(
     json!({"found":found_refs.len(),"total":best.len(),"unit":"sections","found_refs":found_refs,"missing_refs":missing_refs,"has_alternatives":required.has_alternatives,"documents":{"found":found_documents.len(),"total":documents.len()},"applicable":true})
 }
 
+fn actual_retrieval(
+    row: &Value,
+    sources: &Map<String, Value>,
+    identity: Option<&str>,
+    corpora: &BTreeMap<String, CanonicalCorpus>,
+) -> Value {
+    let unknown = || json!({"activities":null,"sections":null,"applicable":null});
+    if !matches!(row["status"].as_str(), Some("passed" | "failed")) {
+        return unknown();
+    }
+    let Some((identity, corpus)) =
+        identity.and_then(|identity| corpora.get(identity).map(|corpus| (identity, corpus)))
+    else {
+        return unknown();
+    };
+    if !actual_hash_matches(row, identity, &corpus.prepared_source_sha256) {
+        return unknown();
+    }
+    let Some(calls) = row["calls"].as_array() else {
+        return unknown();
+    };
+    let mut sections = Proof::new();
+    for call in calls {
+        if call["status"] != "completed" {
+            return unknown();
+        }
+        let Some(hits) = call["hits"].as_array() else {
+            return unknown();
+        };
+        for hit in hits {
+            let Some(key) = hit.as_str().filter(|key| !key.starts_with("expected:")) else {
+                return unknown();
+            };
+            let Some(payload) = sources.get(key) else {
+                return unknown();
+            };
+            let payload = payload.get("section").unwrap_or(payload);
+            let Some(text) = payload["text"].as_str().filter(|text| !text.is_empty()) else {
+                return unknown();
+            };
+            let offered: Proof = corpus
+                .sections
+                .iter()
+                .filter(|(_, section)| {
+                    payload["source_id"] == section.source_id
+                        && payload["source_date"] == section.source_date
+                        && text.contains(&section.text)
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            if offered.is_empty() {
+                return unknown();
+            }
+            sections.extend(offered);
+        }
+    }
+    let activities: BTreeSet<_> = sections.iter().map(|(source, _)| source).collect();
+    json!({"activities":activities.len(),"sections":sections.len(),"applicable":true})
+}
+
 pub(super) fn enrich(snapshot: &mut Value) {
     let identities: BTreeMap<_, _> = snapshot["plan"]["groups"]
         .as_array()
@@ -277,6 +352,7 @@ pub(super) fn enrich(snapshot: &mut Value) {
                 .and_then(|id| identities.get(id))
                 .map(String::as_str);
             row["required_source_coverage"] = projection(row, sources, identity, &corpora);
+            row["actual_retrieval"] = actual_retrieval(row, sources, identity, &corpora);
         }
     }
     result.insert("rows".into(), rows);
@@ -333,6 +409,54 @@ mod tests {
         goals.push(goal(vec![vec![reference("ACT-FIETS-002", "S5")]]));
         goals.push(goal(vec![vec![reference("ACT-TAAL-003", "S5")]]));
         snapshot(goals, &required)
+    }
+    #[test]
+    fn actual_retrieval_counts_all_captured_activities_without_claiming_relevance() {
+        let mut value = snapshot(
+            vec![goal(vec![vec![reference("ACT-FIETS-002", "S2")]])],
+            &[
+                ("ACT-FIETS-002", "S2"),
+                ("ACT-FIETS-002", "S3"),
+                ("ACT-TUIN-001", "S1"),
+                ("ACT-FIETS-002", "S2"),
+            ],
+        );
+        enrich(&mut value);
+        assert_eq!(
+            value["result"]["rows"][0]["actual_retrieval"],
+            json!({"activities":2,"sections":3,"applicable":true})
+        );
+        assert_eq!(
+            value["result"]["rows"][0]["required_source_coverage"]["total"],
+            1
+        );
+    }
+    #[test]
+    fn actual_retrieval_is_per_repeat_and_distinguishes_empty_from_unknown() {
+        let mut value = regression();
+        let mut second = value["result"]["rows"][0].clone();
+        second["calls"][0]["hits"] = json!([]);
+        value["result"]["rows"].as_array_mut().unwrap().push(second);
+        enrich(&mut value);
+        assert_eq!(
+            value["result"]["rows"][0]["actual_retrieval"]["activities"],
+            2
+        );
+        assert_eq!(
+            value["result"]["rows"][1]["actual_retrieval"],
+            json!({"activities":0,"sections":0,"applicable":true})
+        );
+        value["result"]["rows"][1]["status"] = json!("error");
+        enrich(&mut value);
+        assert!(value["result"]["rows"][1]["actual_retrieval"]["activities"].is_null());
+        assert_ne!(
+            value["result"]["rows"][1]["actual_retrieval"]["applicable"],
+            true
+        );
+        assert!(
+            value["result"]["rows"][1]["required_source_coverage"]["applicable"].is_null(),
+            "execution errors leave source coverage unassessed"
+        );
     }
     #[test]
     fn ten_facts_require_eight_unique_sections_and_two_documents() {

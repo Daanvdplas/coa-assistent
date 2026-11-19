@@ -14,6 +14,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
+import { PREPARATION_FAILURES } from "../rag/promptfoo/prepare.ts";
 import { isDeepStrictEqual } from "node:util";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const require = createRequire(import.meta.url);
@@ -262,7 +263,7 @@ export function catalog() {
       cases: inputs(id).map((r) => ({ id: r.case_id, question: r.question })),
       suites: suites.filter((s) => s.datasets.includes(id)).map((s) => s.id),
     })),
-    suites: suites.map((s) => ({ ...s, unit:s.kind==="model"?(s.unit??"codex_sessions"):"local_executions", available: true, block_reason: null })),
+    suites: suites.map((s) => ({ ...s, embedding_model:["retrieval","quality"].includes(s.id)?"minilm-multilingual":null, unit:s.kind==="model"?(s.unit??"codex_sessions"):"local_executions", available: true, block_reason: null })),
   methods: [...methods, {id:"keyword_overlap",label:"Woordoverlap · tuinregressie",suites:["garden"]}],
     profiles,
     embedding_models: encoders,
@@ -843,6 +844,65 @@ function addRows(
   ).length;
   progress.progress.completed = progress.result.rows.length;
 }
+function failedBrowserAttempt(variant: CanonicalCase, part: string) {
+  let code = "local_evaluation_failed";
+  let message =
+    "De lokale zoektest kon niet worden afgerond; de bronnen zijn niet beoordeeld.";
+  let nativeRunId = "";
+  let stage = "local_evaluation";
+  try {
+    const failure = JSON.parse(
+      readFileSync(join(part, "preparation-error.json"), "utf8"),
+    );
+    if (
+      failure.schema_version === 1 &&
+      Object.hasOwn(PREPARATION_FAILURES, failure.code)
+    ) {
+      code = failure.code;
+      message = PREPARATION_FAILURES[code as keyof typeof PREPARATION_FAILURES];
+      stage = "local_preparation";
+      if (
+        typeof failure.native_run_id === "string" &&
+        /^[a-zA-Z0-9_.-]{1,240}$/.test(failure.native_run_id)
+      )
+        nativeRunId = failure.native_run_id;
+    }
+  } catch {
+    // Missing or incomplete diagnostics cannot turn a failed attempt into a pass.
+  }
+  return {
+    id: "browser-attempt-" + digest(part).slice(0, 24),
+    native_run_id: nativeRunId,
+    dataset: variant.vars.dataset,
+    case_id: variant.vars.case_id,
+    question: variant.vars.question,
+    suite: "browser",
+    configuration: config(variant.vars),
+    status: "error",
+    execution_status: "failed",
+    attempted: true,
+    reason: message,
+    error: { code, message, stage },
+    source_complete: null,
+    assertions: [],
+    goals: [],
+    calls: [],
+    trace_status: "unknown",
+    metrics: {
+      covered_goals: null,
+      target_goals: null,
+      goal_coverage: null,
+      source_quality_applicable: null,
+      search_calls: null,
+    },
+    embedding_identity: null,
+    corpus_identity: null,
+    retrieval_ms: null,
+    promptfoo_ms: null,
+    native_elapsed_ms: null,
+    answer: null,
+  };
+}
 async function rag(
   group: Group,
   sel: Selection,
@@ -863,6 +923,7 @@ async function rag(
       ? [undefined]
       : [...new Set(tests.map((t) => t.vars.case_id))];
   const browser = group.suite === "browser";
+  let browserAttemptFailed = false;
   const repetitions = group.suite === "models" ? 1 : sel.repeats;
   // Keep the existing JavaScript projection rather than introducing a second scorer.
   const { project } = await import(
@@ -934,43 +995,63 @@ async function rag(
               );
           }
         }
-        const code = await executor(command, childEnvironment());
-        const raw = join(part, group.suite + ".json");
-        if (!existsSync(raw) || ![0, 100].includes(code))
-          throw Error(
-            "De evaluatie kon niet worden afgerond; lokale details zijn bewaard.",
+        try {
+          const code = await executor(command, childEnvironment());
+          const raw = join(part, group.suite + ".json");
+          if (!existsSync(raw) || ![0, 100].includes(code))
+            throw Error(
+              "De evaluatie kon niet worden afgerond; lokale details zijn bewaard.",
+            );
+          const rawResult = JSON.parse(readFileSync(raw, "utf8"));
+          const view = project(rawResult);
+          if (group.suite === "models")
+            for (
+              let index = 0;
+              index < view.evaluations[0].rows.length;
+              index++
+            )
+              view.evaluations[0].rows[index].trial =
+                rawResult.results.results[index].testCase?.vars?.trial ??
+                rawResult.results.results[index].vars?.trial;
+          if (variant)
+            for (const row of view.evaluations[0].rows)
+              row.configuration = {
+                ...row.configuration,
+                embedding_model:
+                  variant.vars.method === "bm25"
+                    ? undefined
+                    : variant.vars.embedding_model,
+              };
+          addRows(
+            progress,
+            group,
+            view.evaluations[0].rows,
+            view.sources,
+            repeat,
           );
-        const rawResult=JSON.parse(readFileSync(raw,"utf8"));
-        const view = project(rawResult);
-        if(group.suite==="models")for(let index=0;index<view.evaluations[0].rows.length;index++)view.evaluations[0].rows[index].trial=rawResult.results.results[index].testCase?.vars?.trial??rawResult.results.results[index].vars?.trial;
-        if (variant)
-          for (const row of view.evaluations[0].rows)
-            row.configuration = {
-              ...row.configuration,
-              embedding_model:
-                variant.vars.method === "bm25"
-                  ? undefined
-                  : variant.vars.embedding_model,
-            };
-        addRows(
-          progress,
-          group,
-          view.evaluations[0].rows,
-          view.sources,
-          repeat,
-        );
-        checkpoint();
-        if (
-          group.kind === "model" &&
-          view.evaluations[0].rows.some(
-            (r: Record<string, unknown>) => r.status === "error",
+          if (
+            group.kind === "model" &&
+            view.evaluations[0].rows.some(
+              (r: Record<string, unknown>) => r.status === "error",
+            )
           )
-        )
-          throw Error(
-            "De modeluitvoering is gestopt na een onzekere of mislukte uitvoering.",
-          );
+            throw Error(
+              "De modeluitvoering is gestopt na een onzekere of mislukte uitvoering.",
+            );
+        } catch (error) {
+          if (!browser || group.kind !== "local" || !variant) throw error;
+          const row = failedBrowserAttempt(variant, part);
+          addRows(progress, group, [row], {}, repeat);
+          browserAttemptFailed = true;
+          progress.groups.find((entry) => entry.id === group.id)!.error ??=
+            row.reason;
+          progress.error ??= row.reason;
+        }
+        checkpoint();
       }
     }
+  if (browserAttemptFailed)
+    throw Error("Een of meer lokale browserpogingen zijn mislukt.");
 }
 function assistantRows(records: Record<string, any>[], group: Group) {
   const sources: Record<string, unknown> = {};
@@ -1237,7 +1318,7 @@ export async function execute(
       state.status = "completed";
     } catch {
       state.status = "failed";
-      state.error =
+      state.error ??=
         "Deze proef kon niet worden afgerond; lokale details en afgeronde resultaten zijn bewaard.";
       progress.error ??= state.error;
       if (group.kind === "model") modelsStopped = true;

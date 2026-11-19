@@ -274,6 +274,7 @@ impl Benchmarks {
                 "Deze benchmark bestaat niet.",
             )
         })?;
+        super::benchmark_attempts::enrich(&self.directory, &mut value);
         super::benchmark_sources::enrich(&mut value);
         enrich_expected_sources(&mut value);
         Ok(value)

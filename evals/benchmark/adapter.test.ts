@@ -411,3 +411,167 @@ test("question plans retain canonical file-only variants when SQLite is absent",
  assert.equal(p.totals.local,32);assert.ok(p.groups[0].configurations.every(c=>!String(c.configuration.profile).startsWith("sqlite_")));
  } finally {if(original===undefined)delete process.env.COA_BENCHMARK_SQLITE;else process.env.COA_BENCHMARK_SQLITE=original;}
 });
+
+test("one browser encoder failure remains an explicit unknown result while independent variants and repeats continue", async () => {
+  const { execute } = await import("./adapter.ts");
+  const dir = mkdtempSync(join(tmpdir(), "coa-browser-error-isolation-"));
+  const observed: { method: string; encoder: string }[] = [];
+  try {
+    const progress = await execute(
+      {
+        datasets: ["demo-12-20261118"],
+        suites: ["browser"],
+        methods: ["dense", "bm25"],
+        case_ids: ["P01"],
+        repeats: 2,
+      },
+      dir,
+      undefined,
+      async (command) => {
+        const output = command[command.indexOf("--output-dir") + 1];
+        const method = command[command.indexOf("--methods") + 1];
+        const encoder = command[command.indexOf("--embedding-model") + 1];
+        observed.push({ method, encoder });
+        if (observed.length === 2) {
+          writeFileSync(
+            join(output, "preparation-error.json"),
+            JSON.stringify({
+              schema_version: 1,
+              code: "onnx_model_compile_io",
+              message:
+                "Het ONNX-model kon niet worden gecompileerd (I/O-fout).",
+              stage: "local_preparation",
+              native_run_id: "failed-native-attempt",
+            }),
+          );
+          return 1;
+        }
+        writeFileSync(
+          join(output, "browser.json"),
+          JSON.stringify({
+            evalId: "independent-browser-" + observed.length,
+            results: {
+              results: [
+                {
+                  testCase: {
+                    vars: {
+                      dataset: "demo-12-20261118",
+                      case_id: "P01",
+                      question: "Vraag",
+                      mode: "local",
+                      method,
+                      profile: "documents_sections",
+                      top_k: 5,
+                    },
+                  },
+                  response: {
+                    output: JSON.stringify({
+                      status: "completed",
+                      record: {
+                        run_id: "native-" + observed.length,
+                        outcome: { hits: [] },
+                      },
+                    }),
+                  },
+                  gradingResult: {
+                    pass: false,
+                    componentResults: [
+                      {
+                        pass: false,
+                        metadata: {
+                          source_metrics: {
+                            source_quality_applicable: true,
+                            target_goals: 2,
+                            covered_goals: 0,
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          }),
+        );
+        return 100;
+      },
+    );
+    assert.equal(
+      observed.length,
+      6,
+      "planned attempts continue exactly once without retries",
+    );
+    assert.equal(progress.result.rows.length, 6);
+    assert.equal(progress.groups[0].status, "failed");
+    assert.match(progress.groups[0].error || "", /ONNX/);
+    assert.equal(
+      new Set(progress.result.rows.map((row) => row.comparison_key)).size,
+      6,
+    );
+    const errors = progress.result.rows.filter((row) => row.status === "error");
+    assert.equal(errors.length, 1);
+    const failed = errors[0];
+    assert.equal(failed.repeat, 1);
+    assert.equal(failed.configuration.embedding_model, "e5-small-multilingual");
+    assert.equal(failed.source_complete, null);
+    assert.equal(failed.metrics.covered_goals, null);
+    assert.equal(failed.metrics.search_calls, null);
+    assert.equal(failed.error.code, "onnx_model_compile_io");
+    assert.match(failed.reason, /ONNX/);
+    assert.equal(failed.native_run_id, "failed-native-attempt");
+    assert.ok(
+      progress.result.rows.some(
+        (row) => row.repeat === 1 && row.configuration.method === "bm25",
+      ),
+    );
+    assert.ok(
+      progress.result.rows.some(
+        (row) =>
+          row.repeat === 2 &&
+          row.configuration.embedding_model === "minilm-multilingual",
+      ),
+    );
+    assert.deepEqual(failed.assertions, []);
+    assert.deepEqual(failed.calls, []);
+    assert.ok(progress.error);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("catalog names the pinned MiniLM protocol encoder separately from measured row identity", () => {
+  const c = cli("catalog");
+  for (const id of ["retrieval", "quality"])
+    assert.equal(
+      c.suites.find((s: any) => s.id === id).embedding_model,
+      "minilm-multilingual",
+    );
+});
+
+test("a failed model attempt still stops later model groups without retries", async () => {
+  const { execute } = await import("./adapter.ts");
+  const dir = mkdtempSync(join(tmpdir(), "coa-model-stop-preserved-"));
+  let attempts = 0;
+  try {
+    const progress = await execute(
+      {
+        datasets: ["legacy", "independent-20261103"],
+        suites: ["agentic"],
+        methods: ["bm25"],
+        authorization: { confirmed: true, max_sessions: 10, max_seconds: 300 },
+      },
+      dir,
+      undefined,
+      async () => {
+        attempts++;
+        return 1;
+      },
+    );
+    assert.equal(attempts, 1);
+    assert.equal(progress.groups[0].status, "failed");
+    assert.equal(progress.groups[1].status, "not_run");
+    assert.equal(progress.result.rows.length, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

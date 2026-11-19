@@ -147,6 +147,12 @@ function runFor(input, id = "run-one") {
       status: index === 0 ? "failed" : "passed",
       source_complete: index !== 0,
       configuration: config.configuration,
+      actual_retrieval: {
+        activities: index === 0 ? (i === 0 ? 1 : 2) : 3,
+        sections: index === 0 ? (i === 0 ? 3 : 5) : 8,
+        unit: "activities",
+        applicable: true,
+      },
       required_source_coverage: {
         found: index === 0 ? (i === 0 ? 3 : 5) : 8,
         total: 8,
@@ -251,6 +257,8 @@ async function fixture({
   mobile = false,
   uncertain = false,
   running = false,
+  repeats = 2,
+  partial = false,
 } = {}) {
   const page = await browser.newPage({
     viewport: mobile
@@ -267,11 +275,31 @@ async function fixture({
     mutations = [],
     created = new Map();
   let current = saved
-      ? runFor({ dataset, case_id: "P01", mode: "rag", repeats: 2 })
+      ? runFor({ dataset, case_id: "P01", mode: "rag", repeats })
       : null,
     firstLost = uncertain,
     cancelled = false;
   if (current && running) current.status = "running";
+  if (current && partial) {
+    current.status = "failed";
+    current.progress.completed = 7;
+    current.result.rows = current.result.rows.slice(0, 7);
+    const attempt = {
+      group_id: current.groups[0].id,
+      configuration_id: "expand",
+      repeat: 1,
+      case_id: "P01",
+      dataset,
+      status: "error",
+      attempted: true,
+      reason: "Het lokale zoekmodel kon niet worden gecompileerd (I/O-fout).",
+      actual_retrieval: { activities: null, sections: null, applicable: null },
+    };
+    current.result.attempt_errors = [
+      attempt,
+      { ...attempt, configuration_id: "bm25-3" },
+    ];
+  }
   await page.route("**/api/benchmarks/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
@@ -414,35 +442,75 @@ test("each Evals question deliberately starts its exact benchmark once before na
     await page.close();
   }
 });
-test("all variants show actual required source coverage for both repetitions, with one shared expectation", async () => {
+test("comparison properties are rows and repetitions remain separate accessible tabs", async () => {
   const { page } = await fixture({
     saved: true,
     pagePath: "/benchmark/?run=run-one",
   });
   try {
     await page.locator(".benchmark-coverage").waitFor();
-    assert.equal(await page.locator(".benchmark-coverage thead th").count(), 6);
+    assert.deepEqual(
+      await page.locator(".benchmark-coverage>thead th").allTextContents(),
+      [
+        "Eigenschap",
+        "Variant 1",
+        "Variant 2",
+        "Variant 3",
+        "Variant 4",
+        "Variant 5",
+      ],
+    );
     assert.equal(
-      await page.locator(".benchmark-coverage tbody>tr[data-repeat]").count(),
-      2,
+      await page
+        .getByRole("tab", { name: "Herhaling 1", exact: true })
+        .getAttribute("aria-selected"),
+      "true",
     );
-    assert.match(await page.locator(".benchmark-coverage").innerText(), /3\/8/);
-    assert.match(await page.locator(".benchmark-coverage").innerText(), /5\/8/);
+    assert.equal(await page.getByRole("tabpanel").count(), 1);
+    const source = page.locator('tr[data-metric="sources"]');
+    assert.match(await source.innerText(), /3\/8/);
+    assert.doesNotMatch(await source.innerText(), /5\/8/);
     assert.match(
-      await page.locator(".benchmark-coverage thead").innerText(),
-      /Maximaal 3 activiteiten/,
+      await page.locator('tr[data-metric="activities"]').innerText(),
+      /Opgehaalde activiteiten/,
+    );
+    assert.equal(
+      await page
+        .locator('tr[data-metric="activities"] td')
+        .first()
+        .textContent(),
+      "1",
     );
     assert.match(
-      await page.locator(".benchmark-coverage thead").innerText(),
-      /Eerst 3 secties.*hele activiteit/,
+      await page.locator('tr[data-metric="method"]').innerText(),
+      /Op woorden/,
+    );
+    assert.match(
+      await page.locator('tr[data-metric="selection"]').innerText(),
+      /3 activiteiten/,
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="expansion"] td').last().textContent(),
+      "Ja",
+    );
+    await page.getByRole("tab", { name: "Herhaling 2", exact: true }).click();
+    assert.match(
+      await page.locator('tr[data-metric="sources"]').innerText(),
+      /5\/8/,
     );
     assert.doesNotMatch(
-      await page.locator(".benchmark-coverage thead").innerText(),
-      /\bk[36]\b/,
+      await page.locator('tr[data-metric="sources"]').innerText(),
+      /3\/8/,
+    );
+    assert.equal(
+      await page
+        .locator('tr[data-metric="activities"] td')
+        .first()
+        .textContent(),
+      "2",
     );
     await page
-      .getByRole("button", { name: /Herhaling 2.*Op woorden.*5\/8/ })
-      .first()
+      .getByRole("button", { name: /Herhaling 2.*Variant 1.*5\/8/ })
       .click();
     assert.equal(
       await page
@@ -456,6 +524,79 @@ test("all variants show actual required source coverage for both repetitions, wi
       /Gevonden/,
     );
     assert.equal(await page.evaluate(() => window.injected === true), false);
+  } finally {
+    await page.close();
+  }
+});
+test("configured third repetition supports arrow and home/end keyboard navigation without starting work", async () => {
+  const flow = await fixture({
+    saved: true,
+    repeats: 3,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  const { page } = flow;
+  try {
+    const first = page.getByRole("tab", { name: "Herhaling 1", exact: true });
+    await first.focus();
+    await page.keyboard.press("End");
+    const third = page.getByRole("tab", { name: "Herhaling 3", exact: true });
+    assert.equal(await third.getAttribute("aria-selected"), "true");
+    assert.equal(
+      await third.evaluate((node) => document.activeElement === node),
+      true,
+    );
+    assert.equal(
+      await page.getByRole("tabpanel").getAttribute("aria-labelledby"),
+      await third.getAttribute("id"),
+    );
+    await page.keyboard.press("Home");
+    assert.equal(await first.getAttribute("aria-selected"), "true");
+    assert.equal(flow.starts.length, 0);
+  } finally {
+    await page.close();
+  }
+});
+
+test("a partial run distinguishes a proven failed attempt from never-executed variants", async () => {
+  const { page } = await fixture({
+    saved: true,
+    partial: true,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  try {
+    const status = page.locator('tr[data-metric="execution"]');
+    await status.waitFor();
+    assert.equal(
+      await status.getByText("Uitvoeringsfout", { exact: true }).count(),
+      1,
+    );
+    assert.equal(await status.locator("td").first().textContent(), "Afgerond");
+    assert.equal(
+      await page
+        .locator('tr[data-metric="activities"] td')
+        .last()
+        .textContent(),
+      "Onbekend",
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="sources"] td').last().textContent(),
+      "—",
+    );
+    await page.getByRole("tab", { name: "Herhaling 2", exact: true }).click();
+    assert.equal(
+      await page
+        .locator('tr[data-metric="execution"]')
+        .getByText("Niet uitgevoerd", { exact: true })
+        .count(),
+      2,
+    );
+    assert.equal(
+      await page
+        .locator('tr[data-metric="activities"] td')
+        .last()
+        .textContent(),
+      "—",
+    );
   } finally {
     await page.close();
   }

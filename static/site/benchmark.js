@@ -13,6 +13,7 @@ const state = {
   selected: null,
   runSequence: 0,
   busy: false,
+  repeat: 1,
 };
 const active = (run) =>
   ["queued", "running", "preparing", "cancelling"].includes(run?.status);
@@ -232,6 +233,7 @@ async function chooseRun(id) {
   clearTimeout(state.poll);
   message("page-status", "Uitvoering laden…");
   state.selected = null;
+  state.repeat = 1;
   try {
     const run = await request("runs/" + encodeURIComponent(id));
     if (sequence !== state.runSequence) return;
@@ -367,16 +369,110 @@ function coverageState(row) {
   if (!row) return active(state.run) ? "Wachtend" : "Niet uitgevoerd";
   return sourceCoverageText(row);
 }
+
+function variantSettings(column, row) {
+  const value = column.config.configuration || {},
+    profile = String(value.profile || "");
+  const name = (items, id) =>
+    items?.find((item) => item.id === id)?.label || id;
+  const wordSearch = ["bm25", "keyword_overlap"].includes(value.method);
+  const identity = row?.embedding_identity?.model;
+  const encoder =
+    value.embedding_model ||
+    state.catalog.suites?.find((suite) => suite.id === column.group.suite)
+      ?.embedding_model ||
+    state.catalog.default_embedding_model;
+  return {
+    method: name(state.catalog.methods, value.method) || "Onbekend",
+    model: wordSearch
+      ? "Niet gebruikt"
+      : encoder
+        ? name(state.catalog.embedding_models, encoder)
+        : identity
+          ? String(identity).split("@")[0].split("/").at(-1)
+          : "Onbekend",
+    storage: profile.startsWith("sqlite_")
+      ? "SQLite"
+      : profile.startsWith("documents_")
+        ? "Bestanden"
+        : "Onbekend",
+    searches: profile.endsWith("_activities")
+      ? "Activiteiten"
+      : profile.endsWith("_sections")
+        ? "Bronsecties"
+        : "Onbekend",
+    selection: Number.isInteger(value.top_k)
+      ? `${value.top_k} ${profile.endsWith("_activities") ? "activiteiten" : "bronsecties"}`
+      : "—",
+    expansion:
+      value.selection === "activity_expansion" ||
+      value.context_mode === "activity_expand" ||
+      profile.endsWith("_activities")
+        ? "Ja"
+        : "Nee",
+    filters: value.apply_filters ? "Uit de vraag" : "Nee",
+  };
+}
+function executionFor(row, column) {
+  if (!row) {
+    const waiting =
+      active(state.run) &&
+      !column.group.block_reason &&
+      !["failed", "cancelled", "interrupted", "not_run"].includes(
+        column.group.status,
+      );
+    return waiting ? "Wachtend" : "Niet uitgevoerd";
+  }
+  if (["error", "failed_execution"].includes(row.status))
+    return "Uitvoeringsfout";
+  if (["passed", "failed"].includes(row.status)) return "Afgerond";
+  return executionStatus(row.status) || "Onbekend";
+}
+function retrievedActivities(row) {
+  const actual = row?.actual_retrieval;
+  if (!actual) return "Onbekend";
+  if (actual.applicable === false) return "N.v.t.";
+  return Number.isInteger(actual.activities) && actual.activities >= 0
+    ? String(actual.activities)
+    : "Onbekend";
+}
+function evidenceGoals(row) {
+  const metrics = row?.metrics;
+  if (!metrics) return "Onbekend";
+  if (metrics.source_quality_applicable === false) return "N.v.t.";
+  return Number.isInteger(metrics.covered_goals) &&
+    Number.isInteger(metrics.target_goals) &&
+    metrics.target_goals > 0
+    ? `${metrics.covered_goals}/${metrics.target_goals}`
+    : "Onbekend";
+}
+function chooseRepeat(repeat, focus = true) {
+  state.repeat = repeat;
+  state.selected = null;
+  renderRun();
+  if (focus)
+    queueMicrotask(() =>
+      byId(`repeat-tab-${state.run.id}-${repeat}`)?.focus({
+        preventScroll: true,
+      }),
+    );
+}
 function renderRun() {
   const run = state.run;
   if (!run) return;
   const question = state.viewQuestion || questionForRun(run),
-    columns = columnsFor(run),
+    columns = columnsFor(run).map((column, index) => ({
+      ...column,
+      label: "Variant " + (index + 1),
+    })),
     repeats = run.plan.selection.repeats;
+  state.repeat = Math.min(Math.max(state.repeat || 1, 1), repeats);
+  const repeat = state.repeat;
   const focused = document.activeElement,
     focusedKey = focused?.dataset.cellKey,
     focusedClose = focused?.hasAttribute("data-evidence-close"),
-    scroll =
+    focusedTab = focused?.getAttribute("role") === "tab" ? focused.id : null;
+  const scroll =
       byId("benchmark-variants").querySelector(".benchmark-table-scroll")
         ?.scrollLeft || 0,
     top = window.scrollY;
@@ -385,41 +481,150 @@ function renderRun() {
   byId("run-context").textContent =
     (runMode(run) === "assistant" ? "COA-assistent" : "Bronzoeken") +
     ` · ${columns.length} varianten · ${repeats} herhalingen`;
+  const groupErrors = [
+    ...new Set(run.groups.map((group) => group.error).filter(Boolean)),
+  ];
   message(
     "run-status",
-    `${executionStatus(run.status)} · ${run.progress.completed} van ${run.progress.total} afgerond${run.error ? " · " + run.error : ""}`,
+    `${executionStatus(run.status)} · ${run.progress.completed} van ${run.progress.total} afgerond${run.error ? " · " + run.error : groupErrors.length ? " · " + groupErrors.join(" · ") : ""}`,
     run.status === "failed",
   );
   byId("stop-benchmark").hidden = !active(run);
   byId("stop-benchmark").disabled = run.status === "cancelling";
+  const tabs = el("div", null, "benchmark-repeat-tabs");
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "Herhalingen");
+  const panels = [];
+  for (let index = 1; index <= repeats; index++) {
+    const tab = button("Herhaling " + index, () => chooseRepeat(index));
+    tab.id = `repeat-tab-${run.id}-${index}`;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(index === repeat));
+    tab.tabIndex = index === repeat ? 0 : -1;
+    tab.setAttribute("aria-controls", `repeat-panel-${run.id}-${index}`);
+    tab.addEventListener("keydown", (event) => {
+      const next =
+        event.key === "ArrowRight"
+          ? (index % repeats) + 1
+          : event.key === "ArrowLeft"
+            ? ((index + repeats - 2) % repeats) + 1
+            : event.key === "Home"
+              ? 1
+              : event.key === "End"
+                ? repeats
+                : null;
+      if (next !== null) {
+        event.preventDefault();
+        chooseRepeat(next);
+      }
+    });
+    tabs.append(tab);
+    const panel = el("section");
+    panel.id = `repeat-panel-${run.id}-${index}`;
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", tab.id);
+    panel.hidden = index !== repeat;
+    panels.push(panel);
+  }
   const view = table(
-    [
-      "Benodigde bronsecties gevonden",
-      ...columns.map((column) => column.label),
-    ],
+    ["Eigenschap", ...columns.map((column) => column.label)],
     "benchmark-coverage",
   );
   view.scroll.setAttribute("aria-label", "Alle varianten naast elkaar");
-  const rows = (run.result?.rows || []).filter(
+  const measuredRows = run.result?.rows || [];
+  const attempts = (run.result?.attempt_errors || []).filter(
+    (attempt) =>
+      !measuredRows.some(
+        (row) =>
+          row.group_id === attempt.group_id &&
+          row.configuration_id === attempt.configuration_id &&
+          (row.repeat || 1) === (attempt.repeat || 1),
+      ),
+  );
+  const rows = [...measuredRows, ...attempts].filter(
     (row) =>
       row.case_id === question.case_id && row.dataset === question.dataset,
   );
-  for (let repeat = 1; repeat <= repeats; repeat++) {
+  const records = columns.map((column) => ({
+    column,
+    row: rows.find(
+      (row) =>
+        row.group_id === column.group.id &&
+        row.configuration_id === column.configurationId &&
+        (row.repeat || 1) === repeat,
+    ),
+  }));
+  const settings = records.map(({ column, row }) =>
+    variantSettings(column, row),
+  );
+  const definitions = [
+    ["method", "Zoekmethode", (_, index) => settings[index].method],
+    ["model", "Zoekmodel", (_, index) => settings[index].model],
+    ["storage", "Opslag", (_, index) => settings[index].storage],
+    ["searches", "Zoekt in", (_, index) => settings[index].searches],
+    [
+      "selection",
+      "Eerste selectie (max.)",
+      (_, index) => settings[index].selection,
+    ],
+    [
+      "expansion",
+      "Hele activiteit meeleveren",
+      (_, index) => settings[index].expansion,
+    ],
+    ...(settings.some((value) => value.filters !== "Nee")
+      ? [["filters", "Filters", (_, index) => settings[index].filters]]
+      : []),
+    [
+      "activities",
+      "Opgehaalde activiteiten",
+      (row) => (row ? retrievedActivities(row) : "—"),
+    ],
+    [
+      "sources",
+      "Benodigde bronsecties gevonden",
+      (row) =>
+        row && outcome(row) !== "error" ? sourceCoverageText(row) : "—",
+    ],
+    [
+      "goals",
+      "Bewijsdoelen gevonden",
+      (row) => (row && outcome(row) !== "error" ? evidenceGoals(row) : "—"),
+    ],
+    [
+      "timing",
+      runMode(run) === "assistant"
+        ? "Gemeten uitvoertijd (ms)"
+        : "Gemeten zoektijd (ms)",
+      (row) => {
+        const value =
+          row?.[
+            runMode(run) === "assistant" ? "native_elapsed_ms" : "retrieval_ms"
+          ];
+        return Number.isFinite(value)
+          ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 3 }).format(
+              value,
+            )
+          : "—";
+      },
+    ],
+    [
+      "execution",
+      "Uitvoeringstatus",
+      (row, index) => executionFor(row, columns[index]),
+    ],
+  ];
+  for (const [id, title, value] of definitions) {
     const tr = el("tr");
-    tr.dataset.repeat = repeat;
-    const title = el("th", "Herhaling " + repeat);
-    title.scope = "row";
-    tr.append(title);
-    for (const column of columns) {
-      const row = rows.find(
-        (item) =>
-          item.group_id === column.group.id &&
-          item.configuration_id === column.configurationId &&
-          (item.repeat || 1) === repeat,
-      );
+    tr.dataset.metric = id;
+    if (id === "sources") tr.className = "benchmark-primary-metric";
+    const header = el("th", title);
+    header.scope = "row";
+    tr.append(header);
+    for (const [index, { column, row }] of records.entries()) {
       const cell = el("td"),
-        text = coverageState(row);
-      if (row) {
+        text = value(row, index);
+      if (id === "sources" && row) {
         const key = column.id + ":" + repeat,
           action = button(
             text,
@@ -463,8 +668,18 @@ function renderRun() {
             },
             "benchmark-coverage-value",
           );
+        const coverage = row.required_source_coverage;
         action.dataset.cellKey = key;
-        action.dataset.outcome = outcome(row);
+        action.dataset.outcome =
+          outcome(row) === "error"
+            ? "error"
+            : coverage?.applicable === true &&
+                Number.isInteger(coverage.found) &&
+                Number.isInteger(coverage.total)
+              ? coverage.found === coverage.total
+                ? "passed"
+                : "failed"
+              : "unknown";
         action.setAttribute(
           "aria-label",
           `Herhaling ${repeat} · ${column.label} · ${text} benodigde bronsecties`,
@@ -475,34 +690,32 @@ function renderRun() {
           queueMicrotask(() => {
             if (state.selected === key && action.isConnected) action.click();
           });
-      } else cell.append(el("span", text, "benchmark-pending"));
-      if (!row && (column.group.error || column.group.block_reason))
-        cell.append(
-          el(
-            "p",
-            column.group.error || column.group.block_reason,
-            "benchmark-blocked",
-          ),
-        );
+      } else cell.append(el("span", text));
+      if (id === "execution" && text === "Uitvoeringsfout")
+        cell.className = "benchmark-error";
       tr.append(cell);
     }
     view.body.append(tr);
   }
-  byId("benchmark-variants").replaceChildren(view.scroll);
+  panels[repeat - 1].append(view.scroll);
+  byId("benchmark-variants").replaceChildren(tabs, ...panels);
   queueMicrotask(() => {
-    const container = byId("benchmark-variants");
-    const target = focusedClose
-      ? container.querySelector("[data-evidence-close]")
-      : focusedKey
-        ? [...container.querySelectorAll("[data-cell-key]")].find(
-            (node) => node.dataset.cellKey === focusedKey,
-          )
-        : null;
+    const container = byId("benchmark-variants"),
+      target = focusedClose
+        ? container.querySelector("[data-evidence-close]")
+        : focusedKey
+          ? [...container.querySelectorAll("[data-cell-key]")].find(
+              (node) => node.dataset.cellKey === focusedKey,
+            )
+          : focusedTab
+            ? byId(focusedTab)
+            : null;
     target?.focus({ preventScroll: true });
     container.querySelector(".benchmark-table-scroll").scrollLeft = scroll;
     if (state.selected) window.scrollTo({ top, behavior: "auto" });
   });
 }
+
 async function start() {
   if (state.busy || byId("start-benchmark").disabled) return;
   state.busy = true;
