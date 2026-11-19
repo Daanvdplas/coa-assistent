@@ -2,6 +2,8 @@
 
 The optional trace store records the web assistant's model and search steps for local inspection. A separate dashboard lists threads, their runs and individual events. Download a thread as JSON to inspect it with an AI tool. The visitor website has no dashboard link or trace-reading route.
 
+Threads group traces for inspection; they do not add conversational memory. Each run receives only the current question.
+
 ## Record traces
 
 Tracing is off unless the website process inherits `COA_TRACE_DB`. Create a private directory outside the checkout:
