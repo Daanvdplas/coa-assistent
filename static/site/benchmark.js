@@ -1,65 +1,33 @@
 import {
   outcome,
-  labels,
-  metricText,
-  summarize,
-  matrixCases,
-  configurationLabel,
   executionStatus,
-  selectedDatasets,
-  eligibleMean,
+  sourceCoverageText,
+  questionStartRequest,
 } from "./benchmark-model.js";
-
 const byId = (id) => document.getElementById(id);
 const state = {
   catalog: null,
-  plan: null,
   runs: [],
   run: null,
-  baseline: null,
-  comparison: null,
-  planSequence: 0,
   poll: null,
-  matrix: null,
+  selected: null,
+  runSequence: 0,
+  busy: false,
 };
-const planner = byId("benchmark-planner"),
-  startButton = byId("start-benchmark");
 const active = (run) =>
   ["queued", "running", "preparing", "cancelling"].includes(run?.status);
-const el = (tag, text, className) => {
+function el(tag, text, className) {
   const node = document.createElement(tag);
   if (text !== undefined && text !== null) node.textContent = text;
   if (className) node.className = className;
   return node;
-};
-const button = (text, action, className) => {
+}
+function button(text, action, className) {
   const node = el("button", text, className);
   node.type = "button";
   node.addEventListener("click", action);
   return node;
-};
-async function request(path, options = {}) {
-  const response = await fetch("/api/benchmarks/" + path, {
-    cache: "no-store",
-    ...options,
-    headers: { "Content-Type": "application/json", ...options.headers },
-  });
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error("De server gaf geen leesbaar resultaat.");
-  }
-  if (!response.ok)
-    throw new Error(
-      data.error?.message ||
-        data.error ||
-        "De benchmark kon niet worden geladen.",
-    );
-  return data;
 }
-const post = (path, data) =>
-  request(path, { method: "POST", body: JSON.stringify(data) });
 function message(id, text = "", error = false) {
   byId(id).textContent = text;
   byId(id).classList.toggle("benchmark-error", error);
@@ -69,230 +37,25 @@ function option(select, value, text) {
   node.value = value;
   select.append(node);
 }
-const checked = (id) =>
-  [...byId(id).querySelectorAll("input:checked")].map((input) => input.value);
-function optional(id) {
-  const inputs = [...byId(id).querySelectorAll("input")],
-    values = inputs
-      .filter((input) => input.checked)
-      .map((input) => input.value);
-  if (inputs.length && !values.length)
-    throw new Error(
-      "Selecteer minstens één optie bij " +
-        byId(id)
-          .closest("fieldset")
-          .querySelector("legend")
-          .textContent.toLowerCase() +
-        ".",
-    );
-  return values.length === inputs.length ? [] : values;
-}
-function choice(container, item, selected = true, note = "") {
-  const label = el("label", null, "benchmark-choice"),
-    input = el("input"),
-    text = el("span", item.label || item.question || item.id);
-  input.type = "checkbox";
-  input.value = item.id;
-  input.checked = selected;
-  if (note) text.append(el("small", note));
-  label.append(input, text);
-  container.append(label);
-}
-function datasets() {
-  return selectedDatasets(state.catalog, byId("benchmark-dataset").value);
-}
-function selection() {
-  const suites = checked("benchmark-suites"),
-    repeats = Number(byId("benchmark-repeats").value);
-  if (!suites.length) throw new Error("Selecteer minstens één evaluatie.");
-  if (
-    !Number.isInteger(repeats) ||
-    repeats < 1 ||
-    repeats > state.catalog.limits.max_repeats
-  )
-    throw new Error("Kies een geldig aantal herhalingen.");
-  const value = {
-    datasets: datasets(),
-    suites,
-    methods: optional("benchmark-methods"),
-    profiles: optional("benchmark-profiles"),
-    embedding_models: optional("benchmark-embeddings"),
-    case_ids: optional("benchmark-cases"),
-    repeats,
-  };
-  if (state.catalog.assistant_arms?.length)
-    value.assistant_arms = optional("benchmark-arms");
-  if (!byId("model-authorization").hidden && byId("allow-models").checked) {
-    const kinds = modelKinds();
-    const sessions = Number(byId("model-sessions").value),
-      attempts = Number(byId("model-attempts").value),
-      seconds = Number(byId("model-seconds").value);
-    if (!Number.isInteger(seconds) || seconds < 1)
-      throw new Error("Vul een positieve uitvoeringsduur in.");
-    if (kinds.codex && (!Number.isInteger(sessions) || sessions < 1))
-      throw new Error("Vul een positieve sessielimiet in.");
-    if (kinds.rig && (!Number.isInteger(attempts) || attempts < 1))
-      throw new Error("Vul een positieve modelpoginglimiet in.");
-    value.authorization = {
-      confirmed: true,
-      max_seconds: seconds,
-    };
-    if (kinds.codex) value.authorization.max_sessions = sessions;
-    if (kinds.rig) value.authorization.max_attempts = attempts;
-  }
-  if (suites.includes("models")) value.model_phase = byId("model-phase").value;
-  return value;
-}
-function modelKinds() {
-  const selected = checked("benchmark-suites"),
-    models = state.catalog.suites.filter(
-      (item) => selected.includes(item.id) && item.kind === "model",
-    );
-  return {
-    codex: models.some((item) => item.unit !== "provider_attempts"),
-    rig: models.some((item) => item.unit === "provider_attempts"),
-  };
-}
-function modelControls() {
-  const suites = checked("benchmark-suites");
-  byId("model-authorization").hidden = !state.catalog.suites.some(
-    (item) => suites.includes(item.id) && item.kind === "model",
-  );
-  byId("model-limits").hidden = !byId("allow-models").checked;
-  const kinds = modelKinds();
-  byId("model-sessions-field").hidden = !kinds.codex;
-  byId("model-attempts-field").hidden = !kinds.rig;
-  byId("model-costs").textContent = kinds.codex
-    ? "Een Codexsessie kan meerdere modelverzoeken gebruiken. Kosten onbekend."
-    : "Kosten onbekend.";
-  byId("model-phase-field").hidden = !suites.includes("models");
-  byId("assistant-options").hidden =
-    !suites.includes("assistant") || !state.catalog.assistant_arms?.length;
-  byId("embedding-options").hidden = !suites.includes("browser");
-}
-function populateCases() {
-  const container = byId("benchmark-cases");
-  container.replaceChildren();
-  const selected = state.catalog.datasets.filter((item) =>
-    datasets().includes(item.id),
-  );
-  const ids = selected.flatMap((item) =>
-    (item.cases || []).map((item) => item.id),
-  );
-  if (new Set(ids).size !== ids.length) {
-    byId("case-options").hidden = true;
-    return;
-  }
-  const cases = new Map();
-  for (const dataset of state.catalog.datasets.filter((item) =>
-    datasets().includes(item.id),
-  ))
-    for (const item of dataset.cases || [])
-      if (!cases.has(item.id)) cases.set(item.id, item);
-  const counts = new Map();
-  for (const item of cases.values())
-    counts.set(item.question, (counts.get(item.question) || 0) + 1);
-  for (const item of cases.values())
-    choice(container, {
-      ...item,
-      label:
-        counts.get(item.question) > 1
-          ? `${item.id} · ${item.question}`
-          : item.question || item.label || item.id,
-    });
-  byId("case-options").hidden = !cases.size;
-}
-function populateSuites(preserve = false) {
-  const selected = preserve
-      ? checked("benchmark-suites")
-      : state.catalog.default_selection.suites,
-    container = byId("benchmark-suites");
-  container.replaceChildren();
-  for (const [family, label] of [
-    ["retrieval", "RAG"],
-    ["assistant", "COA-assistent"],
-    ["transport", "Technische controles"],
-  ]) {
-    const suites = state.catalog.suites.filter(
-      (suite) =>
-        suite.family === family &&
-        suite.datasets.some((id) => datasets().includes(id)),
-    );
-    if (!suites.length) continue;
-    const group = el("div", null, "benchmark-suite-family"),
-      choices = el("div", null, "benchmark-choices");
-    group.append(el("h3", label));
-    for (const suite of suites)
-      choice(
-        choices,
-        suite,
-        selected.includes(suite.id),
-        suite.block_reason || "",
-      );
-    group.append(choices);
-    container.append(group);
-  }
-  byId("select-assistant").textContent = container.querySelector(
-    'input[value="assistant-rig"]',
-  )
-    ? "Alle actuele assistent-evals"
-    : "Alle assistent-evals";
-  modelControls();
-}
-function populatePlanner() {
-  const catalog = state.catalog,
-    select = byId("benchmark-dataset");
-  select.replaceChildren();
-  if (catalog.default_selection.datasets.length > 1)
-    option(select, "__current__", "Actueel aanbod · twaalf documenten");
-  for (const item of catalog.datasets) option(select, item.id, item.label);
-  option(select, "__all__", "Alle vraagsets");
-  select.value =
-    catalog.default_selection.datasets.length > 1
-      ? "__current__"
-      : catalog.default_selection.datasets[0];
-  for (const [id, items, field] of [
-    ["benchmark-methods", catalog.methods, "methods"],
-    ["benchmark-profiles", catalog.profiles, "profiles"],
-    ["benchmark-embeddings", catalog.embedding_models, "embedding_models"],
-    ["benchmark-arms", catalog.assistant_arms || [], "assistant_arms"],
-  ]) {
-    byId(id).replaceChildren();
-    const defaults = catalog.default_selection[field] || [];
-    for (const item of items)
-      choice(byId(id), item, !defaults.length || defaults.includes(item.id));
-  }
-  byId("benchmark-repeats").max = catalog.limits.max_repeats;
-  byId("benchmark-repeats").value = catalog.default_selection.repeats;
-  populateSuites();
-  populateCases();
-}
-let planTimer;
-function schedulePlan() {
-  clearTimeout(planTimer);
-  startButton.disabled = true;
-  state.plan = null;
-  modelControls();
-  const sequence = ++state.planSequence;
-  message("plan-status", "Plan berekenen…");
-  planTimer = setTimeout(() => loadPlan(sequence), 150);
-}
-async function loadPlan(sequence) {
+async function request(path, options = {}) {
+  const response = await fetch("/api/benchmarks/" + path, {
+    cache: "no-store",
+    ...options,
+    headers: { "Content-Type": "application/json", ...options.headers },
+  });
+  let value;
   try {
-    const plan = await post("plan", selection());
-    if (sequence !== state.planSequence) return;
-    state.plan = plan;
-    renderPlan(plan);
-    startButton.disabled = plan.can_start !== true;
-    message(
-      "plan-status",
-      plan.can_start ? "" : "Geen uitvoerbare proeven in deze selectie.",
-    );
-  } catch (error) {
-    if (sequence !== state.planSequence) return;
-    byId("benchmark-plan").replaceChildren();
-    message("plan-status", error.message, true);
+    value = await response.json();
+  } catch {
+    throw new Error("De server gaf geen leesbaar resultaat.");
   }
+  if (!response.ok)
+    throw new Error(
+      value.error?.message ||
+        value.error ||
+        "De benchmark kon niet worden geladen.",
+    );
+  return value;
 }
 function table(headers, className = "") {
   const scroll = el("div", null, "benchmark-table-scroll"),
@@ -302,77 +65,137 @@ function table(headers, className = "") {
     body = el("tbody");
   scroll.tabIndex = 0;
   for (const title of headers) {
-    const column = el("th", title);
-    column.scope = "col";
-    row.append(column);
+    const th = el("th", title);
+    th.scope = "col";
+    row.append(th);
   }
   head.append(row);
   node.append(head, body);
   scroll.append(node);
   return { scroll, table: node, body };
 }
-function renderPlan(plan) {
-  const container = byId("benchmark-plan"),
-    totals = plan.totals;
-  container.replaceChildren();
-  const counts = [`${totals.local} lokale uitvoeringen`];
-  if (
-    Number.isFinite(totals.model_sessions) &&
-    Number.isFinite(totals.provider_attempts)
-  ) {
-    counts.push(`${totals.model_sessions} Codexsessies`);
-    if (totals.provider_attempts)
-      counts.push(`maximaal ${totals.provider_attempts} Rig-modelpogingen`);
-  } else
-    counts.push(
-      `${totals.model} ${modelKinds().rig ? "modeluitvoeringen" : "modelsessies"}`,
-    );
-  if (totals.blocked) counts.push(`${totals.blocked} niet uitvoerbaar`);
-  container.append(el("p", counts.join(" · "), "benchmark-plan-summary"));
-  const view = table(
-    [
-      "Evaluatie",
-      "Vraagset",
-      "Vragen",
-      "Varianten",
-      "Uitvoeringen",
-      "Beschikbaarheid",
-    ],
-    "benchmark-plan-table",
+function questionForRun(run) {
+  if (run?.question) return run.question;
+  const selection = run?.plan?.selection;
+  if (selection?.datasets?.length !== 1 || selection?.case_ids?.length !== 1)
+    return null;
+  return (
+    state.catalog.questions.find(
+      (question) =>
+        question.dataset === selection.datasets[0] &&
+        question.case_id === selection.case_ids[0],
+    ) || null
   );
-  for (const group of plan.groups) {
-    const row = el("tr"),
-      suite = state.catalog.suites.find((item) => item.id === group.suite),
-      dataset = state.catalog.datasets.find(
-        (item) => item.id === group.dataset,
+}
+function runQuestions(run) {
+  const values = new Map();
+  for (const row of run.result?.rows || []) {
+    const key = row.dataset + ":" + row.case_id;
+    if (!values.has(key)) {
+      const known = state.catalog.questions.find(
+        (question) =>
+          question.dataset === row.dataset && question.case_id === row.case_id,
       );
-    for (const value of [
-      suite?.label || group.label,
-      dataset?.label || group.dataset,
-      group.case_count,
-      group.configuration_count,
-      group.execution_count,
-      group.block_reason || "Uitvoerbaar",
-    ])
-      row.append(el("td", value));
-    if (group.block_reason) row.className = "benchmark-blocked";
-    view.body.append(row);
+      values.set(key, {
+        ...known,
+        id: known?.id || key,
+        dataset: row.dataset,
+        case_id: row.case_id,
+        question: row.question,
+        title: known?.question === row.question ? known.title : row.question,
+      });
+    }
   }
-  container.append(view.scroll);
+  if (!values.size) {
+    const single = questionForRun(run);
+    if (single) values.set(single.dataset + ":" + single.case_id, single);
+  }
+  return [...values.values()];
 }
-function openPlanner() {
-  planner.hidden = false;
-  byId("new-benchmark").hidden = true;
-  byId("close-planner").hidden = !state.runs.length;
-  schedulePlan();
+function runMode(run) {
+  return (
+    run.mode ||
+    run.plan?.mode ||
+    (run.groups?.some((group) => group.family === "assistant")
+      ? "assistant"
+      : "rag")
+  );
 }
-function closePlanner() {
-  planner.hidden = true;
-  byId("new-benchmark").hidden = false;
+function selectedQuestion() {
+  return state.catalog.questions.find(
+    (question) => question.id === byId("benchmark-question").value,
+  );
+}
+function modeControls() {
+  byId("model-authorization").hidden =
+    byId("benchmark-mode").value !== "assistant";
+}
+function selection(requireAuthorization = true) {
+  const question = selectedQuestion(),
+    repeats = Number(byId("benchmark-repeats").value),
+    mode = byId("benchmark-mode").value;
+  if (!question) throw new Error("Kies één vraag.");
+  if (
+    !Number.isInteger(repeats) ||
+    repeats < 1 ||
+    repeats > (state.catalog.limits?.max_repeats || 3)
+  )
+    throw new Error("Kies een geldig aantal herhalingen.");
+  const selected = {
+    dataset: question.dataset,
+    case_id: question.case_id,
+    mode,
+    repeats,
+  };
+  if (
+    mode === "assistant" &&
+    (requireAuthorization || byId("allow-models").checked)
+  ) {
+    const attempts = Number(byId("model-attempts").value),
+      seconds = Number(byId("model-seconds").value);
+    if (
+      !byId("allow-models").checked ||
+      !Number.isInteger(attempts) ||
+      attempts < 1 ||
+      !Number.isInteger(seconds) ||
+      seconds < 1
+    )
+      throw new Error(
+        "Modelgebruik vereist toestemming en positieve poging- en tijdlimieten.",
+      );
+    selected.authorization = {
+      confirmed: true,
+      max_attempts: attempts,
+      max_seconds: seconds,
+    };
+  }
+  return selected;
+}
+function populateQuestions() {
+  const select = byId("benchmark-question");
+  select.replaceChildren();
+  for (const question of state.catalog.questions)
+    option(select, question.id, question.title || question.question);
+  byId("benchmark-repeats").max = state.catalog.limits?.max_repeats || 3;
+  byId("benchmark-repeats").value = 2;
+  byId("start-benchmark").disabled = false;
+  modeControls();
+}
+function showPlanner() {
+  byId("benchmark-planner").hidden = false;
+  byId("edit-benchmark").hidden = true;
+  byId("benchmark-results").hidden = true;
+  message("plan-status");
+}
+function storeRun(run) {
+  const index = state.runs.findIndex((item) => item.id === run.id);
+  if (index < 0) state.runs.unshift(run);
+  else state.runs[index] = run;
 }
 function dateLabel(run) {
-  const date = new Date(run.created_at),
-    value = Number.isFinite(date.getTime())
+  const date = new Date(run.created_at);
+  return (
+    (Number.isFinite(date.getTime())
       ? new Intl.DateTimeFormat("nl-NL", {
           day: "numeric",
           month: "short",
@@ -380,62 +203,99 @@ function dateLabel(run) {
           minute: "2-digit",
           second: "2-digit",
         }).format(date)
-      : run.id;
-  return value + " · " + executionStatus(run.status);
-}
-function storeRun(run) {
-  const index = state.runs.findIndex((item) => item.id === run.id);
-  if (index < 0) state.runs.unshift(run);
-  else state.runs[index] = run;
+      : run.id) +
+    " · " +
+    executionStatus(run.status)
+  );
 }
 function historyControls() {
-  byId("benchmark-history").hidden = !state.runs.length;
-  for (const [id, value] of [
-    ["benchmark-run", state.run?.id],
-    ["benchmark-baseline", state.baseline?.id],
-  ]) {
-    const select = byId(id);
-    select.replaceChildren();
-    if (id === "benchmark-baseline") option(select, "", "Geen referentie");
-    for (const run of state.runs)
-      if (id !== "benchmark-baseline" || run.id !== state.run?.id)
-        option(select, run.id, dateLabel(run));
-    select.value = value || "";
+  const select = byId("benchmark-run");
+  select.replaceChildren();
+  option(select, "", "Kies uitvoering");
+  const runs = state.runs;
+  for (const run of runs) {
+    const question = questionForRun(run);
+    option(
+      select,
+      run.id,
+      (question ? question.title || question.question : "Opgeslagen meting") +
+        " · " +
+        dateLabel(run),
+    );
   }
+  select.value = state.run?.id || "";
+  byId("benchmark-history").hidden = !runs.length;
 }
 async function chooseRun(id) {
-  const sequence = (state.runSequence = (state.runSequence || 0) + 1);
+  if (!id) return;
+  const sequence = ++state.runSequence;
   clearTimeout(state.poll);
-  state.matrix = null;
-  state.comparison = null;
-  state.baseline = null;
-  message("comparison-status");
-  message("handoff-status");
-  byId("handoff-fallback").hidden = true;
-  state.run = null;
-  byId("benchmark-groups").replaceChildren();
-  message("run-status", "Uitvoering laden…");
+  message("page-status", "Uitvoering laden…");
+  state.selected = null;
   try {
     const run = await request("runs/" + encodeURIComponent(id));
     if (sequence !== state.runSequence) return;
+    const choices = runQuestions(run),
+      current = selectedQuestion(),
+      question =
+        choices.find(
+          (item) =>
+            item.dataset === current?.dataset &&
+            item.case_id === current?.case_id,
+        ) || choices[0];
+    if (!question)
+      throw new Error("Deze uitvoering bevat geen inspecteerbare vraag.");
     state.run = run;
-    storeRun(state.run);
+    state.viewQuestion = question;
+    state.historyScoped = choices.length > 1;
+    storeRun(run);
+    byId("benchmark-question").value = question.id;
+    byId("benchmark-mode").value = runMode(run);
+    byId("benchmark-repeats").value = run.plan.selection.repeats;
+    modeControls();
+    const historyQuestion = byId("history-question");
+    historyQuestion.replaceChildren();
+    for (const item of choices)
+      option(
+        historyQuestion,
+        item.dataset + ":" + item.case_id,
+        item.title || item.question,
+      );
+    historyQuestion.value = question.dataset + ":" + question.case_id;
+    byId("history-question-field").hidden = choices.length < 2;
+    byId("benchmark-planner").hidden = true;
+    byId("edit-benchmark").hidden = false;
+    message("page-status");
+    message("handoff-status");
+    byId("handoff-fallback").hidden = true;
     historyControls();
     renderRun();
     pollRun();
   } catch (error) {
-    message("run-status", error.message, true);
+    message("page-status", error.message, true);
+    showPlanner();
   }
 }
+const fingerprint = (run) =>
+  JSON.stringify([
+    run?.status,
+    run?.progress,
+    run?.groups?.map((group) => [
+      group.id,
+      group.status,
+      group.completed,
+      group.error,
+    ]),
+  ]);
 function pollRun() {
   clearTimeout(state.poll);
   if (!active(state.run)) return;
   state.poll = setTimeout(async () => {
-    const id = state.run?.id;
+    const id = state.run.id;
     try {
       const run = await request("runs/" + encodeURIComponent(id));
       if (state.run?.id !== id) return;
-      const changed = fingerprint(state.run) !== fingerprint(run);
+      const changed = fingerprint(run) !== fingerprint(state.run);
       state.run = run;
       storeRun(run);
       if (changed) {
@@ -453,63 +313,78 @@ function pollRun() {
     }
   }, 1000);
 }
-function duration(rows, field, expectedCount) {
-  const value = eligibleMean(rows, field, expectedCount);
-  if (value === null) return "—";
-  return (
-    new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 1 }).format(value) +
-    " ms"
-  );
+function variantLabel(config) {
+  if (config.label && !/\bk\d+\b/.test(config.label)) return config.label;
+  const value = config.configuration || {},
+    name = (items, id) => items?.find((item) => item.id === id)?.label || id;
+  const expanded =
+    value.selection === "activity_expansion" ||
+    value.context_mode === "activity_expand";
+  const limit = value.top_k
+    ? expanded
+      ? `Eerst ${value.top_k} secties · hele activiteit`
+      : `Maximaal ${value.top_k} ${String(value.profile).endsWith("_activities") ? "activiteiten" : "secties"}`
+    : "";
+  return [
+    name(state.catalog.methods, value.method),
+    value.method !== "bm25" &&
+      name(state.catalog.embedding_models, value.embedding_model),
+    name(state.catalog.profiles, value.profile),
+    limit,
+    value.apply_filters ? "Filters uit de vraag" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
-function payloadBytes(rows, compact) {
-  const values = rows
-    .map((row) =>
-      compact
-        ? (row.metrics?.compact_payload_bytes ?? row.metrics?.compact_bytes)
-        : (row.metrics?.full_payload_bytes ?? row.metrics?.full_bytes),
+function columnsFor(run) {
+  return run.groups
+    .filter(
+      (group) =>
+        !state.viewQuestion?.dataset ||
+        group.dataset === state.viewQuestion.dataset,
     )
-    .filter(Number.isFinite);
-  return values.length
-    ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 0 }).format(
-        values.reduce((a, b) => a + b, 0) / values.length,
-      )
-    : "—";
+    .filter(
+      (group) =>
+        !state.historyScoped ||
+        (run.result?.rows || []).some(
+          (row) =>
+            row.group_id === group.id &&
+            row.case_id === state.viewQuestion.case_id,
+        ),
+    )
+    .flatMap((group) =>
+      group.configurations.map((config) => ({
+        id: group.id + ":" + config.id,
+        group,
+        config,
+        configurationId: config.id,
+        run,
+        label: variantLabel(config),
+      })),
+    );
 }
-const groupRows = (run, group) =>
-  (run?.result?.rows || []).filter((row) => row.group_id === group.id);
-const fingerprint = (run) =>
-  JSON.stringify([
-    run?.status,
-    run?.progress,
-    run?.groups?.map((group) => [
-      group.id,
-      group.status,
-      group.completed,
-      group.error,
-    ]),
-  ]);
-function sharedCases(group) {
-  if (!state.comparison?.compatible) return null;
-  return new Set(
-    state.comparison.pairs
-      .filter(
-        (pair) =>
-          (pair.current?.group_id || pair.baseline?.group_id) === group.id,
-      )
-      .map((pair) => pair.case_id),
-  );
+function coverageState(row) {
+  if (!row) return active(state.run) ? "Wachtend" : "Niet uitgevoerd";
+  return sourceCoverageText(row);
 }
 function renderRun() {
   const run = state.run;
   if (!run) return;
-  const focused = document.activeElement;
-  const focusId = focused?.id;
-  const focusKey = focused?.dataset.cellKey;
-  const focusClose = focused?.hasAttribute("data-evidence-close");
-  const scrollPositions = [
-    ...byId("benchmark-groups").querySelectorAll(".benchmark-table-scroll"),
-  ].map((node) => node.scrollLeft);
-  const scrollTop = window.scrollY;
+  const question = state.viewQuestion || questionForRun(run),
+    columns = columnsFor(run),
+    repeats = run.plan.selection.repeats;
+  const focused = document.activeElement,
+    focusedKey = focused?.dataset.cellKey,
+    focusedClose = focused?.hasAttribute("data-evidence-close"),
+    scroll =
+      byId("benchmark-variants").querySelector(".benchmark-table-scroll")
+        ?.scrollLeft || 0,
+    top = window.scrollY;
+  byId("benchmark-results").hidden = false;
+  byId("run-question").textContent = question.title || question.question;
+  byId("run-context").textContent =
+    (runMode(run) === "assistant" ? "COA-assistent" : "Bronzoeken") +
+    ` · ${columns.length} varianten · ${repeats} herhalingen`;
   message(
     "run-status",
     `${executionStatus(run.status)} · ${run.progress.completed} van ${run.progress.total} afgerond${run.error ? " · " + run.error : ""}`,
@@ -517,398 +392,177 @@ function renderRun() {
   );
   byId("stop-benchmark").hidden = !active(run);
   byId("stop-benchmark").disabled = run.status === "cancelling";
-  const container = byId("benchmark-groups");
-  container.replaceChildren();
-  for (const [family, label] of [
-    ["retrieval", "Bronzoeken"],
-    ["assistant", "Gehele assistent"],
-    ["transport", "Technische controles"],
-  ]) {
-    const groups = run.groups.filter((group) => group.family === family);
-    if (!groups.length) continue;
-    const section = el("section", null, "benchmark-family");
-    section.append(el("h2", label));
-    for (const group of groups) section.append(renderGroup(group));
-    container.append(section);
-  }
-  queueMicrotask(() => {
-    const target = focusClose
-      ? container.querySelector("[data-evidence-close]")
-      : focusKey
-        ? [...container.querySelectorAll("[data-cell-key]")].find(
-            (node) => node.dataset.cellKey === focusKey,
-          )
-        : focusId
-          ? byId(focusId)
-          : null;
-    target?.focus({ preventScroll: true });
-    container
-      .querySelectorAll(".benchmark-table-scroll")
-      .forEach((node, index) => {
-        node.scrollLeft = scrollPositions[index] || 0;
-      });
-    if (state.matrix?.selected)
-      window.scrollTo({ top: scrollTop, behavior: "auto" });
-  });
-}
-function renderGroup(group) {
-  const section = el("section", null, "benchmark-group");
-  section.dataset.group = group.id;
-  const datasetLabel = state.catalog.datasets.find(
-    (item) => item.id === group.dataset,
-  )?.label;
-  section.append(
-    el(
-      "h3",
-      datasetLabel && !group.label.includes(datasetLabel)
-        ? group.label + " · " + datasetLabel
-        : group.label,
-    ),
-  );
-  if (group.block_reason || group.error)
-    section.append(
-      el(
-        "p",
-        group.error || group.block_reason,
-        group.error ? "benchmark-error" : "benchmark-blocked",
-      ),
-    );
-  const rows = groupRows(state.run, group),
-    shared = sharedCases(group),
-    hasBaseline = shared?.size > 0,
-    headers = [
-      "Configuratie",
-      "Volledig bronbewijs",
-      "Uitvoeringsfouten",
-      "Gem. zoektijd",
-    ];
-  if (group.suite === "assistant") headers[1] = "Alle harde controles";
-  if (group.suite === "assistant-rig")
-    headers[1] =
-      group.dataset === "regression-12-20261118"
-        ? "Vaste antwoordchecks"
-        : "Alle harde controles";
-  if (group.family === "assistant") headers[3] = "Gem. uitvoertijd";
-  if (group.family === "transport")
-    headers.splice(
-      1,
-      3,
-      "Geslaagde evalgevallen",
-      "Gem. volledig (bytes)",
-      "Gem. compact (bytes)",
-      "Uitvoeringsfouten",
-    );
-  const view = table(headers);
-  const summaries = group.configurations.map((config) => ({
-    config,
-    run: state.run,
-    reference: false,
-  }));
-  if (hasBaseline) {
-    const baselineGroup = state.baseline.groups.find(
-      (item) => item.id === group.id,
-    );
-    for (const config of baselineGroup?.configurations || [])
-      summaries.push({ config, run: state.baseline, reference: true });
-  }
-  for (const { config, run, reference } of summaries) {
-    const matches = groupRows(run, group).filter(
-        (row) =>
-          row.configuration_id === config.id &&
-          (!hasBaseline || shared.has(row.case_id)),
-      ),
-      summary = summarize(matches),
-      scored = summary.passed + summary.failed,
-      row = el("tr");
-    row.append(
-      el(
-        "td",
-        (reference ? "Referentie · " : "") +
-          (config.label ||
-            configurationLabel(config.configuration, state.catalog)),
-        "benchmark-config-name",
-      ),
-    );
-    let value = scored
-      ? `${summary.passed}/${scored}`
-      : group.block_reason
-        ? "Niet uitgevoerd"
-        : executionStatus(group.status) || "Niet uitgevoerd";
-    if (summary.not_applicable) value += ` · ${summary.not_applicable} n.v.t.`;
-    if (summary.unknown) value += ` · ${summary.unknown} onbekend`;
-    if (!hasBaseline) {
-      const planned = group.execution_count / group.configuration_count;
-      const unexecuted =
-        Math.max(0, Math.ceil(planned) - matches.length) +
-        (summary.not_run || 0) +
-        (summary.cancelled || 0) +
-        (summary.interrupted || 0);
-      if (unexecuted) {
-        const pending =
-          ["queued", "running"].includes(run.status) && !group.block_reason;
-        const coverage = `${unexecuted} ${pending ? "wachtend" : "niet uitgevoerd"}`;
-        value = matches.length ? value + " · " + coverage : coverage;
-      }
-    }
-    row.append(el("td", value, "numeric"));
-    if (group.family === "transport")
-      row.append(
-        el("td", payloadBytes(matches, false), "numeric"),
-        el("td", payloadBytes(matches, true), "numeric"),
-        el("td", summary.error, "numeric"),
-      );
-    else
-      row.append(
-        el("td", summary.error, "numeric"),
-        el(
-          "td",
-          duration(
-            matches,
-            group.family === "assistant" ? "native_elapsed_ms" : "retrieval_ms",
-            (() => {
-              const planned = run.groups.find((item) => item.id === group.id);
-              return planned?.execution_count / planned?.configuration_count;
-            })(),
-          ),
-          "numeric",
-        ),
-      );
-    view.body.append(row);
-  }
-  section.append(view.scroll);
-  if (rows.length) {
-    const action = button(
-      state.matrix?.groupId === group.id ? "Sluit vragen" : "Bekijk vragen",
-      () => {
-        state.matrix =
-          state.matrix?.groupId === group.id
-            ? null
-            : { groupId: group.id, filter: "all" };
-        renderRun();
-        if (state.matrix)
-          byId("matrix-filter-" + group.id)?.focus({ preventScroll: true });
-      },
-      "benchmark-group-action",
-    );
-    action.setAttribute(
-      "aria-expanded",
-      String(state.matrix?.groupId === group.id),
-    );
-    section.append(action);
-    if (state.matrix?.groupId === group.id) section.append(renderMatrix(group));
-  }
-  return section;
-}
-function matrixColumns(group) {
-  const columns = group.configurations.map((config) => ({
-    id: "current:" + config.id,
-    configurationId: config.id,
-    config,
-    run: state.run,
-    label: config.label,
-  }));
-  if (sharedCases(group)?.size) {
-    const reference = state.baseline.groups.find(
-      (item) => item.id === group.id,
-    );
-    for (const config of reference?.configurations || [])
-      columns.push({
-        id: "baseline:" + config.id,
-        configurationId: config.id,
-        config,
-        run: state.baseline,
-        label: "Referentie · " + config.label,
-      });
-  }
-  return columns;
-}
-function selectedColumns(group) {
-  const columns = matrixColumns(group);
-  if (state.matrix.all) return columns;
-  const first =
-    columns.find((column) => column.id === state.matrix.first) || columns[0];
-  const preferred =
-    columns.find(
-      (column) =>
-        column.id.startsWith("baseline:") &&
-        column.configurationId === first?.configurationId,
-    ) ||
-    columns.find((column) => column.id.startsWith("baseline:")) ||
-    columns.find(
-      (column) =>
-        column.config.configuration?.method !==
-        first?.config.configuration?.method,
-    ) ||
-    columns.find((column) => column.id !== first?.id);
-  const second =
-    state.matrix.second === undefined
-      ? preferred
-      : columns.find(
-          (column) =>
-            column.id === state.matrix.second && column.id !== first?.id,
-        );
-  return [first, second].filter(Boolean);
-}
-function renderMatrix(group) {
-  const panel = el("div", null, "benchmark-matrix-panel"),
-    toolbar = el("div", null, "benchmark-matrix-toolbar"),
-    field = el("div", null, "benchmark-field"),
-    label = el("label", "Toon vragen"),
-    filter = el("select");
-  toolbar.append(el("h3", "Vragen vergelijken"));
-  filter.id = "matrix-filter-" + group.id;
-  label.htmlFor = filter.id;
-  for (const [value, text] of [
-    ["all", "Alle"],
-    ["differences", "Verschillen"],
-    ["failures", "Missers"],
-    ["errors", "Uitvoeringsfouten"],
-  ])
-    option(filter, value, text);
-  filter.value = state.matrix.filter;
-  filter.addEventListener("change", () => {
-    state.matrix.filter = filter.value;
-    state.matrix.selected = null;
-    panel.replaceWith(renderMatrix(group));
-    byId(filter.id)?.focus({ preventScroll: true });
-  });
-  field.append(label, filter);
-  toolbar.append(field);
-  panel.append(toolbar);
-  const allColumns = matrixColumns(group);
-  if (allColumns.length > 1) {
-    const controls = el("div", null, "benchmark-column-controls");
-    if (!state.matrix.all) {
-      const visible = selectedColumns(group);
-      for (const [id, title, current] of [
-        ["first", "Eerste configuratie", visible[0]?.id],
-        ["second", "Tweede configuratie", visible[1]?.id],
-      ]) {
-        const field = el("div", null, "benchmark-field"),
-          label = el("label", title),
-          select = el("select");
-        select.id = `matrix-${id}-${group.id}`;
-        label.htmlFor = select.id;
-        if (id === "second") option(select, "", "Geen tweede configuratie");
-        for (const column of allColumns)
-          option(select, column.id, column.label);
-        select.value = current || "";
-        select.addEventListener("change", () => {
-          state.matrix[id] = select.value;
-          state.matrix.selected = null;
-          panel.replaceWith(renderMatrix(group));
-          byId(select.id)?.focus({ preventScroll: true });
-        });
-        field.append(label, select);
-        controls.append(field);
-      }
-    }
-    controls.append(
-      button(
-        state.matrix.all
-          ? "Selecteer twee configuraties"
-          : "Alle configuraties",
-        () => {
-          state.matrix.all = !state.matrix.all;
-          state.matrix.selected = null;
-          panel.replaceWith(renderMatrix(group));
-        },
-      ),
-    );
-    panel.append(controls);
-  }
-  const columns = selectedColumns(group),
-    rows = columns.flatMap((column) =>
-      groupRows(column.run, group)
-        .filter((row) => row.configuration_id === column.configurationId)
-        .map((row) => ({ ...row, original: row, configuration_id: column.id })),
-    ),
-    cases = matrixCases(
-      rows,
-      columns.map((column) => column.id),
-      filter.value,
-    ).filter(
-      (item) =>
-        !state.comparison?.compatible ||
-        !sharedCases(group)?.size ||
-        sharedCases(group).has(item.id),
-    );
-  if (!cases.length) {
-    panel.append(el("p", "Geen vragen in deze selectie."));
-    return panel;
-  }
   const view = table(
-    ["Vraag", ...columns.map((column) => column.label)],
-    "benchmark-matrix",
+    [
+      "Benodigde bronsecties gevonden",
+      ...columns.map((column) => column.label),
+    ],
+    "benchmark-coverage",
   );
-  view.scroll.setAttribute(
-    "aria-label",
-    "Vergelijking van vragen en configuraties",
+  view.scroll.setAttribute("aria-label", "Alle varianten naast elkaar");
+  const rows = (run.result?.rows || []).filter(
+    (row) =>
+      row.case_id === question.case_id && row.dataset === question.dataset,
   );
-  for (const item of cases) {
+  for (let repeat = 1; repeat <= repeats; repeat++) {
     const tr = el("tr");
-    tr.dataset.case = item.id;
-    const question = el("th", item.question);
-    question.scope = "row";
-    tr.append(question);
+    tr.dataset.repeat = repeat;
+    const title = el("th", "Herhaling " + repeat);
+    title.scope = "row";
+    tr.append(title);
     for (const column of columns) {
+      const row = rows.find(
+        (item) =>
+          item.group_id === column.group.id &&
+          item.configuration_id === column.configurationId &&
+          (item.repeat || 1) === repeat,
+      );
       const cell = el("td"),
-        content = el("div", null, "benchmark-cell"),
-        matches = item.rows
-          .filter((row) => row.configuration_id === column.id)
-          .sort((a, b) => a.repeat - b.repeat);
-      if (!matches.length) content.append(el("span", "Niet uitgevoerd"));
-      for (const match of matches) {
-        if (matches.length > 1)
-          content.append(
-            el("span", "Herhaling " + match.repeat, "benchmark-repeat"),
+        text = coverageState(row);
+      if (row) {
+        const key = column.id + ":" + repeat,
+          action = button(
+            text,
+            () => {
+              const wasOpen = action.getAttribute("aria-expanded") === "true";
+              view.body.querySelector(".benchmark-evidence-row")?.remove();
+              view.body
+                .querySelectorAll("button[aria-expanded=true]")
+                .forEach((node) => node.setAttribute("aria-expanded", "false"));
+              state.selected = wasOpen ? null : key;
+              if (wasOpen) return;
+              action.setAttribute("aria-expanded", "true");
+              const detail = el("tr", null, "benchmark-evidence-row"),
+                body = el("td");
+              body.colSpan = columns.length + 1;
+              const item = {
+                rows: columns.flatMap((entry) =>
+                  rows
+                    .filter(
+                      (record) =>
+                        record.group_id === entry.group.id &&
+                        record.configuration_id === entry.configurationId,
+                    )
+                    .map((record) => ({
+                      ...record,
+                      original: record,
+                      configuration_id: entry.id,
+                    })),
+                ),
+              };
+              body.append(
+                renderEvidence(item, columns, repeat, () => {
+                  detail.remove();
+                  state.selected = null;
+                  action.setAttribute("aria-expanded", "false");
+                  action.focus({ preventScroll: true });
+                }),
+              );
+              detail.append(body);
+              tr.after(detail);
+            },
+            "benchmark-coverage-value",
           );
-        const key = `${item.id}:${column.id}:${match.repeat}`,
-          action = button(metricText(match), () => {
-            const wasOpen = action.getAttribute("aria-expanded") === "true";
-            view.body.querySelector(".benchmark-evidence-row")?.remove();
-            view.body
-              .querySelectorAll("button[aria-expanded=true]")
-              .forEach((node) => node.setAttribute("aria-expanded", "false"));
-            state.matrix.selected = wasOpen ? null : key;
-            if (wasOpen) return;
-            action.setAttribute("aria-expanded", "true");
-            const detail = el("tr", null, "benchmark-evidence-row"),
-              body = el("td");
-            body.colSpan = columns.length + 1;
-            body.append(
-              renderEvidence(item, columns, match.repeat, () => {
-                detail.remove();
-                state.matrix.selected = null;
-                action.setAttribute("aria-expanded", "false");
-                action.focus({ preventScroll: true });
-              }),
-            );
-            detail.append(body);
-            tr.after(detail);
-          });
-        action.dataset.outcome = outcome(match);
         action.dataset.cellKey = key;
+        action.dataset.outcome = outcome(row);
         action.setAttribute(
           "aria-label",
-          `${item.id} · ${column.label} · ${matches.length > 1 ? "Herhaling " + match.repeat + " · " : ""}${metricText(match)}`,
+          `Herhaling ${repeat} · ${column.label} · ${text} benodigde bronsecties`,
         );
         action.setAttribute("aria-expanded", "false");
-        if (state.matrix.selected === key)
+        cell.append(action);
+        if (state.selected === key)
           queueMicrotask(() => {
-            if (state.matrix?.selected === key && action.isConnected)
-              action.click();
+            if (state.selected === key && action.isConnected) action.click();
           });
-        content.append(action);
-      }
-      cell.append(content);
+      } else cell.append(el("span", text, "benchmark-pending"));
+      if (!row && (column.group.error || column.group.block_reason))
+        cell.append(
+          el(
+            "p",
+            column.group.error || column.group.block_reason,
+            "benchmark-blocked",
+          ),
+        );
       tr.append(cell);
     }
     view.body.append(tr);
   }
-  panel.append(view.scroll);
-  return panel;
+  byId("benchmark-variants").replaceChildren(view.scroll);
+  queueMicrotask(() => {
+    const container = byId("benchmark-variants");
+    const target = focusedClose
+      ? container.querySelector("[data-evidence-close]")
+      : focusedKey
+        ? [...container.querySelectorAll("[data-cell-key]")].find(
+            (node) => node.dataset.cellKey === focusedKey,
+          )
+        : null;
+    target?.focus({ preventScroll: true });
+    container.querySelector(".benchmark-table-scroll").scrollLeft = scroll;
+    if (state.selected) window.scrollTo({ top, behavior: "auto" });
+  });
 }
+async function start() {
+  if (state.busy || byId("start-benchmark").disabled) return;
+  state.busy = true;
+  byId("start-benchmark").disabled = true;
+  message("plan-status", "Benchmark starten…");
+  try {
+    const selected = selection(),
+      plan = await request("questions/plan", {
+        method: "POST",
+        body: JSON.stringify(selected),
+      });
+    if (!plan.can_start)
+      throw new Error(
+        plan.groups
+          ?.map((group) => group.block_reason)
+          .filter(Boolean)
+          .join(" · ") || "Deze benchmark kan nu niet worden uitgevoerd.",
+      );
+    const action = questionStartRequest(window.sessionStorage, selected);
+    const run = await request("questions/start", {
+      method: "POST",
+      body: JSON.stringify(action.payload),
+    });
+    if (typeof run.id !== "string" || !run.id)
+      throw new Error("De server gaf geen geldige uitvoering terug.");
+    sessionStorage.removeItem(action.key);
+    window.location.assign("/benchmark/?run=" + encodeURIComponent(run.id));
+  } catch (error) {
+    message("plan-status", error.message, true);
+    state.busy = false;
+    byId("start-benchmark").disabled = false;
+  }
+}
+async function load() {
+  byId("retry-benchmarks").hidden = true;
+  try {
+    const [catalog, history] = await Promise.all([
+      request("catalog"),
+      request("runs"),
+    ]);
+    if (
+      !Array.isArray(catalog.questions) ||
+      !catalog.questions.length ||
+      !Array.isArray(history.runs)
+    )
+      throw new Error("De evaluatievragen zijn niet beschikbaar.");
+    state.catalog = catalog;
+    state.runs = history.runs;
+    populateQuestions();
+    historyControls();
+    message("page-status");
+    const id = new URL(location.href).searchParams.get("run");
+    if (id) await chooseRun(id);
+    else showPlanner();
+  } catch (error) {
+    message("page-status", error.message, true);
+    byId("retry-benchmarks").hidden = false;
+  }
+}
+
 const refKey = (ref) => ref.source_id + ":" + (ref.section_id || ref.id);
 const hydrate = (ref, records) => {
   for (const { column } of records) {
@@ -947,9 +601,21 @@ function renderEvidence(item, columns, repeat, close) {
     })),
     goals = new Map(),
     expectedKeys = new Set();
-  for (const { row } of records)
-    for (const goal of row?.goals || [])
-      if (!goals.has(goal.id)) goals.set(goal.id, goal);
+  const sourceRefs = records.flatMap(({ row }) => [
+    ...(row?.required_source_coverage?.found_refs || []),
+    ...(row?.required_source_coverage?.missing_refs || []),
+  ]);
+  if (sourceRefs.length) {
+    for (const ref of sourceRefs)
+      goals.set("source:" + refKey(ref), {
+        id: "source:" + refKey(ref),
+        source_ref: ref,
+        alternatives: [[ref]],
+      });
+  } else
+    for (const { row } of records)
+      for (const goal of row?.goals || [])
+        if (!goals.has(goal.id)) goals.set(goal.id, goal);
   const uniqueGoals = new Map();
   for (const goal of goals.values()) {
     const key = goal.alternatives?.length
@@ -997,26 +663,61 @@ function renderEvidence(item, columns, repeat, close) {
             row?.goals?.find((value) => value.id === id),
           ),
           actual = {
-            covered: matches.some((value) => value?.covered === false)
-              ? false
-              : matches.every((value) => value?.covered === true)
+            covered: goal.source_ref
+              ? row?.required_source_coverage?.found_refs?.some(
+                  (ref) => refKey(ref) === refKey(goal.source_ref),
+                )
                 ? true
-                : undefined,
+                : row?.required_source_coverage?.missing_refs?.some(
+                      (ref) => refKey(ref) === refKey(goal.source_ref),
+                    )
+                  ? false
+                  : undefined
+              : matches.some((value) => value?.covered === false)
+                ? false
+                : matches.every((value) => value?.covered === true)
+                  ? true
+                  : undefined,
           },
           text = !row
             ? "Niet uitgevoerd"
             : outcome(row) === "error"
               ? "Uitvoeringsfout"
-              : actual?.covered === true
-                ? assistant
-                  ? "Aangeboden"
-                  : "Gevonden"
-                : actual?.covered === false
-                  ? "Ontbreekt"
-                  : "Onbekend",
+              : row.required_source_coverage?.applicable === false
+                ? "N.v.t."
+                : actual?.covered === true
+                  ? assistant
+                    ? "Aangeboden"
+                    : "Gevonden"
+                  : actual?.covered === false
+                    ? "Ontbreekt"
+                    : goal.source_ref &&
+                        row.required_source_coverage?.has_alternatives
+                      ? "Andere geldige optie"
+                      : "Onbekend",
           td = el("td", text);
         td.dataset.outcome = actual?.covered === false ? "failed" : "";
         tr.append(td);
+      }
+      view.body.append(tr);
+    }
+    if (sourceRefs.length) {
+      const tr = el("tr"),
+        label = el("th", "Bewijsdoelen gevonden");
+      label.scope = "row";
+      tr.append(label);
+      for (const { row } of records) {
+        const metrics = row?.metrics;
+        tr.append(
+          el(
+            "td",
+            Number.isInteger(metrics?.covered_goals) &&
+              Number.isInteger(metrics?.target_goals) &&
+              metrics.target_goals > 0
+              ? `${metrics.covered_goals}/${metrics.target_goals}`
+              : "—",
+          ),
+        );
       }
       view.body.append(tr);
     }
@@ -1168,209 +869,25 @@ function renderEvidence(item, columns, repeat, close) {
   }
   return section;
 }
-async function loadComparison() {
-  const id = byId("benchmark-baseline").value;
-  state.baseline = null;
-  state.comparison = null;
-  state.matrix = null;
-  message("comparison-status");
-  message("handoff-status");
-  byId("handoff-fallback").hidden = true;
-  if (!id) {
-    renderRun();
-    return;
-  }
-  const runId = state.run.id;
-  try {
-    const [comparison, baseline] = await Promise.all([
-      request(
-        `compare?run=${encodeURIComponent(runId)}&baseline=${encodeURIComponent(id)}`,
-      ),
-      request("runs/" + encodeURIComponent(id)),
-    ]);
-    if (state.run.id !== runId || byId("benchmark-baseline").value !== id)
-      return;
-    if (!comparison.compatible)
-      message(
-        "comparison-status",
-        comparison.reason ||
-          "Deze uitvoeringen zijn niet rechtstreeks vergelijkbaar.",
-        true,
-      );
-    else {
-      state.baseline = baseline;
-      state.comparison = comparison;
-      if (comparison.coverage) {
-        const coverage = comparison.coverage;
-        message(
-          "comparison-status",
-          `${coverage.shared_cases} gedeeld${coverage.shared_cases === 1 ? " evalgeval" : "e evalgevallen"} · ${coverage.current_only} alleen in uitvoering · ${coverage.baseline_only} alleen in referentie`,
-        );
-      }
-    }
-    renderRun();
-  } catch (error) {
-    message("comparison-status", error.message, true);
-  }
-}
-async function load() {
-  byId("retry-benchmarks").hidden = true;
-  try {
-    const [catalog, history] = await Promise.all([
-      request("catalog"),
-      request("runs"),
-    ]);
-    if (
-      !Array.isArray(catalog.datasets) ||
-      !Array.isArray(catalog.suites) ||
-      !Array.isArray(history.runs)
-    )
-      throw new Error("De benchmarkcatalogus heeft een onbekend formaat.");
-    state.catalog = catalog;
-    state.runs = history.runs;
-    populatePlanner();
-    message("page-status");
-    if (state.runs.length) {
-      await chooseRun(state.run?.id || state.runs[0].id);
-      closePlanner();
-    } else openPlanner();
-    historyControls();
-  } catch (error) {
-    message("page-status", error.message, true);
-    byId("retry-benchmarks").hidden = false;
-  }
-}
-byId("benchmark-dataset").addEventListener("change", () => {
-  populateSuites(true);
-  populateCases();
-  schedulePlan();
-});
-planner.addEventListener("change", (event) => {
-  if (event.target.id !== "benchmark-dataset" && event.target.type !== "number")
-    schedulePlan();
-});
-planner.addEventListener("input", (event) => {
-  if (event.target.type === "number") schedulePlan();
-});
-byId("new-benchmark").addEventListener("click", () => {
-  openPlanner();
-  byId("benchmark-dataset").focus();
-});
-byId("close-planner").addEventListener("click", () => {
-  closePlanner();
-  byId("new-benchmark").focus();
-});
-byId("select-local").addEventListener("click", () => {
-  for (const input of byId("benchmark-suites").querySelectorAll("input"))
-    input.checked =
-      state.catalog.suites.find((suite) => suite.id === input.value)?.kind ===
-      "local";
-  schedulePlan();
-});
-for (const [id, family] of [
-  ["select-rag", "retrieval"],
-  ["select-assistant", "assistant"],
-])
-  byId(id).addEventListener("click", () => {
-    const currentAssistant =
-      id === "select-assistant" &&
-      byId("benchmark-suites").querySelector('input[value="assistant-rig"]');
-    for (const input of byId("benchmark-suites").querySelectorAll("input"))
-      input.checked = currentAssistant
-        ? input.value === "assistant-rig"
-        : state.catalog.suites.find((suite) => suite.id === input.value)
-            ?.family === family;
-    schedulePlan();
-  });
-byId("select-all").addEventListener("click", () => {
-  byId("benchmark-suites")
-    .querySelectorAll("input")
-    .forEach((input) => {
-      input.checked = true;
-    });
-  schedulePlan();
-});
-byId("select-cases").addEventListener("click", () => {
-  byId("benchmark-cases")
-    .querySelectorAll("input")
-    .forEach((input) => {
-      input.checked = true;
-    });
-  schedulePlan();
-});
-byId("benchmark-run").addEventListener("change", (event) =>
-  chooseRun(event.target.value),
-);
-byId("benchmark-baseline").addEventListener("change", loadComparison);
-byId("retry-benchmarks").addEventListener("click", load);
-byId("discuss-benchmark").addEventListener("click", async () => {
-  if (!state.run) return;
-  const button = byId("discuss-benchmark");
-  button.disabled = true;
-  message("handoff-status");
-  try {
-    const runId = state.run.id,
-      query = state.baseline
-        ? "?baseline=" + encodeURIComponent(state.baseline.id)
-        : "";
-    const handoff = await request(
-      "runs/" + encodeURIComponent(runId) + "/discussion" + query,
-    );
-    if (state.run?.id !== runId) return;
-    if (
-      typeof handoff.prompt !== "string" ||
-      !handoff.prompt ||
-      typeof handoff.report_path !== "string"
-    )
-      throw new Error("De overdracht bevat geen lokaal bespreekrapport.");
-    const transfer =
-      typeof handoff.command === "string" && handoff.command
-        ? handoff.command
-        : handoff.prompt;
-    const terminal = transfer === handoff.command;
-    byId("handoff-fallback").querySelector("label").textContent = terminal
-      ? "Terminalcommando"
-      : "Overdracht naar Codex";
-    byId("codex-handoff").value = transfer;
-    try {
-      await navigator.clipboard.writeText(transfer);
-      message(
-        "handoff-status",
-        terminal ? "Terminalcommando gekopieerd." : "Overdracht gekopieerd.",
-      );
-    } catch {
-      byId("handoff-fallback").hidden = false;
-      byId("codex-handoff").focus();
-      byId("codex-handoff").select();
-      message("handoff-status", "Kopiëren kon niet automatisch.");
-    }
-  } catch (error) {
-    message("handoff-status", error.message, true);
-  } finally {
-    button.disabled = false;
-  }
-});
-planner.addEventListener("submit", async (event) => {
+byId("benchmark-planner").addEventListener("submit", (event) => {
   event.preventDefault();
-  if (startButton.disabled || state.plan?.can_start !== true) return;
-  startButton.disabled = true;
-  try {
-    const run = await post("runs", selection());
-    state.run = run;
-    state.matrix = null;
-    state.baseline = null;
-    state.comparison = null;
-    storeRun(run);
-    closePlanner();
-    historyControls();
-    renderRun();
-    pollRun();
-    byId("benchmark-run").focus();
-  } catch (error) {
-    message("plan-status", error.message, true);
-    startButton.disabled = false;
-  }
+  start();
 });
+byId("benchmark-mode").addEventListener("change", modeControls);
+byId("edit-benchmark").addEventListener("click", () => {
+  showPlanner();
+  byId("benchmark-question").focus();
+});
+byId("benchmark-run").addEventListener("change", (event) => {
+  if (!event.target.value) return;
+  history.replaceState(
+    null,
+    "",
+    "/benchmark/?run=" + encodeURIComponent(event.target.value),
+  );
+  chooseRun(event.target.value);
+});
+byId("retry-benchmarks").addEventListener("click", load);
 byId("stop-benchmark").addEventListener("click", async () => {
   if (!active(state.run)) return;
   byId("stop-benchmark").disabled = true;
@@ -1390,4 +907,86 @@ byId("stop-benchmark").addEventListener("click", async () => {
     byId("stop-benchmark").disabled = false;
   }
 });
+byId("discuss-benchmark").addEventListener("click", async () => {
+  if (!state.run) return;
+  const action = byId("discuss-benchmark");
+  action.disabled = true;
+  message("handoff-status");
+  try {
+    const id = state.run.id,
+      handoff = await request("runs/" + encodeURIComponent(id) + "/discussion");
+    if (state.run?.id !== id) return;
+    const command =
+      typeof handoff.command === "string" && handoff.command
+        ? handoff.command
+        : handoff.prompt;
+    if (typeof command !== "string" || !handoff.report_path)
+      throw new Error("De overdracht bevat geen lokaal bespreekrapport.");
+    byId("codex-handoff").value = command;
+    try {
+      await navigator.clipboard.writeText(command);
+      message("handoff-status", "Terminalcommando gekopieerd.");
+    } catch {
+      byId("handoff-fallback").hidden = false;
+      byId("codex-handoff").focus();
+      byId("codex-handoff").select();
+      message("handoff-status", "Kopiëren kon niet automatisch.");
+    }
+  } catch (error) {
+    message("handoff-status", error.message, true);
+  } finally {
+    action.disabled = false;
+  }
+});
 load();
+let planTimer,
+  planSequence = 0;
+function refreshPlan() {
+  clearTimeout(planTimer);
+  const sequence = ++planSequence;
+  planTimer = setTimeout(async () => {
+    if (state.busy) return;
+    try {
+      const selected = selection(false),
+        plan = await request("questions/plan", {
+          method: "POST",
+          body: JSON.stringify(selected),
+        });
+      if (sequence !== planSequence || state.busy) return;
+      const variants = plan.groups.reduce(
+          (count, group) => count + group.configuration_count,
+          0,
+        ),
+        blocks = [
+          ...new Set(
+            plan.groups.map((group) => group.block_reason).filter(Boolean),
+          ),
+        ];
+      message(
+        "plan-status",
+        `${variants} varianten · ${selected.repeats} herhalingen${blocks.length ? " · " + blocks.join(" · ") : ""}`,
+        !plan.can_start,
+      );
+      byId("start-benchmark").disabled = !plan.can_start;
+    } catch (error) {
+      if (sequence !== planSequence || state.busy) return;
+      message("plan-status", error.message, true);
+      byId("start-benchmark").disabled = true;
+    }
+  }, 150);
+}
+byId("benchmark-planner").addEventListener("change", (event) => {
+  if (event.target.type !== "number") refreshPlan();
+});
+byId("benchmark-planner").addEventListener("input", (event) => {
+  if (event.target.type === "number") refreshPlan();
+});
+byId("history-question").addEventListener("change", (event) => {
+  const question = runQuestions(state.run).find(
+    (item) => item.dataset + ":" + item.case_id === event.target.value,
+  );
+  if (!question) return;
+  state.viewQuestion = question;
+  state.selected = null;
+  renderRun();
+});

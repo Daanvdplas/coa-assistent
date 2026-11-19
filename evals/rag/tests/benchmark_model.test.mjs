@@ -64,6 +64,63 @@ test("summaries retain all repetitions and separate failures from execution erro
   assert.equal(metricText(row("a", "error", 2)), "Uitvoeringsfout");
 });
 
+test("required source sections never use evidence-goal counts as source counts", () => {
+  assert.equal(
+    model.sourceCoverageText(
+      row("a", "failed", 5, {
+        metrics: { covered_goals: 5, target_goals: 10 },
+        required_source_coverage: { found: 3, total: 8, unit: "sections" },
+      }),
+    ),
+    "3/8",
+  );
+  assert.equal(
+    model.sourceCoverageText(
+      row("a", "failed", 5, {
+        metrics: { covered_goals: 5, target_goals: 10 },
+      }),
+    ),
+    "Onbekend",
+  );
+  assert.equal(
+    model.sourceCoverageText(
+      row("a", "error", 5, {
+        required_source_coverage: { found: 8, total: 8, unit: "sections" },
+      }),
+    ),
+    "Uitvoeringsfout",
+  );
+});
+
+test("an uncertain deliberate question start reuses its request id across page reloads", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) || null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+  const selected = {
+    dataset: "demo12",
+    case_id: "P01",
+    mode: "rag",
+    repeats: 2,
+  };
+  const first = model.questionStartRequest(storage, selected),
+    retry = model.questionStartRequest(storage, selected);
+  assert.equal(first.payload.request_id, retry.payload.request_id);
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(first.payload).filter(([key]) => key !== "request_id"),
+    ),
+    selected,
+  );
+  storage.removeItem(first.key);
+  assert.notEqual(
+    model.questionStartRequest(storage, selected).payload.request_id,
+    first.payload.request_id,
+  );
+});
+
 test("difference filters compare every repeat, including an absent variant", () => {
   const same = [row("a", "passed", 2), row("b", "passed", 2)];
   assert.equal(matrixCases(same, ["a", "b"], "differences").length, 0);
@@ -131,15 +188,52 @@ test("assistant full-context coverage cannot override failed execution and prove
 });
 test("the current corpus choice includes its extra regression set", () => {
   assert.equal(typeof model.selectedDatasets, "function");
-  const catalog = {datasets:[{id:"basis"},{id:"regression"},{id:"historical"}],default_selection:{datasets:["basis","regression"]}};
-  assert.deepEqual(model.selectedDatasets(catalog,"__current__"),["basis","regression"]);
-  assert.deepEqual(model.selectedDatasets(catalog,"historical"),["historical"]);
+  const catalog = {
+    datasets: [{ id: "basis" }, { id: "regression" }, { id: "historical" }],
+    default_selection: { datasets: ["basis", "regression"] },
+  };
+  assert.deepEqual(model.selectedDatasets(catalog, "__current__"), [
+    "basis",
+    "regression",
+  ]);
+  assert.deepEqual(model.selectedDatasets(catalog, "historical"), [
+    "historical",
+  ]);
 });
 test("speed averages require the whole selected set to be correct and complete", () => {
   assert.equal(typeof model.eligibleMean, "function");
-  const correct = {status:"passed",source_complete:true,retrieval_ms:20};
-  assert.equal(model.eligibleMean([correct,{...correct,retrieval_ms:40}],"retrieval_ms",2),30);
-  assert.equal(model.eligibleMean([correct,{...correct,status:"failed",source_complete:false,retrieval_ms:1}],"retrieval_ms",2),null);
-  assert.equal(model.eligibleMean([correct],"retrieval_ms",2),null);
-  assert.equal(model.eligibleMean([{...correct,suite:"assistant",answer_quality:"not_assessed"}],"retrieval_ms",1),null);
+  const correct = { status: "passed", source_complete: true, retrieval_ms: 20 };
+  assert.equal(
+    model.eligibleMean(
+      [correct, { ...correct, retrieval_ms: 40 }],
+      "retrieval_ms",
+      2,
+    ),
+    30,
+  );
+  assert.equal(
+    model.eligibleMean(
+      [
+        correct,
+        {
+          ...correct,
+          status: "failed",
+          source_complete: false,
+          retrieval_ms: 1,
+        },
+      ],
+      "retrieval_ms",
+      2,
+    ),
+    null,
+  );
+  assert.equal(model.eligibleMean([correct], "retrieval_ms", 2), null);
+  assert.equal(
+    model.eligibleMean(
+      [{ ...correct, suite: "assistant", answer_quality: "not_assessed" }],
+      "retrieval_ms",
+      1,
+    ),
+    null,
+  );
 });

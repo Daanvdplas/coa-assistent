@@ -307,7 +307,7 @@ pub(super) async fn catalog(
             }).collect()).collect();
             json!({"id":fact["id"],"description":fact["description"],"alternatives":alternatives})
         }).collect();
-        json!({"id":id,"title":title,"question":question["question"],"description":"Een vaste vraag op twaalf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"dataset":dataset::DEMO_ID,"dataset_version":questions["dataset_version"],"corpus":{"id":corpus.id(),"sha256":corpus.sha256(),"document_count":12,"section_count":72,"as_of":corpus.as_of()},"expected_goals":goals})
+        json!({"id":id,"case_id":case,"title":title,"question":question["question"],"description":"Een vaste vraag op twaalf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"dataset":dataset::DEMO_ID,"dataset_version":questions["dataset_version"],"corpus":{"id":corpus.id(),"sha256":corpus.sha256(),"document_count":12,"section_count":72,"as_of":corpus.as_of()},"expected_goals":goals})
     }).collect();
     let models:Vec<_>=ModelChoice::all().iter().map(|model|json!({"id":model.id(),"label":model.spec().label,"repository":model.spec().repository,"dimensions":model.spec().dimensions,"available":true,"cached":model.cached(&jobs.cache)})).collect();
     Json(

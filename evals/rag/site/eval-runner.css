@@ -41,3 +41,5 @@ main.eval-main>h1{font-size:1.875rem;font-weight:600;line-height:1.2;letter-spac
 @media(min-width:650px){.eval-controls{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){main.eval-main{padding:28px 16px 32px}main.eval-main>h1{font-size:1.75rem;margin-bottom:16px}}
 @media(max-width:450px){.search-eval-card>summary{padding:12px;gap:6px 12px}.eval-card-body{padding:0 12px 16px}.eval-start{width:100%}.eval-hits{padding-left:20px}}
+.eval-benchmark{flex:none;min-height:44px;font-size:.875rem;padding:8px 12px;background:transparent;border-color:var(--line)}
+.eval-benchmark:disabled{opacity:.55;cursor:default}

@@ -48,6 +48,33 @@ export const labels = {
 export function executionStatus(status) {
   return status === "failed" ? "Uitvoeringsfout" : labels[status] || status;
 }
+
+export function sourceCoverageText(row) {
+  if (!row) return "Niet uitgevoerd";
+  if (outcome(row) === "error") return "Uitvoeringsfout";
+  const coverage = row.required_source_coverage;
+  if (!coverage || coverage.unit !== "sections") return "Onbekend";
+  if (coverage.applicable === false) return "N.v.t.";
+  if (coverage.total === 0) return "N.v.t.";
+  if (
+    !Number.isInteger(coverage.found) ||
+    !Number.isInteger(coverage.total) ||
+    coverage.found < 0 ||
+    coverage.found > coverage.total
+  )
+    return "Onbekend";
+  return `${coverage.found}/${coverage.total}`;
+}
+
+export function questionStartRequest(storage, selection) {
+  const key = "coa-benchmark-question-v1:" + JSON.stringify(selection);
+  let id = storage.getItem(key);
+  if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {
+    id = crypto.randomUUID();
+    storage.setItem(key, id);
+  }
+  return { key, payload: { ...selection, request_id: id } };
+}
 export function selectedDatasets(catalog, value) {
   if (value === "__current__") return [...catalog.default_selection.datasets];
   if (value === "__all__") return catalog.datasets.map((item) => item.id);
@@ -55,10 +82,21 @@ export function selectedDatasets(catalog, value) {
 }
 
 export function eligibleMean(rows, field, expectedCount) {
-  if (!rows.length || !Number.isInteger(expectedCount) || rows.length !== expectedCount)
+  if (
+    !rows.length ||
+    !Number.isInteger(expectedCount) ||
+    rows.length !== expectedCount
+  )
     return null;
-  if (rows.some((row) => outcome(row) !== "passed" || row.latency_eligible === false ||
-    (row.suite === "assistant" && row.answer_quality === "not_assessed"))) return null;
+  if (
+    rows.some(
+      (row) =>
+        outcome(row) !== "passed" ||
+        row.latency_eligible === false ||
+        (row.suite === "assistant" && row.answer_quality === "not_assessed"),
+    )
+  )
+    return null;
   const values = rows.map((row) => row[field] ?? row.metrics?.[field]);
   if (values.some((value) => !Number.isFinite(value))) return null;
   return values.reduce((total, value) => total + value, 0) / values.length;

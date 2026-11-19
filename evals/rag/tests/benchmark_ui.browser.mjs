@@ -9,168 +9,225 @@ const { chromium } = require(
   process.env.COA_PLAYWRIGHT_CORE || "playwright-core",
 );
 const root = new URL("../../../", import.meta.url);
-let browser, server, base;
-const catalog = {
-  datasets: [
-    {
-      id: "demo-12",
-      label: "Twaalf activiteiten",
-      document_count: 12,
-      case_count: 2,
-      suites: ["retrieval", "quality", "agentic"],
-      cases: [
-        { id: "P01", question: "Waar en wanneer?" },
-        { id: "T02", question: "Wat kan binnen?" },
-      ],
-    },
-  ],
-  suites: [
-    {
-      id: "retrieval",
-      label: "Bronzoeken",
-      family: "retrieval",
-      kind: "local",
-      available: true,
-      datasets: ["demo-12"],
-    },
-    {
-      id: "quality",
-      label: "Contextkwaliteit",
-      family: "retrieval",
-      kind: "local",
-      available: true,
-      datasets: ["demo-12"],
-    },
-    {
-      id: "agentic",
-      label: "Gericht verderzoeken",
-      family: "assistant",
-      kind: "model",
-      available: false,
-      block_reason: "Codex is niet ingesteld.",
-      datasets: ["demo-12"],
-    },
-    {
-      id: "assistant",
-      label: "COA-assistent",
-      family: "assistant",
-      kind: "model",
-      available: false,
-      block_reason: "Modelgebruik is niet ingesteld.",
-      datasets: ["demo-12"],
-    },
-  ],
-  methods: [
-    { id: "bm25", label: "Op woorden" },
-    { id: "dense", label: "Op betekenis" },
-  ],
-  profiles: [{ id: "documents_sections", label: "Secties · bestanden" }],
-  embedding_models: [],
-  assistant_arms: [],
-  default_selection: {
-    datasets: ["demo-12"],
-    suites: ["retrieval", "quality"],
-    methods: [],
-    profiles: [],
-    embedding_models: [],
-    case_ids: [],
-    repeats: 1,
+let server, browser, base;
+const dataset = "demo-12-20261118";
+const questions = Array.from({ length: 18 }, (_, i) => ({
+  id:
+    i === 0
+      ? "P01"
+      : i === 1
+        ? "T02"
+        : i === 2
+          ? "T05"
+          : i === 17
+            ? "IND26-01"
+            : "CASE-" + i,
+  case_id:
+    i === 0
+      ? "P01"
+      : i === 1
+        ? "T02"
+        : i === 2
+          ? "T05"
+          : i === 17
+            ? "IND26-01"
+            : "CASE-" + i,
+  dataset,
+  question:
+    i === 0
+      ? "Waar en wanneer kan ik tuinieren?"
+      : i === 1
+        ? "Welke activiteit kan binnen op dinsdag?"
+        : i === 17
+          ? "Welke twee activiteiten passen bij alle voorwaarden?"
+          : "Vraag " + (i + 1) + "?",
+  title:
+    i === 0
+      ? "Waar en wanneer kan ik tuinieren?"
+      : i === 1
+        ? "Welke activiteit kan binnen op dinsdag?"
+        : i === 17
+          ? "Welke twee activiteiten passen bij alle voorwaarden?"
+          : "Vraag " + (i + 1) + "?",
+  supported_modes: ["rag", "assistant"],
+}));
+const methods = [
+  { id: "bm25", label: "Op woorden" },
+  { id: "dense", label: "Op betekenis" },
+  { id: "hybrid_rrf", label: "Combinatie op volgorde" },
+];
+const configurations = [
+  {
+    id: "bm25-3",
+    label: "Op woorden · k3",
+    configuration: { method: "bm25", profile: "documents_sections", top_k: 3 },
   },
-  limits: { max_rows: 5000, max_repeats: 3 },
+  {
+    id: "dense-3",
+    label: "Op betekenis · k3",
+    configuration: { method: "dense", profile: "documents_sections", top_k: 3 },
+  },
+  {
+    id: "hybrid-6",
+    label: "Combinatie · k6",
+    configuration: {
+      method: "hybrid_rrf",
+      profile: "documents_sections",
+      top_k: 6,
+    },
+  },
+  {
+    id: "activities",
+    label: "Activiteiten · k3",
+    configuration: {
+      method: "bm25",
+      profile: "documents_activities",
+      top_k: 3,
+    },
+  },
+  {
+    id: "expand",
+    label: "Uitbreiden · k3",
+    configuration: {
+      method: "dense",
+      profile: "documents_sections",
+      top_k: 3,
+      context_mode: "activity_expand",
+    },
+  },
+];
+const catalog = {
+  schema_version: 1,
+  questions,
+  methods,
+  profiles: [
+    { id: "documents_sections", label: "Bestanden · secties" },
+    { id: "documents_activities", label: "Bestanden · activiteiten" },
+  ],
+  embedding_models: [],
+  limits: { max_repeats: 3 },
+  default_repeats: 2,
 };
-const config = {
-  id: "bm25",
-  label: "Op woorden",
-  configuration: { method: "bm25" },
-};
-const group = {
-  id: "g",
-  suite: "retrieval",
-  dataset: "demo-12",
-  label: "Bronzoeken · Twaalf activiteiten",
-  family: "retrieval",
-  kind: "local",
-  case_count: 2,
-  configuration_count: 1,
-  execution_count: 2,
-  configurations: [config],
-  block_reason: null,
-};
-const plan = {
-  selection: catalog.default_selection,
-  groups: [group],
-  totals: { local: 2, model: 0, blocked: 0, executions: 2 },
-  can_start: true,
-};
-const ref = {
+const expected = {
   source_id: "ACT-TUIN-001",
+  id: "S2",
   section_id: "S2",
   source_title: "Tuinieren",
   heading: "Tijd",
   text: 'Dinsdag van 10.00 tot 12.00 uur. <img src=x onerror="window.injected=true">',
 };
-const resultRow = (id, pass) => ({
-  id,
-  group_id: "g",
-  configuration_id: "bm25",
-  case_id: id,
-  question: id === "P01" ? "Waar en wanneer?" : "Wat kan binnen?",
-  repeat: 1,
-  status: pass ? "passed" : "failed",
-  source_complete: pass,
-  configuration: { method: "bm25" },
-  metrics: {
-    covered_goals: pass ? 1 : 0,
-    target_goals: 1,
-    source_quality_applicable: true,
-  },
-  goals: [
-    {
-      id: "time",
-      description: "Tijd",
-      covered: pass,
-      alternatives: [[{ ...ref, found: pass }]],
+function runFor(input, id = "run-one") {
+  const question = questions.find(
+    (item) => item.dataset === input.dataset && item.case_id === input.case_id,
+  );
+  const group = {
+    id: "quality:" + input.dataset,
+    suite: "quality",
+    dataset: input.dataset,
+    label: "Bronzoeken",
+    family: "retrieval",
+    kind: "local",
+    case_count: 1,
+    configuration_count: configurations.length,
+    execution_count: configurations.length * input.repeats,
+    configurations,
+    status: "completed",
+    completed: configurations.length * input.repeats,
+  };
+  const rows = configurations.flatMap((config, index) =>
+    Array.from({ length: input.repeats }, (_, i) => ({
+      id: config.id + ":" + i,
+      group_id: group.id,
+      suite: "quality",
+      dataset: input.dataset,
+      case_id: input.case_id,
+      question: question.question,
+      configuration_id: config.id,
+      repeat: i + 1,
+      status: index === 0 ? "failed" : "passed",
+      source_complete: index !== 0,
+      configuration: config.configuration,
+      required_source_coverage: {
+        found: index === 0 ? (i === 0 ? 3 : 5) : 8,
+        total: 8,
+        unit: "sections",
+        found_refs: index !== 0 || i === 1 ? [expected] : [],
+        missing_refs: index === 0 && i === 0 ? [expected] : [],
+        documents: { found: 1, total: 2 },
+      },
+      metrics: {
+        covered_goals: 5,
+        target_goals: 10,
+        source_quality_applicable: true,
+      },
+      goals: [
+        {
+          id: "time",
+          description: "Tijd",
+          covered: index !== 0 || i === 1,
+          alternatives: [[{ ...expected, found: index !== 0 || i === 1 }]],
+        },
+      ],
+      calls: [
+        {
+          index: 1,
+          query: question.question,
+          hits: index !== 0 || i === 1 ? ["expected"] : [],
+        },
+      ],
+      retrieval_ms: 4.609042,
+      latency_eligible: index !== 0,
+    })),
+  );
+  return {
+    id,
+    question,
+    mode: input.mode || "rag",
+    created_at: "2026-11-19T10:00:00Z",
+    status: "completed",
+    plan: {
+      question,
+      mode: input.mode || "rag",
+      selection: {
+        datasets: [input.dataset],
+        case_ids: [input.case_id],
+        repeats: input.repeats,
+      },
+      groups: [group],
+      totals: { local: rows.length, model: 0, executions: rows.length },
+      can_start: true,
     },
-  ],
-  calls: [{ index: 1, query: "Waar en wanneer?", hits: pass ? ["time"] : [] }],
-  reason: "",
-  comparison_key: id,
-});
-const run = {
-  id: "run-one",
-  created_at: "2026-11-18T14:00:00Z",
-  status: "completed",
-  plan,
-  progress: { completed: 2, total: 2 },
-  groups: [{ ...group, status: "completed", completed: 2 }],
-  result: {
-    rows: [resultRow("P01", true), resultRow("T02", false)],
-    sources: { time: { ...ref, id: "S2" } },
-  },
-};
+    progress: { completed: rows.length, total: rows.length },
+    groups: [group],
+    result: { rows, sources: { expected } },
+  };
+}
 before(async () => {
   server = createServer(async (req, res) => {
     const path = new URL(req.url, "http://localhost").pathname;
-    const asset =
-      path === "/benchmark/"
-        ? "static/site/benchmark.html"
-        : path.startsWith("/assets/")
-          ? "static/site/" + path.slice(8)
-          : null;
-    if (!asset) {
+    const assets = {
+      "/benchmark/": "static/site/benchmark.html",
+      "/resultaten/": "evals/rag/site/results.html",
+      "/assets/eval-runner.js": "evals/rag/site/eval-runner.js",
+      "/assets/eval-runner.css": "evals/rag/site/eval-runner.css",
+    };
+    const file =
+      assets[path] ||
+      (path.startsWith("/assets/") ? "static/site/" + path.slice(8) : null);
+    if (!file) {
       res.writeHead(404).end();
       return;
     }
     try {
       res.setHeader(
         "Content-Type",
-        asset.endsWith(".js")
+        file.endsWith(".js")
           ? "text/javascript"
-          : asset.endsWith(".css")
+          : file.endsWith(".css")
             ? "text/css"
             : "text/html",
       );
-      res.end(await readFile(new URL(asset, root)));
+      res.end(await readFile(new URL(file, root)));
     } catch {
       res.writeHead(404).end();
     }
@@ -189,679 +246,305 @@ after(async () => {
   await new Promise((resolve) => server.close(resolve));
 });
 async function fixture({
-  mobile = false,
+  pagePath = "/benchmark/",
   saved = false,
-  slow = false,
-  delayedCancel = false,
-  progressive = false,
-  rig = false,
-  comparison = false,
-  many = false,
-  current = false,
-  partial = false,
-  rawTiming = false,
-  filesOnly = false,
-  common = false,
-  genericRig = false,
+  mobile = false,
+  uncertain = false,
+  running = false,
 } = {}) {
   const page = await browser.newPage({
     viewport: mobile
       ? { width: 375, height: 812 }
-      : { width: 1280, height: 900 },
+      : { width: 1440, height: 1000 },
   });
-  page.setDefaultTimeout(5000);
+  page.setDefaultTimeout(6000);
   await page.addInitScript(() =>
     Object.defineProperty(navigator, "clipboard", {
-      value: {
-        writeText: async (text) => {
-          window.copiedHandoff = text;
-        },
-      },
+      value: { writeText: async (text) => (window.copiedHandoff = text) },
     }),
   );
-  const starts = [];
-  let stored = saved ? [run] : [],
+  const starts = [],
+    mutations = [],
+    created = new Map();
+  let current = saved
+      ? runFor({ dataset, case_id: "P01", mode: "rag", repeats: 2 })
+      : null,
+    firstLost = uncertain,
     cancelled = false;
-  const baseline = structuredClone(run);
-  baseline.id = "baseline";
-  baseline.groups[0].configurations = [
-    { ...config, id: "dense", label: "Op betekenis" },
-  ];
-  baseline.result.rows = [resultRow("P01", false), resultRow("T03", true)].map(
-    (row) => ({ ...row, configuration_id: "dense" }),
-  );
-  if (comparison) stored.push(baseline);
-  if (partial) {
-    const partialRun = structuredClone(run);
-    partialRun.status = "cancelled";
-    partialRun.progress = { completed: 1, total: 18 };
-    partialRun.groups[0].execution_count = 18;
-    partialRun.groups[0].case_count = 18;
-    partialRun.groups[0].status = "cancelled";
-    partialRun.result.rows = [run.result.rows[0]];
-    stored = [partialRun];
-  }
-  if (rawTiming) {
-    const measured = structuredClone(run);
-    measured.result.rows = [
-      {
-        ...resultRow("T02", false),
-        retrieval_ms: 4.609042,
-        latency_eligible: false,
-      },
-    ];
-    stored = [measured];
-  }
-  if (many) {
-    const extra = structuredClone(run);
-    extra.groups[0].configurations = [
-      config,
-      { ...config, id: "dense", label: "Op betekenis" },
-      { ...config, id: "hybrid", label: "Combinatie" },
-    ];
-    extra.result.rows = extra.groups[0].configurations.flatMap((config) =>
-      run.result.rows.map((row) => ({ ...row, configuration_id: config.id })),
-    );
-    stored = [extra];
-  }
-  if (common) {
-    stored = stored.map((value) => structuredClone(value));
-    for (const value of stored) {
-      value.result.sources.extra = {
-        source_id: "ACT-TUIN-001",
-        id: "S1",
-        source_title: "Tuinieren",
-        heading: "Activiteit",
-        text: "Een gedeeld aanvullend bronfragment.",
-      };
-      for (const row of value.result.rows.filter(
-        (row) => row.case_id === "P01",
-      )) {
-        row.goals.push({
-          ...structuredClone(row.goals[0]),
-          id: "same-source-other-fact",
-        });
-        row.calls[0].hits.push("extra");
-      }
-    }
-  }
-  if (genericRig) {
-    stored = stored.map((value) => structuredClone(value));
-    for (const value of stored) {
-      value.groups[0].suite = "assistant-rig";
-      value.groups[0].family = "assistant";
-      for (const row of value.result.rows) {
-        row.suite = "assistant-rig";
-        row.answer_quality = "not_assessed";
-        row.assertions = [{ reason: "Broncontrole", pass: true }];
-      }
-    }
-  }
+  if (current && running) current.status = "running";
   await page.route("**/api/benchmarks/**", async (route) => {
-    const req = route.request(),
-      path = new URL(req.url()).pathname;
-    if (path.endsWith("/catalog"))
-      return route.fulfill({
-        json: current
-          ? {
-              ...catalog,
-              datasets: [
-                ...catalog.datasets,
-                {
-                  id: "regression-12",
-                  label: "Volledige opties",
-                  document_count: 12,
-                  case_count: 1,
-                  suites: ["retrieval", "quality"],
-                  cases: [
-                    {
-                      id: "IND26-01",
-                      question:
-                        "Welke activiteiten voldoen aan alle voorwaarden?",
-                    },
-                  ],
-                },
-              ],
-              default_selection: {
-                ...catalog.default_selection,
-                datasets: ["demo-12", "regression-12"],
-              },
-            }
-          : rig
-            ? {
-                ...catalog,
-                suites: [
-                  ...catalog.suites,
-                  {
-                    id: "assistant-rig",
-                    label: "COA-assistent via Rig",
-                    family: "assistant",
-                    kind: "model",
-                    unit: "provider_attempts",
-                    datasets: ["demo-12"],
-                  },
-                ],
-              }
-            : filesOnly
-              ? {
-                  ...catalog,
-                  profiles: [
-                    ...catalog.profiles,
-                    { id: "sqlite_sections", label: "SQLite · secties" },
-                  ],
-                  default_selection: {
-                    ...catalog.default_selection,
-                    profiles: ["documents_sections"],
-                  },
-                }
-              : catalog,
-      });
+    const request = route.request(),
+      path = new URL(request.url()).pathname;
+    if (request.method() !== "GET") mutations.push(path);
+    if (path.endsWith("/catalog")) return route.fulfill({ json: catalog });
+    if (path.endsWith("/questions/plan"))
+      return route.fulfill({ json: runFor(request.postDataJSON()).plan });
+    if (path.endsWith("/questions/start")) {
+      const input = request.postDataJSON();
+      starts.push(input);
+      if (!created.has(input.request_id))
+        created.set(input.request_id, runFor(input));
+      current = created.get(input.request_id);
+      if (running) current.status = "running";
+      if (firstLost) {
+        firstLost = false;
+        return route.abort("failed");
+      }
+      return route.fulfill({ status: 202, json: current });
+    }
+    if (path.endsWith("/runs"))
+      return route.fulfill({ json: { runs: current ? [current] : [] } });
     if (path.endsWith("/discussion"))
       return route.fulfill({
         json: {
-          report_path: "/tmp/benchmark-run-one.md",
-          prompt: "Bespreek de benchmark in /tmp/benchmark-run-one.md.",
-          command: "codex --cd '/tmp/project' 'Lees /tmp/benchmark-run-one.md'",
+          report_path: "/tmp/benchmark.md",
+          prompt: "Lees /tmp/benchmark.md",
+          command: "codex --cd '/tmp/project' 'Lees /tmp/benchmark.md'",
         },
       });
-    if (path.endsWith("/compare"))
-      return route.fulfill({
-        json: {
-          compatible: true,
-          coverage: {
-            current_cases: 2,
-            baseline_cases: 2,
-            shared_cases: 1,
-            current_only: 1,
-            baseline_only: 1,
-          },
-          pairs: [
-            {
-              case_id: "P01",
-              current: run.result.rows[0],
-              baseline: baseline.result.rows[0],
-            },
-          ],
-        },
-      });
-    if (path.endsWith("/baseline")) return route.fulfill({ json: baseline });
-    if (path.endsWith("/plan"))
-      return route.fulfill({
-        json: { ...plan, selection: req.postDataJSON() },
-      });
-    if (path.endsWith("/runs") && req.method() === "GET")
-      return route.fulfill({ json: { runs: stored } });
-    if (path.endsWith("/runs") && req.method() === "POST") {
-      starts.push(req.postDataJSON());
-      stored = [{ ...run, status: slow ? "running" : "completed" }];
-      if (progressive)
-        stored = [
-          {
-            ...run,
-            status: "running",
-            progress: { completed: 1, total: 2 },
-            result: { ...run.result, rows: [run.result.rows[0]] },
-          },
-        ];
-      return route.fulfill({ status: 202, json: stored[0] });
+    if (path.endsWith("/runs/run-one")) {
+      if (request.method() === "DELETE") {
+        cancelled = true;
+        current = { ...current, status: "cancelled" };
+      }
+      return route.fulfill({ json: current });
     }
-    if (path.endsWith("/run-one") && req.method() === "DELETE") {
-      cancelled = true;
-      stored = [{ ...run, status: delayedCancel ? "cancelling" : "cancelled" }];
-      return route.fulfill({ json: stored[0] });
-    }
-    if (path.endsWith("/run-one") && cancelled && delayedCancel)
-      stored = [{ ...run, status: "cancelled" }];
-    if (path.endsWith("/run-one") && progressive) stored = [run];
-    if (path.endsWith("/run-one"))
-      return route.fulfill({ json: stored[0] || run });
     return route.fulfill({ status: 404, json: { error: "Onbekend" } });
   });
-  await page.goto(base + "/benchmark/");
+  const evals = questions
+    .slice(0, 3)
+    .map((question, i) => ({
+      ...question,
+      id: ["garden-time-location", "indoor-tuesday", "two-activities"][i],
+      expected_goals: [
+        { id: "time", description: "Tijd", alternatives: [[expected]] },
+      ],
+    }));
+  await page.route("**/api/evals/rag/catalog", (route) =>
+    route.fulfill({
+      json: {
+        schema_version: 1,
+        can_run: true,
+        evals,
+        methods: [...methods.slice(0, 2)].map((method) => ({
+          ...method,
+          uses_embeddings: method.id !== "bm25",
+        })),
+        embedding_models: [{ id: "minilm", label: "MiniLM", available: true }],
+        default_method: "bm25",
+        default_embedding_model: "minilm",
+      },
+    }),
+  );
+  await page.goto(base + pagePath);
   return {
     page,
     starts,
+    mutations,
+    created,
+    get current() {
+      return current;
+    },
     get cancelled() {
       return cancelled;
     },
   };
 }
-test("benchmark is independent from demo navigation and starts only after a reviewed plan", async () => {
+test("direct benchmark selects one question by title, defaults to two repetitions and starts only on click", async () => {
   const flow = await fixture();
   const { page } = flow;
   try {
-    await page
-      .getByRole("heading", { name: "Benchmark", exact: true })
-      .waitFor();
-    assert.deepEqual(await page.locator("nav a").allTextContents(), [
-      "Evals",
-      "Benchmark",
-    ]);
-    await page
-      .getByRole("button", { name: "Alle lokale proeven", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .waitFor({ state: "visible" });
+    await page.getByLabel("Vraag", { exact: true }).waitFor();
+    assert.equal(
+      await page.getByLabel("Vraag", { exact: true }).locator("option").count(),
+      18,
+    );
+    assert.equal(
+      await page.getByLabel("Herhalingen", { exact: true }).inputValue(),
+      "2",
+    );
     assert.equal(flow.starts.length, 0);
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
-    assert.equal(flow.starts.length, 1);
-    await page.reload();
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
-    assert.equal(flow.starts.length, 1);
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    await page.getByRole("button", { name: /P01.*1\/1/ }).click();
+    assert.deepEqual(flow.mutations, []);
     assert.equal(
       await page
-        .locator(".benchmark-evidence")
-        .getByText(ref.text, { exact: true })
-        .count(),
-      1,
-    );
-    assert.equal(await page.evaluate(() => window.injected === true), false);
-    await page
-      .getByRole("button", { name: "Sluit broncontrole", exact: true })
-      .click();
-    assert.equal(
-      await page
-        .getByRole("button", { name: /P01.*1\/1/ })
-        .evaluate((el) => document.activeElement === el),
-      true,
-    );
-    assert.equal(flow.starts.length, 1);
-  } finally {
-    await page.close();
-  }
-});
-test("the current twelve-document profile keeps its regression independently selectable", async () => {
-  const { page, starts } = await fixture({ current: true });
-  try {
-    assert.equal(
-      await page.getByLabel("Vraagset", { exact: true }).inputValue(),
-      "__current__",
-    );
-    await page.locator("#benchmark-settings > summary").click();
-    assert.equal(await page.locator("#case-options").isVisible(), true);
-    assert.equal(await page.locator("#benchmark-cases input").count(), 3);
-    await page.locator('#benchmark-cases input[value="P01"]').uncheck();
-    await page.locator('#benchmark-cases input[value="T02"]').uncheck();
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    assert.deepEqual(starts[0].datasets, ["demo-12", "regression-12"]);
-    assert.deepEqual(starts[0].case_ids, ["IND26-01"]);
-  } finally {
-    await page.close();
-  }
-});
-
-test("a files-only server default never silently selects unavailable SQLite profiles", async () => {
-  const { page, starts } = await fixture({ filesOnly: true });
-  try {
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
-    assert.deepEqual(starts[0].profiles, ["documents_sections"]);
-  } finally {
-    await page.close();
-  }
-});
-test("shared expected and additional passages appear only once when comparing configurations", async () => {
-  const { page } = await fixture({ saved: true, many: true, common: true });
-  try {
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: /P01.*1\/1/ })
-      .first()
-      .click();
-    assert.equal(
-      await page
-        .locator(".benchmark-evidence blockquote")
-        .filter({ hasText: "Een gedeeld aanvullend bronfragment." })
-        .count(),
-      1,
-    );
-    assert.equal(
-      await page
-        .locator(".benchmark-evidence blockquote")
-        .filter({ hasText: "Dinsdag van 10.00 tot 12.00 uur." })
-        .count(),
-      1,
-    );
-  } finally {
-    await page.close();
-  }
-});
-test("generic current Rig source checks do not claim assessed answer quality", async () => {
-  const { page } = await fixture({ saved: true, genericRig: true });
-  try {
-    await page
-      .getByRole("columnheader", { name: "Alle harde controles", exact: true })
-      .waitFor()
-      .catch(async (error) => {
-        throw new Error(
-          (await page.locator("main").innerText()) + "\n" + error.message,
-        );
-      });
-    assert.equal(
-      await page
-        .getByRole("columnheader", {
-          name: "Vaste antwoordchecks",
-          exact: true,
-        })
+        .getByRole("button", { name: /Alle (RAG|proeven|vragen)/ })
         .count(),
       0,
     );
+    await page.getByLabel("Vraag", { exact: true }).selectOption("IND26-01");
     await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
+      .getByRole("button", { name: "Start benchmark", exact: true })
       .click();
+    await page.waitForURL("**/benchmark/?run=run-one");
+    await page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+    assert.equal(flow.starts[0].case_id, "IND26-01");
+    assert.equal(flow.starts[0].repeats, 2);
+    assert.equal(
+      await page.getByLabel("Vraag", { exact: true }).inputValue(),
+      "IND26-01",
+    );
+    await page.reload();
+    await page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+  } finally {
+    await page.close();
+  }
+});
+test("each Evals question deliberately starts its exact benchmark once before navigating", async () => {
+  const flow = await fixture({ pagePath: "/resultaten/" });
+  const { page } = flow;
+  try {
+    await page.locator(".eval-benchmark").first().waitFor();
+    assert.equal(await page.locator(".eval-benchmark").count(), 3);
+    assert.equal(await page.locator(".search-eval-card[open]").count(), 0);
+    assert.equal(flow.starts.length, 0);
+    await page.locator("#eval-indoor-tuesday .eval-benchmark").click();
+    await page.waitForURL("**/benchmark/?run=run-one");
+    await page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+    assert.equal(flow.starts[0].dataset, dataset);
+    assert.equal(flow.starts[0].case_id, "T02");
+    assert.equal(flow.starts[0].repeats, 2);
+    assert.equal(flow.starts[0].mode, "rag");
+    await page.reload();
+    await page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+    await page.goBack();
+    assert.equal(flow.starts.length, 1);
+  } finally {
+    await page.close();
+  }
+});
+test("all variants show actual required source coverage for both repetitions, with one shared expectation", async () => {
+  const { page } = await fixture({
+    saved: true,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  try {
+    await page.locator(".benchmark-coverage").waitFor();
+    assert.equal(await page.locator(".benchmark-coverage thead th").count(), 6);
+    assert.equal(
+      await page.locator(".benchmark-coverage tbody>tr[data-repeat]").count(),
+      2,
+    );
+    assert.match(await page.locator(".benchmark-coverage").innerText(), /3\/8/);
+    assert.match(await page.locator(".benchmark-coverage").innerText(), /5\/8/);
+    assert.match(
+      await page.locator(".benchmark-coverage thead").innerText(),
+      /Maximaal 3 activiteiten/,
+    );
+    assert.match(
+      await page.locator(".benchmark-coverage thead").innerText(),
+      /Eerst 3 secties.*hele activiteit/,
+    );
+    assert.doesNotMatch(
+      await page.locator(".benchmark-coverage thead").innerText(),
+      /\bk[36]\b/,
+    );
     await page
-      .getByRole("button", { name: /P01.*controles/ })
+      .getByRole("button", { name: /Herhaling 2.*Op woorden.*5\/8/ })
       .first()
       .click();
-    await page
-      .getByText("Antwoordkwaliteit: niet beoordeeld.", { exact: true })
-      .waitFor();
-  } finally {
-    await page.close();
-  }
-});
-
-test("different configurations compare only shared cases and report coverage", async () => {
-  const { page } = await fixture({ saved: true, comparison: true });
-  try {
-    await page
-      .getByLabel("Vergelijk met", { exact: true })
-      .selectOption("baseline");
-    await page
-      .locator("#comparison-status")
-      .getByText(
-        "1 gedeeld evalgeval · 1 alleen in uitvoering · 1 alleen in referentie",
-        { exact: true },
-      )
-      .waitFor();
-    assert.match(
+    assert.equal(
       await page
-        .locator(".benchmark-group>.benchmark-table-scroll")
-        .first()
-        .innerText(),
-      /Referentie · Op betekenis/,
-    );
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    assert.equal(
-      await page.locator(".benchmark-matrix tbody>tr[data-case]").count(),
+        .locator(".benchmark-evidence")
+        .getByText(expected.text, { exact: true })
+        .count(),
       1,
     );
-    assert.deepEqual(
-      await page.locator(".benchmark-matrix thead th").allTextContents(),
-      ["Vraag", "Op woorden", "Referentie · Op betekenis"],
-    );
-    await page
-      .getByLabel("Toon vragen", { exact: true })
-      .selectOption("differences");
-    assert.equal(
-      await page.locator(".benchmark-matrix tbody>tr[data-case]").count(),
-      1,
-    );
-  } finally {
-    await page.close();
-  }
-});
-
-test("a wide experiment opens with two selectable configurations before expanding all", async () => {
-  const { page } = await fixture({ saved: true, many: true });
-  try {
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    assert.equal(await page.locator(".benchmark-matrix thead th").count(), 3);
-    await page
-      .getByLabel("Tweede configuratie", { exact: true })
-      .selectOption("current:hybrid");
     assert.match(
-      await page.locator(".benchmark-matrix thead").innerText(),
-      /Combinatie/,
+      await page.locator(".benchmark-evidence").innerText(),
+      /Gevonden/,
     );
-    await page
-      .getByRole("button", { name: "Alle configuraties", exact: true })
-      .click();
-    assert.equal(await page.locator(".benchmark-matrix thead th").count(), 4);
+    assert.equal(await page.evaluate(() => window.injected === true), false);
   } finally {
     await page.close();
   }
 });
-test("small screens keep controls usable and only the comparison table scrolls", async () => {
-  const { page } = await fixture({ mobile: true, saved: true });
+test("a lost start response retries the same request id instead of creating a second run", async () => {
+  const flow = await fixture({ uncertain: true });
+  const { page } = flow;
   try {
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
     await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
+      .getByRole("button", { name: "Start benchmark", exact: true })
       .click();
+    await page.locator("#plan-status.benchmark-error").waitFor();
+    await page
+      .getByRole("button", { name: "Start benchmark", exact: true })
+      .click();
+    await page.waitForURL("**/benchmark/?run=run-one");
+    assert.equal(flow.starts.length, 2);
+    assert.equal(flow.created.size, 1);
+    assert.equal(flow.starts[0].request_id, flow.starts[1].request_id);
+  } finally {
+    await page.close();
+  }
+});
+test("mobile keeps the page bounded while all variant columns can be panned", async () => {
+  const { page } = await fixture({
+    saved: true,
+    mobile: true,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  try {
+    await page.locator(".benchmark-coverage").waitFor();
     assert.equal(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
       true,
     );
-    await page
-      .getByLabel("Toon vragen", { exact: true })
-      .selectOption("failures");
-    assert.equal(
-      await page.locator(".benchmark-matrix tbody>tr[data-case]").count(),
-      1,
-    );
-    await page
-      .getByRole("button", { name: "Nieuwe benchmark", exact: true })
-      .click();
+    assert.equal(await page.locator(".benchmark-coverage thead th").count(), 6);
     assert.equal(
       await page
-        .getByRole("button", { name: "Alle lokale proeven", exact: true })
-        .isVisible(),
+        .locator(".benchmark-table-scroll")
+        .first()
+        .evaluate((node) => node.scrollWidth > node.clientWidth),
+      true,
+    );
+    await page
+      .getByRole("button", { name: "Benchmark wijzigen", exact: true })
+      .click();
+    await page.getByLabel("Vraag", { exact: true }).focus();
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await page
+        .getByLabel("Onderdeel", { exact: true })
+        .evaluate((node) => document.activeElement === node),
       true,
     );
   } finally {
     await page.close();
   }
 });
-
-test("RAG and the whole assistant have independent all-evals selections", async () => {
-  const { page } = await fixture();
+test("stop and terminal handoff retain the selected question and never start another benchmark", async () => {
+  const flow = await fixture({
+    saved: true,
+    running: true,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  const { page } = flow;
   try {
     await page
-      .getByRole("button", { name: "Alle assistent-evals", exact: true })
+      .getByRole("button", { name: "Stop benchmark", exact: true })
       .click();
-    assert.deepEqual(
-      await page
-        .locator("#benchmark-suites input:checked")
-        .evaluateAll((nodes) => nodes.map((node) => node.value)),
-      ["agentic", "assistant"],
-    );
     await page
-      .getByRole("button", { name: "Alle RAG-evals", exact: true })
-      .click();
-    assert.deepEqual(
-      await page
-        .locator("#benchmark-suites input:checked")
-        .evaluateAll((nodes) => nodes.map((node) => node.value)),
-      ["retrieval", "quality"],
-    );
-  } finally {
-    await page.close();
-  }
-});
-
-test("Codex handoff copies the path to a real discussion artifact supplied by the server", async () => {
-  const { page } = await fixture({ saved: true });
-  try {
+      .locator("#run-status")
+      .getByText(/Gestopt/)
+      .waitFor();
+    assert.equal(flow.cancelled, true);
     await page
       .getByRole("button", { name: "Bespreek in Codex", exact: true })
       .click();
     await page
       .getByText("Terminalcommando gekopieerd.", { exact: true })
       .waitFor();
-    assert.equal(
+    assert.match(
       await page.evaluate(() => window.copiedHandoff),
-      "codex --cd '/tmp/project' 'Lees /tmp/benchmark-run-one.md'",
+      /^codex --cd /,
     );
-  } finally {
-    await page.close();
-  }
-});
-
-test("a cancelled partial run keeps unexecuted cases visible without treating them as failures", async () => {
-  const { page } = await fixture({ saved: true, partial: true });
-  try {
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
-    const summary = await page
-      .locator(".benchmark-group>.benchmark-table-scroll")
-      .first()
-      .innerText();
-    assert.match(summary, /1\/1.*17 niet uitgevoerd/);
-    assert.doesNotMatch(summary, /1\/18/);
-  } finally {
-    await page.close();
-  }
-});
-
-test("a missed case retains its measured raw time in the existing evidence detail", async () => {
-  const { page } = await fixture({ saved: true, rawTiming: true });
-  try {
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    await page.getByRole("button", { name: /T02.*0\/1/ }).click();
-    const row = page.locator(".benchmark-evidence tr").filter({
-      has: page.getByText("Gemeten zoektijd (ms)", { exact: true }),
-    });
-    await row.waitFor();
-    assert.match(await row.innerText(), /4,609/);
-    assert.equal(
-      await page
-        .locator(".benchmark-evidence")
-        .getByText("Gemeten zoektijd (ms)", { exact: true })
-        .count(),
-      1,
-    );
-  } finally {
-    await page.close();
-  }
-});
-
-test("Rig asks for an explicit model-attempt bound without inventing Codex sessions", async () => {
-  const { page, starts } = await fixture({ rig: true });
-  try {
-    await page
-      .getByRole("button", {
-        name: "Alle actuele assistent-evals",
-        exact: true,
-      })
-      .click();
-    assert.deepEqual(
-      await page
-        .locator("#benchmark-suites input:checked")
-        .evaluateAll((nodes) => nodes.map((node) => node.value)),
-      ["assistant-rig"],
-    );
-    assert.equal(
-      await page
-        .locator("#benchmark-suites input[value=assistant]")
-        .isChecked(),
-      false,
-    );
-    await page.getByLabel("Modelgebruik toestaan", { exact: true }).check();
-    await page
-      .getByLabel("Maximaal aantal modelpogingen", { exact: true })
-      .fill("10");
-    await page
-      .getByLabel("Maximale uitvoeringsduur (seconden)", { exact: true })
-      .fill("60");
-    assert.equal(
-      await page
-        .getByLabel("Maximaal aantal sessies", { exact: true })
-        .isVisible(),
-      false,
-    );
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    await page.getByLabel("Uitvoering", { exact: true }).waitFor();
-    assert.deepEqual(starts[0].authorization, {
-      confirmed: true,
-      max_attempts: 10,
-      max_seconds: 60,
-    });
-  } finally {
-    await page.close();
-  }
-});
-
-test("new results retain the open evidence and keyboard focus while polling", async () => {
-  const { page } = await fixture({ slow: true, progressive: true });
-  try {
-    await page
-      .getByRole("button", { name: "Alle lokale proeven", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Bekijk vragen", exact: true })
-      .click();
-    await page.getByRole("button", { name: /P01.*1\/1/ }).click();
-    await page
-      .getByRole("button", { name: "Sluit broncontrole", exact: true })
-      .focus();
-    await page
-      .getByText("Afgerond · 2 van 2 afgerond", { exact: true })
-      .waitFor();
-    assert.equal(await page.locator(".benchmark-evidence").isVisible(), true);
-    assert.equal(
-      await page
-        .getByRole("button", { name: "Sluit broncontrole", exact: true })
-        .evaluate((el) => document.activeElement === el),
-      true,
-    );
-  } finally {
-    await page.close();
-  }
-});
-test("stopping preserves the run in history and never starts a replacement", async () => {
-  const flow = await fixture({ slow: true, delayedCancel: true });
-  const { page } = flow;
-  try {
-    await page
-      .getByRole("button", { name: "Alle lokale proeven", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Start benchmark", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Stop benchmark", exact: true })
-      .click();
-    await page
-      .getByText("Stoppen… · 2 van 2 afgerond", { exact: true })
-      .waitFor();
-    assert.equal(
-      await page
-        .getByRole("button", { name: "Stop benchmark", exact: true })
-        .isDisabled(),
-      true,
-    );
-    await page
-      .getByText("Gestopt · 2 van 2 afgerond", { exact: true })
-      .waitFor();
-    assert.equal(flow.cancelled, true);
-    assert.equal(flow.starts.length, 1);
+    assert.equal(flow.starts.length, 0);
   } finally {
     await page.close();
   }

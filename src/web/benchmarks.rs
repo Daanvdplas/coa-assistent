@@ -40,6 +40,46 @@ fn now() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
+fn request_id(input: &mut Value) -> Result<Option<String>, ApiError> {
+    let Some(value) = input
+        .as_object_mut()
+        .and_then(|input| input.remove("request_id"))
+    else {
+        return Ok(None);
+    };
+    let Some(id) = value.as_str().filter(|id| {
+        !id.is_empty()
+            && id.len() <= 96
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
+    }) else {
+        return Err(failure(
+            StatusCode::BAD_REQUEST,
+            "benchmark_request_id",
+            "Deze startopdracht heeft geen geldige identificatie.",
+        ));
+    };
+    Ok(Some(id.into()))
+}
+fn previous_request(
+    book: &Book,
+    id: Option<&str>,
+    input: &Value,
+) -> Result<Option<Value>, ApiError> {
+    let Some(id) = id else { return Ok(None) };
+    let Some(run) = book.runs.values().find(|run| run["request_id"] == id) else {
+        return Ok(None);
+    };
+    if run["request_payload"] != *input {
+        return Err(failure(
+            StatusCode::CONFLICT,
+            "benchmark_request_changed",
+            "Deze startopdracht hoort al bij een andere selectie. Start een nieuwe benchmark.",
+        ));
+    }
+    Ok(Some(run.clone()))
+}
 fn identifier() -> Result<String, ApiError> {
     let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| storage_error())?;
@@ -234,6 +274,7 @@ impl Benchmarks {
                 "Deze benchmark bestaat niet.",
             )
         })?;
+        super::benchmark_sources::enrich(&mut value);
         enrich_expected_sources(&mut value);
         Ok(value)
     }
@@ -376,6 +417,35 @@ pub(super) async fn plan(
     jobs.check(peer, &headers, true)?;
     Ok(Json(jobs.adapter("plan", Some(&input)).await?))
 }
+pub(super) async fn question_plan(
+    Extension(jobs): Extension<Arc<Benchmarks>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(input): Json<Value>,
+) -> Result<Json<Value>, ApiError> {
+    jobs.check(peer, &headers, true)?;
+    Ok(Json(jobs.adapter("question-plan", Some(&input)).await?))
+}
+pub(super) async fn question_start(
+    Extension(jobs): Extension<Arc<Benchmarks>>,
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(mut input): Json<Value>,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
+    jobs.check(peer, &headers, true)?;
+    let request = request_id(&mut input)?.ok_or_else(|| {
+        failure(
+            StatusCode::BAD_REQUEST,
+            "benchmark_request_id",
+            "Start deze benchmark met een nieuwe startopdracht.",
+        )
+    })?;
+    if let Some(existing) = previous_request(&*jobs.locked()?, Some(&request), &input)? {
+        return Ok((StatusCode::OK, Json(existing)));
+    }
+    let plan = jobs.adapter("question-plan", Some(&input)).await?;
+    start_planned(jobs, plan, Some(request), input).await
+}
 pub(super) async fn list(
     Extension(jobs): Extension<Arc<Benchmarks>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
@@ -423,9 +493,13 @@ pub(super) async fn start(
     Extension(jobs): Extension<Arc<Benchmarks>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(input): Json<Value>,
+    Json(mut input): Json<Value>,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     jobs.check(peer, &headers, true)?;
+    let request = request_id(&mut input)?;
+    if let Some(existing) = previous_request(&*jobs.locked()?, request.as_deref(), &input)? {
+        return Ok((StatusCode::OK, Json(existing)));
+    }
     if jobs.shutting_down.load(Ordering::Acquire) {
         return Err(failure(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -434,6 +508,14 @@ pub(super) async fn start(
         ));
     }
     let plan = jobs.adapter("plan", Some(&input)).await?;
+    start_planned(jobs, plan, request, input).await
+}
+async fn start_planned(
+    jobs: Arc<Benchmarks>,
+    plan: Value,
+    request: Option<String>,
+    input: Value,
+) -> Result<(StatusCode, Json<Value>), ApiError> {
     if plan["can_start"] != true {
         return Err(failure(
             StatusCode::CONFLICT,
@@ -445,6 +527,9 @@ pub(super) async fn start(
     let (sender, cancel) = watch::channel(false);
     let snapshot = {
         let mut book = jobs.locked()?;
+        if let Some(existing) = previous_request(&book, request.as_deref(), &input)? {
+            return Ok((StatusCode::OK, Json(existing)));
+        }
         if jobs.shutting_down.load(Ordering::Acquire) {
             return Err(failure(
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -481,7 +566,7 @@ pub(super) async fn start(
                 group
             })
             .collect();
-        let snapshot = json!({"schema_version":1,"id":id,"created_at":now(),"updated_at":now(),"status":"queued","plan":plan,"progress":{"completed":0,"total":plan["totals"]["executions"]},"groups":groups,"result":{"rows":[],"sources":{}},"error":null});
+        let snapshot = json!({"schema_version":1,"id":id,"request_id":request,"request_payload":input,"created_at":now(),"updated_at":now(),"status":"queued","plan":plan,"progress":{"completed":0,"total":plan["totals"]["executions"]},"groups":groups,"result":{"rows":[],"sources":{}},"error":null});
         persist(&jobs.directory, &snapshot)?;
         book.runs.insert(id.clone(), snapshot.clone());
         book.cancellations.insert(id.clone(), sender);
@@ -1161,6 +1246,88 @@ mod tests {
     fn snapshot(id: &str, configuration: &str, cases: &[&str]) -> Value {
         let rows:Vec<_>=cases.iter().map(|case|json!({"group_id":"retrieval:demo","comparison_key":format!("{case}:{configuration}:1"),"case_id":case,"question":case,"configuration_id":configuration,"repeat":1,"status":"passed","source_complete":true,"metrics":{"covered_goals":1,"target_goals":1},"goals":[],"calls":[],"answer":null})).collect();
         json!({"schema_version":1,"id":id,"status":"running","created_at":1,"updated_at":1,"plan":{"groups":[{"id":"retrieval:demo","identity":{"corpus":"twelve","questions":"q1","criteria":"c1","scorer":"s1"}}]},"groups":[{"id":"retrieval:demo","status":"running","completed":0}],"progress":{"completed":0,"total":rows.len()},"result":{"rows":rows,"sources":{}},"error":null})
+    }
+    #[tokio::test]
+    async fn concurrent_start_retries_share_one_persisted_execution() {
+        let directory = directory();
+        let jobs = Arc::new(Benchmarks::open(
+            directory.clone(),
+            directory.clone(),
+            directory.clone(),
+        ));
+        let input = json!({"dataset":"regression-12-20261118","case_id":"IND26-01","repeats":2});
+        let plan = json!({"can_start":true,"groups":[],"totals":{"executions":0},"selection":{}});
+        let (first, second) = tokio::join!(
+            start_planned(
+                jobs.clone(),
+                plan.clone(),
+                Some("one-click".into()),
+                input.clone()
+            ),
+            start_planned(jobs.clone(), plan, Some("one-click".into()), input)
+        );
+        let first = first.unwrap();
+        let second = second.unwrap();
+        assert_eq!(first.0, StatusCode::ACCEPTED);
+        assert_eq!(second.0, StatusCode::OK);
+        assert_eq!(first.1.0["id"], second.1.0["id"]);
+        assert_eq!(jobs.locked().unwrap().runs.len(), 1);
+        jobs.shutdown().await;
+        drop(jobs);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+    #[tokio::test]
+    async fn question_retry_after_restart_returns_same_job_without_planning_or_execution() {
+        let directory = directory();
+        let id = "0123456789abcdef0123456789abcdef";
+        let input = json!({"dataset":"demo-12-20261118","case_id":"P01","repeats":2});
+        let mut value = snapshot(id, "dense", &["P01"]);
+        value["request_id"] = json!("deliberate-click-1");
+        value["request_payload"] = input.clone();
+        persist(&directory, &value).unwrap();
+        let jobs = Arc::new(Benchmarks::open(
+            directory.clone(),
+            directory.clone(),
+            directory.clone(),
+        ));
+        let mut headers = HeaderMap::new();
+        headers.insert("host", "127.0.0.1:8766".parse().unwrap());
+        headers.insert("origin", "http://127.0.0.1:8766".parse().unwrap());
+        let mut retry = input;
+        retry["request_id"] = json!("deliberate-click-1");
+        let response = start(
+            Extension(jobs.clone()),
+            ConnectInfo("127.0.0.1:1234".parse().unwrap()),
+            headers.clone(),
+            Json(retry.clone()),
+        )
+        .await;
+        assert!(
+            response.is_ok(),
+            "an existing durable request must be resolved without an adapter"
+        );
+        let (status, Json(returned)) = response.unwrap();
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(returned["id"], id);
+        assert_eq!(returned["status"], "interrupted");
+        retry["case_id"] = json!("T05");
+        let changed = start(
+            Extension(jobs.clone()),
+            ConnectInfo("127.0.0.1:1234".parse().unwrap()),
+            headers,
+            Json(retry),
+        )
+        .await;
+        assert!(matches!(
+            changed,
+            Err(ApiError {
+                status: StatusCode::CONFLICT,
+                ..
+            })
+        ));
+        assert_eq!(jobs.locked().unwrap().runs.len(), 1);
+        drop(jobs);
+        std::fs::remove_dir_all(directory).unwrap();
     }
     #[test]
     fn restart_preserves_completed_rows_without_restarting_work() {

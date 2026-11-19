@@ -1,5 +1,6 @@
 mod benchmark_report;
 mod benchmark_rig;
+mod benchmark_sources;
 mod benchmarks;
 mod eval_jobs;
 use axum::{
@@ -427,6 +428,8 @@ fn router_with_benchmarks(app: App, benchmarks: Arc<benchmarks::Benchmarks>) -> 
  .route("/assets/benchmark.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../static/site/benchmark.css"))}))
  .route("/api/benchmarks/catalog",get(benchmarks::catalog))
  .route("/api/benchmarks/plan",post(benchmarks::plan))
+ .route("/api/benchmarks/questions/plan",post(benchmarks::question_plan))
+ .route("/api/benchmarks/questions/start",post(benchmarks::question_start))
  .route("/api/benchmarks/runs",get(benchmarks::list).post(benchmarks::start))
  .route("/api/benchmarks/runs/{id}",get(benchmarks::get).delete(benchmarks::cancel))
  .route("/api/benchmarks/runs/{id}/discussion",get(benchmarks::discussion))

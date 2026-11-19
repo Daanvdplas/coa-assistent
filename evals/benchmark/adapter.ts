@@ -244,6 +244,11 @@ const datasetLabels: Record<string, string> = {
 export function catalog() {
   return {
     schema_version: 1,
+    questions: [DEMO, REGRESSION].flatMap(dataset => inputs(dataset).map(row => ({
+      id: row.case_id, case_id: row.case_id, dataset, question: row.question, title: row.question + (["P01","T02"].includes(row.case_id) ? " · Evals" : ["RAG26-01","RAG26-03"].includes(row.case_id) ? " · Ontwikkeling" : ""),
+      corpus_sha256: read(questionPath(dataset)).corpus_sha256,
+      supported_modes: ["rag", "assistant"],
+    }))),
     datasets: [
       DEMO,
       ...shared.filter((d) => d !== DEMO),
@@ -278,6 +283,18 @@ export function catalog() {
     },
     limits: { max_rows: 5000, max_repeats: 3 },
   };
+}
+export function questionPlan(input: unknown): Plan {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw Error("Kies één vraag.");
+  const value = input as Record<string, unknown>;
+  if (Object.keys(value).some(key => !["dataset", "case_id", "repeats", "mode", "authorization"].includes(key))) throw Error("Onbekende vraaginstelling.");
+  const dataset = String(value.dataset), caseId = String(value.case_id);
+  if (![DEMO, REGRESSION].includes(dataset) || !inputs(dataset).some(row => row.case_id === caseId)) throw Error("Kies één huidige evaluatievraag.");
+  const mode = value.mode ?? "rag";
+  if (!["rag", "assistant"].includes(String(mode))) throw Error("Onbekende benchmarkmodus.");
+  return plan({datasets:[dataset],case_ids:[caseId],suites:mode === "assistant" ? ["assistant-rig"] : ["quality", "browser"],
+    profiles: process.env.COA_BENCHMARK_SQLITE === "0" ? ["documents_sections", "documents_activities"] : [],
+    repeats:value.repeats ?? 2, ...(mode === "assistant" && value.authorization ? {authorization:value.authorization} : {})});
 }
 function strings(
   value: unknown,
@@ -435,8 +452,7 @@ function configLabel(c: Record<string, unknown>) {
     c.embedding_model
       ? encoders.find((e) => e.id === c.embedding_model)?.label
       : null,
-    c.top_k ? `k${c.top_k}` : null,
-    c.selection === "activity_expansion" ? "Activiteit uitbreiden" : null,
+    c.top_k ? c.selection === "activity_expansion" ? `Eerst ${c.top_k} secties · hele activiteit` : `Maximaal ${c.top_k} ${String(c.profile).endsWith("_activities") ? "activiteiten" : "secties"}` : null,
     c.apply_filters ? "Filters" : null,
     c.payload_mode,
     c.mode === "codex" ? c.model : null,
@@ -1237,6 +1253,7 @@ async function main() {
     process.stdout.write(
       JSON.stringify(plan(JSON.parse(readFileSync(process.argv[3], "utf8")))),
     );
+  else if (command === "question-plan") process.stdout.write(JSON.stringify(questionPlan(JSON.parse(readFileSync(process.argv[3], "utf8")))));
   else if (command === "execute") {
     const input = JSON.parse(readFileSync(process.argv[3], "utf8"));
     await execute(

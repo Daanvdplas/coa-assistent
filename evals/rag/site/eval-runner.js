@@ -13,6 +13,7 @@
   let catalog;
   let active = null;
   let sessionId = null;
+  let benchmarkStarting = false;
   const localOnly = 'Zoektests kun je alleen lokaal starten.';
   const canRun = () => catalog?.can_run === true;
   const methodFor = id => catalog.methods.find(item => item.id === id);
@@ -36,6 +37,7 @@
       card.model.disabled = Boolean(active) || !usesEmbeddings;
       card.start.disabled = !canRun() || Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
       card.stop.disabled = !canRun() || card.cancelling === true;
+      card.benchmark.disabled = !canRun() || Boolean(active) || benchmarkStarting || !card.evaluation.dataset || !card.evaluation.case_id;
       card.modelLabel.textContent = usesEmbeddings ? 'Embeddingmodel' : 'Embeddingmodel (niet gebruikt)';
     }
   }
@@ -192,11 +194,26 @@
       card.timer=setTimeout(()=>poll(card,card.runId,card.selection),750);
     }
   }
+  async function benchmark(card) {
+    if (!canRun() || active || benchmarkStarting || !card.evaluation.dataset || !card.evaluation.case_id) return;
+    benchmarkStarting=true;controls();byId('eval-catalog-status').textContent='Benchmark starten…';
+    try {
+      const {questionStartRequest}=await import('/assets/benchmark-model.js');
+      const action=questionStartRequest(window.sessionStorage,{dataset:card.evaluation.dataset,case_id:card.evaluation.case_id,mode:'rag',repeats:2});
+      const run=await request('/api/benchmarks/questions/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(action.payload)});
+      if(typeof run.id!=='string'||!run.id)throw new Error('De server gaf geen geldige benchmark terug.');
+      sessionStorage.removeItem(action.key);window.location.assign('/benchmark/?run='+encodeURIComponent(run.id));
+    }catch(error){benchmarkStarting=false;controls();byId('eval-catalog-status').textContent=error.message;}
+  }
   function makeCard(evaluation) {
     const details = node('details', null, 'search-eval-card'); details.id = 'eval-' + evaluation.id;
     const summary = node('summary'); const title = node('span', evaluation.question, 'eval-card-title'); summary.append(title);
     const body = node('div', null, 'eval-card-body');
     const card = { details, evaluation, goalReferences: new Map(), references: new Map() };
+    card.benchmark=node('button','Benchmark','eval-benchmark');card.benchmark.type='button';card.benchmark.disabled=true;
+    card.benchmark.setAttribute('aria-label','Benchmark: '+evaluation.question);
+    card.benchmark.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();benchmark(card);});
+    summary.append(card.benchmark);
     body.append(expected(card, evaluation));
     const form = node('div', null, 'eval-controls');
     const methodId = details.id + '-method'; const modelId = details.id + '-embedding';
@@ -241,5 +258,6 @@
     }
   });
   byId('eval-catalog-retry').addEventListener('click', load);
+  window.addEventListener('pageshow',event=>{if(event.persisted&&benchmarkStarting){benchmarkStarting=false;controls();byId('eval-catalog-status').textContent='';}});
   await load();
 })();

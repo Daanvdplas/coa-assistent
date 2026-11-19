@@ -130,7 +130,7 @@ test("execution checkpoints real runner projections and keeps source failures as
               response: {
                 output: JSON.stringify({
                   status: "completed",
-                  record: { outcome: { hits: [] } },
+                  record: { run_id: `fresh-native-${count}`, outcome: { hits: [] } },
                 }),
               },
               gradingResult: {
@@ -162,12 +162,16 @@ test("execution checkpoints real runner projections and keeps source failures as
         methods: ["bm25"],
         profiles: ["documents_sections"],
         case_ids: ["DEMO12-11"],
+        repeats: 2,
       },
       dir,
       undefined,
       executor,
     );
-    assert.equal(count, 1);
+    assert.equal(count, 2);
+    assert.deepEqual(progress.result.rows.map((row:any)=>row.repeat),[1,2]);
+    assert.equal(new Set(progress.result.rows.map((row:any)=>row.native_run_id)).size,2);
+    assert.equal(new Set(progress.result.rows.map((row:any)=>row.comparison_key)).size,2);
     assert.equal(progress.groups[0].status, "completed");
     assert.equal(progress.result.rows[0].status, "failed");
     assert.equal(progress.result.rows[0].source_complete, false);
@@ -361,4 +365,49 @@ test("fixed model trials retain distinct repetition and comparison identities",a
     assert.deepEqual(progress.result.rows.filter(row=>row.configuration.model==='gpt-6.1-sol').map(row=>row.repeat),[1,2,3]);
     assert.equal(new Set(progress.result.rows.map(row=>row.comparison_key)).size,4);
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test("question plan runs one current question twice across every distinct local variant", () => {
+  const p = cli("question-plan", {dataset:"demo-12-20261118",case_id:"P01"});
+  assert.deepEqual(p.selection.case_ids,["P01"]);
+  assert.equal(p.selection.repeats,2);
+  assert.deepEqual(p.groups.map((g:any)=>[g.suite,g.configuration_count,g.execution_count]),[["quality",24,48],["browser",7,14]]);
+  assert.equal(p.totals.local,62);
+  assert.equal(p.totals.model,0);
+});
+test("complete-list question has twenty-four local variants and no unrelated browser questions", () => {
+  const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01",repeats:3});
+  assert.equal(p.groups.length,1);
+  assert.equal(p.groups[0].configuration_count,24);
+  assert.equal(p.totals.local,72);
+});
+test("question picker exposes current eighteen questions with explicit corpus identities",()=>{
+  const c=cli("catalog");assert.equal(c.questions.length,18);
+  assert.ok(c.questions.every((q:any)=>q.dataset&&q.id&&q.question&&q.corpus_sha256));
+});
+
+test("single-question assistant planning keeps two methods and requires explicit attempts",()=>{
+ const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01",mode:"assistant"});
+ assert.equal(p.can_start,false);assert.equal(p.totals.model,4);assert.equal(p.totals.provider_attempts,20);assert.equal(p.totals.model_sessions,0);
+ assert.deepEqual(p.groups.map((g:any)=>g.suite),["assistant-rig"]);
+});
+test("duplicate question wording keeps distinguishable titles and exact case identities",()=>{
+ const c=cli("catalog");const rows=c.questions.filter((q:any)=>["P01","RAG26-01"].includes(q.id));
+ assert.equal(rows.length,2);assert.equal(rows[0].question,rows[1].question);assert.notEqual(rows[0].title,rows[1].title);
+});
+
+test("configuration labels explain search-result limits and expansion units",()=>{
+ const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01"});
+ const configs=p.groups[0].configurations;
+ assert.ok(configs.every((c:any)=>!/(?:^| · )k[36](?: · |$)/.test(c.label)));
+ assert.ok(configs.some((c:any)=>c.label.includes("Maximaal 6 secties")));
+ assert.ok(configs.some((c:any)=>c.label.includes("Maximaal 3 activiteiten")));
+ assert.ok(configs.some((c:any)=>c.label.includes("Eerst 3 secties · hele activiteit")));
+});
+
+test("question plans retain canonical file-only variants when SQLite is absent",async()=>{
+ const original=process.env.COA_BENCHMARK_SQLITE;process.env.COA_BENCHMARK_SQLITE="0";
+ try { const {questionPlan}=await import("./adapter.ts"); const p=questionPlan({dataset:"regression-12-20261118",case_id:"IND26-01"});
+ assert.equal(p.totals.local,32);assert.ok(p.groups[0].configurations.every(c=>!String(c.configuration.profile).startsWith("sqlite_")));
+ } finally {if(original===undefined)delete process.env.COA_BENCHMARK_SQLITE;else process.env.COA_BENCHMARK_SQLITE=original;}
 });
