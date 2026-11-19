@@ -121,11 +121,10 @@ impl ResponsesRunner {
             .filter(|key| !key.trim().is_empty())
         {
             Some(key) => key,
-            None => {
-                let path = std::env::var_os("COA_OPENAI_API_KEY_FILE")
-                    .ok_or("runtime: De antwoordservice is nog niet ingesteld. Een OpenAI API-sleutel ontbreekt.")?;
-                read_key(Path::new(&path))?
-            }
+            None => match std::env::var_os("COA_OPENAI_API_KEY_FILE") {
+                Some(path) => read_key(Path::new(&path))?,
+                None => dotenv_key()?.ok_or("runtime: De antwoordservice is nog niet ingesteld. Een OpenAI API-sleutel ontbreekt.")?,
+            },
         };
         let mut runner = Self::new(key, ENDPOINT, search)?;
         runner.budget = configured_budget(true)?;
@@ -162,6 +161,28 @@ impl ResponsesRunner {
     ) -> Result<Value, String> {
         rig_runtime::run(self, query, top_k, corpus, language, method).await
     }
+}
+
+fn dotenv_key() -> Result<Option<String>, String> {
+    if std::env::var("COA_DISABLE_DOTENV").as_deref() == Ok("1") {
+        return Ok(None);
+    }
+    // Read only the local key without mutating the multithreaded process's
+    // environment or importing budget/test configuration from the file.
+    let entries = match dotenvy::from_path_iter(".env") {
+        Ok(entries) => entries,
+        Err(error) if error.not_found() => return Ok(None),
+        Err(_) => return Err("runtime: Het .env-bestand kan niet worden gelezen.".into()),
+    };
+    let mut key = None;
+    for entry in entries {
+        let (name, value) =
+            entry.map_err(|_| "runtime: Het .env-bestand kan niet worden gelezen.")?;
+        if name == "OPENAI_API_KEY" && key.is_none() && !value.trim().is_empty() {
+            key = Some(value);
+        }
+    }
+    Ok(key)
 }
 
 fn configured_budget(

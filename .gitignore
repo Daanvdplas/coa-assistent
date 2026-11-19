@@ -5,3 +5,8 @@ __pycache__/
 /evals/*/results/local/
 
 /node_modules
+
+# Local credentials; the tracked template contains no key.
+.env
+.env.*
+!.env.example
