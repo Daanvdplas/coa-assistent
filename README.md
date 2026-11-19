@@ -15,3 +15,5 @@ Clone or open this repository in your coding agent and ask:
 The website needs macOS or Linux and Rust 1.97.1. New answers also need your own OpenAI API key and API credit; Node.js and Codex are only needed for evaluation routes. The agent can check your environment and follow the [local setup](docs/LOCAL_SETUP.md). Copy [`.env.example`](.env.example) to `.env`, enter your key locally, and start from the project root; an external key file is also supported. Keep the key out of chat and Git. New answers still require a separately approved budget.
 
 The [code tour](docs/code-tour.html) explains how the parts work together. The [runtime report](docs/runtime-report.md) records what was verified and what remains uncertain. [Evaluations](evals/README.md) distinguish retrieval from the complete assistant; saved results are not human validation of answer quality.
+
+The optional [local trace dashboard](docs/traces.md) records model and search steps in a private SQLite file, groups runs by thread and exports thread JSON for inspection.

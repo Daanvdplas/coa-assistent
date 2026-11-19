@@ -12,6 +12,7 @@ use meedoen_retrieval::{
     demo_limits::{Blocked, DemoLimits, client_ip},
     responses::{ResponsesRunner, Search},
     runs::{RunStore, Verdict},
+    traces::TraceStore,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -46,6 +47,7 @@ struct Visitor {
 struct WebState {
     corpus: meedoen_retrieval::corpus::CorpusId,
     store: Mutex<RunStore>,
+    traces: Option<TraceStore>,
     limits: Mutex<DemoLimits>,
     trusted_proxy: Option<IpAddr>,
     runner: Option<ResponsesRunner>,
@@ -173,9 +175,24 @@ fn start(
     let now = Instant::now();
     let mut limits = limits_locked(&app)?;
     limits.check_run(ip, &session, now).map_err(rate_error)?;
-    let run = locked(&app)?
-        .begin(&session, &question, top_k, snapshot.clone(), parent)
-        .map_err(error)?;
+    let (run, thread_id) = {
+        let mut store = locked(&app)?;
+        let thread_id = store.thread_id(&session).map_err(error)?;
+        let run = store
+            .begin(&session, &question, top_k, snapshot.clone(), parent)
+            .map_err(error)?;
+        (run, thread_id)
+    };
+    let trace = match &app.traces {
+        Some(traces) => match traces.begin(&thread_id, &run.id, &question, snapshot.clone()) {
+            Ok(trace) => Some(trace),
+            Err(message) => {
+                let _ = locked(&app)?.complete(&session, &run.id, Err(message.clone()));
+                return Err(error(message));
+            }
+        },
+        None => None,
+    };
     limits.record_run(ip, &session, now);
     drop(limits);
     let pending = json!(&run);
@@ -184,7 +201,7 @@ fn start(
         let _permit = permit;
         let result = if let Some(runner) = &app.runner {
             runner
-                .run(&question, top_k, app.corpus, language, method)
+                .run_traced(&question, top_k, app.corpus, language, method, trace.clone())
                 .await
                 .and_then(|result| {
                     let mut result = result;
@@ -212,6 +229,14 @@ fn start(
                 .runner_error
                 .clone()
                 .unwrap_or_else(|| "runtime: De antwoordservice is niet beschikbaar.".into()))
+        };
+        let result = if let Some(trace) = trace {
+            match trace.complete(result.as_ref().map_err(String::as_str)) {
+                Ok(()) => result,
+                Err(error) => Err(error),
+            }
+        } else {
+            result
         };
         if let Ok(mut store) = app.store.lock() {
             let _ = store.complete(&session, &id, result);
@@ -438,6 +463,10 @@ fn router(app: App) -> Router {
  .layer(axum::middleware::from_fn(response_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
 }
 pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
+    let traces = std::env::var_os("COA_TRACE_DB")
+        .map(|path| TraceStore::open(std::path::Path::new(&path)))
+        .transpose()
+        .map_err(std::io::Error::other)?;
     let corpus = index.corpus();
     let manifest = serde_json::to_value(index.manifest())?;
     let sources = serde_json::to_value(index.sources())?;
@@ -462,6 +491,7 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
     let app = Arc::new(WebState {
         corpus,
         store: Mutex::new(RunStore::new()),
+        traces,
         limits: Mutex::new(DemoLimits::default()),
         trusted_proxy: std::env::var("COA_TRUSTED_PROXY_IP")
             .ok()
@@ -500,6 +530,7 @@ mod tests {
         WebState {
             corpus,
             store: Mutex::new(RunStore::new()),
+            traces: None,
             limits: Mutex::new(DemoLimits::default()),
             trusted_proxy: None,
             capacity: Arc::new(Semaphore::new(10)),

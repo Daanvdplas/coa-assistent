@@ -14,6 +14,7 @@ pub mod retrieval_lab;
 pub mod runs;
 pub mod source;
 pub mod storage;
+pub mod traces;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

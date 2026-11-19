@@ -40,6 +40,7 @@ const MAX_RUNS: usize = 256;
 const MAX_RUN_BYTES: usize = 256 * 1024;
 const SESSION_TTL: Duration = Duration::from_secs(30 * 60);
 struct Session {
+    thread_id: String,
     runs: Vec<Run>,
     seen: HashSet<String>,
     last_active: Instant,
@@ -109,6 +110,7 @@ impl RunStore {
         let mut entropy = [0u8; 32];
         getrandom::fill(&mut entropy).map_err(|_| "Veilige sessie niet beschikbaar.")?;
         let id: String = entropy.iter().map(|byte| format!("{byte:02x}")).collect();
+        let thread_id = crate::traces::anonymous_id("thread")?;
         self.cleanup();
         if self.sessions.len() >= MAX_SESSIONS {
             let oldest = self
@@ -123,12 +125,20 @@ impl RunStore {
         self.sessions.insert(
             id.clone(),
             Session {
+                thread_id,
                 runs: vec![],
                 seen: seen.iter().cloned().collect(),
                 last_active: Instant::now(),
             },
         );
         Ok(id)
+    }
+    /// Observability grouping is independent from the bearer access token.
+    pub fn thread_id(&self, session: &str) -> Result<String, String> {
+        self.sessions
+            .get(session)
+            .map(|session| session.thread_id.clone())
+            .ok_or_else(|| "Testsessie bestaat niet meer.".into())
     }
     pub fn begin(
         &mut self,
