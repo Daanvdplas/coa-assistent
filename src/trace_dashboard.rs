@@ -13,23 +13,32 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-const USAGE: &str = "Usage: traces serve --db PATH [--port 8767]";
+const USAGE: &str =
+    "Usage: traces [list --db PATH | export --db PATH --thread ID | serve --db PATH [--port 8767]]";
 type SharedReader = Arc<Mutex<TraceReader>>;
 type ApiError = (StatusCode, Json<Value>);
 
-fn parse_args(args: &[String]) -> Result<(PathBuf, u16), String> {
+#[derive(Debug, PartialEq)]
+enum Action {
+    List,
+    Export(String),
+    Serve(u16),
+}
+
+fn parse_args(args: &[String]) -> Result<(PathBuf, Action), String> {
     let mut args = args.iter();
-    if args.next().map(String::as_str) != Some("serve") {
+    let command = args.next().map(String::as_str).ok_or(USAGE)?;
+    if !matches!(command, "list" | "export" | "serve") {
         return Err(USAGE.into());
     }
-    let (mut database, mut port) = (None, None);
+    let (mut database, mut port, mut thread) = (None, None, None);
     while let Some(option) = args.next() {
         let value = args.next().ok_or(USAGE)?;
         match option.as_str() {
             "--db" if database.is_none() && !value.is_empty() => {
                 database = Some(PathBuf::from(value))
             }
-            "--port" if port.is_none() => {
+            "--port" if command == "serve" && port.is_none() => {
                 port = Some(
                     value
                         .parse::<u16>()
@@ -38,22 +47,48 @@ fn parse_args(args: &[String]) -> Result<(PathBuf, u16), String> {
                         .ok_or(USAGE)?,
                 );
             }
+            "--thread" if command == "export" && thread.is_none() && !value.is_empty() => {
+                thread = Some(value.clone());
+            }
             _ => return Err(USAGE.into()),
         }
     }
-    Ok((database.ok_or(USAGE)?, port.unwrap_or(8767)))
+    let action = match command {
+        "list" => Action::List,
+        "export" => Action::Export(thread.ok_or(USAGE)?),
+        _ => Action::Serve(port.unwrap_or(8767)),
+    };
+    Ok((database.ok_or(USAGE)?, action))
 }
 
 pub async fn cli(args: &[String]) -> Result<(), String> {
-    let (database, port) = parse_args(args)?;
+    let (database, action) = parse_args(args)?;
     let reader = TraceReader::open(&database).map_err(|_| "Trace database is unavailable.")?;
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
-        .await
-        .map_err(|_| "Trace dashboard port is unavailable.")?;
-    eprintln!("Traces: http://127.0.0.1:{port}/");
-    axum::serve(listener, router(reader, port))
-        .await
-        .map_err(|_| "Trace dashboard stopped unexpectedly.".into())
+    match action {
+        Action::List => print_json(&reader.threads().map_err(|_| "Trace data is unavailable.")?),
+        Action::Export(id) => {
+            let thread = reader
+                .thread(&id)
+                .map_err(|_| "Trace data is unavailable.")?
+                .ok_or("Thread not found.")?;
+            print_json(&thread)
+        }
+        Action::Serve(port) => {
+            let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
+                .await
+                .map_err(|_| "Trace dashboard port is unavailable.")?;
+            eprintln!("Traces: http://127.0.0.1:{port}/");
+            axum::serve(listener, router(reader, port))
+                .await
+                .map_err(|_| "Trace dashboard stopped unexpectedly.".into())
+        }
+    }
+}
+
+fn print_json(value: &impl serde::Serialize) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(value).map_err(|_| "Trace data is unavailable.")?;
+    println!("{json}");
+    Ok(())
 }
 
 fn router(reader: TraceReader, port: u16) -> Router {
@@ -261,7 +296,7 @@ mod tests {
     fn cli_requires_an_existing_database_and_only_accepts_a_local_port() {
         assert_eq!(
             parse_args(&["serve".into(), "--db".into(), "private.sqlite".into()]).unwrap(),
-            ("private.sqlite".into(), 8767)
+            ("private.sqlite".into(), Action::Serve(8767))
         );
         for args in [
             vec![],
@@ -272,6 +307,14 @@ mod tests {
             vec!["serve", "--db", "file", "--port", "65536"],
             vec!["serve", "--db", "file", "--db", "other"],
             vec!["serve", "--db", "file", "--port", "8767", "--port", "8768"],
+            vec!["list"],
+            vec!["list", "--db", "file", "--port", "8767"],
+            vec!["list", "--db", "file", "--thread", "thread-id"],
+            vec!["export", "--db", "file"],
+            vec!["export", "--db", "file", "--thread", ""],
+            vec![
+                "export", "--db", "file", "--thread", "id", "--thread", "other",
+            ],
         ] {
             assert!(parse_args(&args.into_iter().map(String::from).collect::<Vec<_>>()).is_err());
         }

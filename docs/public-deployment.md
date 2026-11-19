@@ -92,7 +92,7 @@ Without evidence, local policy enforcement, approved key access and release appr
 
 ## Stop date and rollback
 
-Optional execution traces and their separate dashboard are operator-only. Keep the trace directory private to the application user and exclude the dashboard port and its `/api/threads` routes from public Caddy/tunnel configuration. Use existing SSH access for private inspection as described in [local traces](traces.md). Trace setup or local preview does not authorize deployment or a new model allowance.
+Optional execution traces are operator-only. Read JSON through `traces list` and `traces export` over existing SSH access as the database-owning application user; the dashboard is optional. Keep the trace directory private to that user and exclude the dashboard port and its `/api/threads` routes from public Caddy/tunnel configuration. See [private trace inspection](traces.md) for commands. Trace setup or local preview does not authorize deployment or a new model allowance.
 
 Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
