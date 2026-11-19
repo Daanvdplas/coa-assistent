@@ -508,6 +508,19 @@ test("mobile keeps the page bounded while all variant columns can be panned", as
     });
     const bounds = await close.boundingBox();
     assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 375);
+    await page
+      .locator(".benchmark-table-scroll")
+      .first()
+      .evaluate((node) => (node.scrollLeft = node.scrollWidth));
+    const source = await page
+      .locator(".benchmark-evidence-table tbody th[scope=row]")
+      .first()
+      .boundingBox();
+    assert.ok(source.x >= 0 && source.x + source.width <= 375);
+    const closeAfterPan = await close.boundingBox();
+    assert.ok(
+      closeAfterPan.x >= 0 && closeAfterPan.x + closeAfterPan.width <= 375,
+    );
     await close.click();
     await page
       .getByRole("button", { name: "Benchmark wijzigen", exact: true })

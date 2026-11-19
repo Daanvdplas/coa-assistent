@@ -272,9 +272,17 @@
 .benchmark-evidence-heading h3 {
   margin: 0;
 }
-.benchmark-evidence-table th:first-child {
-  min-width: 20rem;
-  max-width: 36rem;
+.benchmark-evidence .benchmark-table-scroll {
+  overflow: visible;
+}
+.benchmark-evidence table th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 22rem;
+  min-width: 22rem;
+  max-width: 22rem;
+  background: var(--surface);
   color: var(--ink);
 }
 .benchmark-evidence-table th:not(:first-child) {
@@ -304,6 +312,11 @@
   max-width: 72ch;
 }
 @media (max-width: 650px) {
+  .benchmark-evidence table th:first-child {
+    width: 10rem;
+    min-width: 10rem;
+    max-width: 10rem;
+  }
   .benchmark-main {
     padding: 28px 16px 32px;
   }
