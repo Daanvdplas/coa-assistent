@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { DEFAULTS, requestKey } from "../rag/promptfoo/provider.ts";
 process.env.COA_RAG_BINARY ??= "/usr/bin/true";
 function expectedBrowserSettings(command: string[]) {
   const index = command.indexOf("--browser-preset");
@@ -12,6 +14,35 @@ function expectedBrowserSettings(command: string[]) {
   return { top_k: preset === "standard" ? 5 : 3, selection: preset === "dense-k3-activity-expansion" ? "activity_expansion" : "sections" };
 }
 const adapter = new URL("./adapter.ts", import.meta.url);
+function bindPreparedFixture(output:string,input:any,raw:any) {
+  const records:Record<string,any>={};
+  const dataset=JSON.parse(readFileSync(new URL(`../shared/datasets/${input.tests[0].vars.dataset}/questions.json`,import.meta.url),"utf8"));
+  raw.results.results.forEach((item:any,index:number)=>{
+    const vars=input.tests[index].vars,key=requestKey(vars),batch_id=input.execution_id+"-native-123-0";
+    const failed=Boolean(item.response.error);
+    const retrieval=Object.fromEntries(Object.keys(DEFAULTS).filter(key=>!["mode","profile","model"].includes(key)).map(key=>[key,vars[key]]));
+    const record={batch_id,run_id:batch_id+"--"+key,case_id:vars.case_id,question:vars.question,
+      dataset:{corpus_sha256:dataset.corpus_sha256,as_of:dataset.as_of},config:{profile:vars.profile,retrieval},execution_status:failed?"failed":"completed",outcome:failed?null:{hits:[]}};
+    if(failed) item.response.metadata={native_run_id:record.run_id};
+    else item.response.output=JSON.stringify({status:"completed",record});
+    const path=join(output,key+".json"),bytes=JSON.stringify(record);
+    writeFileSync(path,bytes);
+    records[key]={path,sha256:createHash("sha256").update(bytes).digest("hex"),run_id:record.run_id,case_id:record.case_id};
+  });
+  writeFileSync(join(output,"benchmark-prepared.json"),JSON.stringify({schema_version:1,execution_id:input.execution_id,records}));
+}
+function redactedProjectionFixture(){
+  const raw=JSON.parse(readFileSync(new URL("./fixtures/redacted-four-bm25.json",import.meta.url),"utf8"));
+  const dataset=JSON.parse(readFileSync(new URL("../shared/datasets/demo-12-20261118/questions.json",import.meta.url),"utf8"));
+  const tests=raw.results.results.map((item:any)=>({...item.testCase,vars:{...item.testCase.vars,
+    ...(item.testCase.vars.corpus_sha256==="[REDACTED]"?{corpus_sha256:dataset.corpus_sha256}:{})}}));
+  const records=Object.fromEntries(raw.results.results.map((item:any)=>{
+    const record=structuredClone(item.response.output.record);
+    return [record.run_id.split("--").at(-1),record];
+  }));
+  const context={execution_id:raw.results.results[0].response.output.record.batch_id.split("-native-")[0],corpus_sha256:dataset.corpus_sha256,as_of:dataset.as_of};
+  return {raw,tests,records,context};
+}
 function cli(command: string, input?: unknown) {
   const dir = mkdtempSync(join(tmpdir(), "coa-benchmark-adapter-test-"));
   try {
@@ -404,11 +435,13 @@ test("one question shares one native preparation and grading batch per fresh rep
         }
         tests = buildConfig(env).tests;
       }
-      writeFileSync(join(output, suite + ".json"), JSON.stringify({evalId:`fresh-batch-${calls.length}`,results:{results:tests.map((test,index)=>({
+      const raw={evalId:`fresh-batch-${calls.length}`,results:{results:tests.map((test,index)=>({
         testCase:test,
         response:{output:JSON.stringify({status:"completed",record:{run_id:`fresh-native-${calls.length}-${index}`,outcome:{hits:[]}}})},
         gradingResult:{pass:false,componentResults:[{pass:false,metadata:{source_metrics:{source_quality_applicable:true,target_goals:1,covered_goals:0}}}]}
-      }))}}));
+      }))}};
+      if(suite==="benchmark") bindPreparedFixture(output,JSON.parse(readFileSync(command[command.indexOf("--input")+1],"utf8")),raw);
+      writeFileSync(join(output, suite + ".json"), JSON.stringify(raw));
       return 100;
     });
     assert.equal(calls.length,2,"one shared batch per repetition replaces twenty runner chains");
@@ -431,11 +464,13 @@ test("a shared batch preserves one failed variant as unknown while grading every
     const progress=await execute(planned.selection,dir,planned,async command=>{
       const input=JSON.parse(readFileSync(command[command.indexOf("--input")+1],"utf8"));
       const output=command[command.indexOf("--output-dir")+1];
-      writeFileSync(join(output,"benchmark.json"),JSON.stringify({evalId:"mixed-technical-outcomes",results:{results:input.tests.map((test:any,index:number)=>({
+      const raw={evalId:"mixed-technical-outcomes",results:{results:input.tests.map((test:any,index:number)=>({
         testCase:test,
         response:index===25?{error:"Native execution status: failed",metadata:{native_run_id:`actual-${index}`}}:{output:JSON.stringify({status:"completed",record:{run_id:`actual-${index}`,outcome:{hits:[]}}})},
         gradingResult:{pass:false,componentResults:[{pass:false,metadata:{source_metrics:{source_quality_applicable:true,target_goals:10,covered_goals:0}}}]}
-      }))}}));
+      }))}};
+      bindPreparedFixture(output,input,raw);
+      writeFileSync(join(output,"benchmark.json"),JSON.stringify(raw));
       return 100;
     });
     assert.equal(progress.result.rows.length,33);
@@ -443,13 +478,97 @@ test("a shared batch preserves one failed variant as unknown while grading every
     const failed=progress.result.rows.filter(row=>row.status==="error");
     assert.equal(failed.length,1);
     assert.equal(failed[0].source_complete,null);
-    assert.equal(failed[0].native_run_id,"actual-25");
+    assert.match(failed[0].native_run_id,/--[a-f0-9]{64}$/);
     assert.equal(failed[0].metrics.covered_goals,null);
     assert.deepEqual(failed[0].calls,[]);
     assert.equal(progress.groups[0].status,"completed");
     assert.equal(progress.groups[1].status,"failed");
     assert.ok(progress.error);
   }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test("real redacted Promptfoo metadata keeps four distinct byte-bound native assessments",async()=>{
+  const {execute}=await import("./adapter.ts");
+  const dir=mkdtempSync(join(tmpdir(),"coa-redacted-four-"));
+  const source=JSON.parse(readFileSync(new URL("./fixtures/redacted-four-bm25.json",import.meta.url),"utf8"));
+  try{
+    const progress=await execute({datasets:["demo-12-20261118"],case_ids:["RAG26-01"],suites:["quality","browser"],methods:["bm25"],profiles:["documents_sections"],repeats:1},dir,undefined,async command=>{
+      const input=JSON.parse(readFileSync(command[command.indexOf("--input")+1],"utf8")),output=command[command.indexOf("--output-dir")+1];
+      const raw=structuredClone(source),records:Record<string,any>={};
+      raw.results.results.forEach((item:any,index:number)=>{
+        const key=input.tests[index].metadata.benchmark_request_id,batch_id=input.execution_id+"-native-123-0",record=item.response.output.record;
+        record.batch_id=batch_id;record.run_id=batch_id+"--"+key;
+        item.response.metadata.run_id=record.run_id;
+        const path=join(output,key+".json"),bytes=JSON.stringify(record);
+        writeFileSync(path,bytes);
+        records[key]={path,sha256:createHash("sha256").update(bytes).digest("hex"),run_id:record.run_id,case_id:record.case_id};
+      });
+      writeFileSync(join(output,"benchmark-prepared.json"),JSON.stringify({schema_version:1,execution_id:input.execution_id,records}));
+      writeFileSync(join(output,"benchmark.json"),JSON.stringify(raw));
+      return 0;
+    });
+    assert.equal(progress.result.rows.length,4,"redacted metadata must not collapse four successful native executions");
+    assert.deepEqual(progress.groups.map(group=>[group.status,group.completed]),[["completed",3],["completed",1]]);
+    assert.ok(progress.result.rows.every(row=>row.status==="passed"&&row.source_complete===true));
+    assert.equal(new Set(progress.result.rows.map(row=>row.native_run_id)).size,4);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test("saved redacted assessments can be projected without executing retrieval or changing their input",async()=>{
+  const {projectQuestionBatchResults}=await import("./adapter.ts");
+  const {raw,tests,context,records}=redactedProjectionFixture(),before=JSON.stringify(raw);
+  const projected=await projectQuestionBatchResults(raw,tests,context,records);
+  assert.deepEqual([...projected.byGroup.values()].map(rows=>rows.length),[3,1]);
+  assert.ok([...projected.byGroup.values()].flat().every(row=>row.status==="passed"&&row.source_complete===true));
+  assert.equal(JSON.stringify(raw),before,"projection must not rewrite the original Promptfoo evidence");
+});
+for(const mutation of ["missing","duplicate","stale","swapped","config","native-config","question","native-question","corpus","corpus-var","payload"]){
+  test(`redacted batch projection rejects ${mutation} evidence`,async()=>{
+    const {projectQuestionBatchResults}=await import("./adapter.ts");
+    const {raw,tests,context,records}=redactedProjectionFixture();
+    const row=raw.results.results[0];
+    if(mutation==="missing")raw.results.results.pop();
+    if(mutation==="duplicate")raw.results.results[1]=structuredClone(row);
+    if(mutation==="stale")row.response.output.record.run_id="previous-native-123-0--"+row.response.output.record.run_id.split("--").at(-1);
+    if(mutation==="swapped")row.response.output.record=structuredClone(raw.results.results[1].response.output.record);
+    if(mutation==="config")row.testCase.vars.top_k=6;
+    if(mutation==="native-config")row.response.output.record.config.retrieval.top_k=6;
+    if(mutation==="question")row.testCase.vars.question="A different question";
+    if(mutation==="native-question")row.response.output.record.question="A different question";
+    if(mutation==="corpus")row.response.output.record.dataset.corpus_sha256="0".repeat(64);
+    if(mutation==="corpus-var")raw.results.results[3].testCase.vars.corpus_sha256="0".repeat(64);
+    if(mutation==="payload")row.response.output.record.outcome.hits[0].section.text+=" altered";
+    await assert.rejects(projectQuestionBatchResults(raw,tests,context,records),/benchmark|bron|variant/i);
+  });
+}
+test("saved native records remain byte-bound and scoped to the current execution",async()=>{
+  const {loadPreparedBatchRecords}=await import("./adapter.ts");
+  const dir=mkdtempSync(join(tmpdir(),"coa-prepared-binding-"));
+  try{
+    const {records,context}=redactedProjectionFixture();
+    const entries=Object.fromEntries(Object.entries(records).map(([key,record])=>{
+      const path=join(dir,key+".json"),bytes=JSON.stringify(record);writeFileSync(path,bytes);
+      return[key,{path,sha256:createHash("sha256").update(bytes).digest("hex"),run_id:(record as any).run_id}];
+    }));
+    writeFileSync(join(dir,"benchmark-prepared.json"),JSON.stringify({schema_version:1,execution_id:context.execution_id,records:entries}));
+    assert.equal(Object.keys(loadPreparedBatchRecords(dir,context.execution_id)).length,4);
+    assert.throws(()=>loadPreparedBatchRecords(dir,"stale-execution"),/uitvoering/);
+    writeFileSync(Object.values(entries)[0].path,"{}");
+    assert.throws(()=>loadPreparedBatchRecords(dir,context.execution_id),/gewijzigd/);
+  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+test("prepared projection refuses manifest and native paths outside its private batch",async()=>{
+  const {loadPreparedBatchRecords}=await import("./adapter.ts");
+  const dir=mkdtempSync(join(tmpdir(),"coa-projection-scope-")),outside=mkdtempSync(join(tmpdir(),"coa-projection-outside-"));
+  try{
+    const {records,context}=redactedProjectionFixture(),[key,record]=Object.entries(records)[0],bytes=JSON.stringify(record),path=join(outside,"native.json");
+    writeFileSync(path,bytes);
+    const manifest={schema_version:1,execution_id:context.execution_id,records:{[key]:{path,sha256:createHash("sha256").update(bytes).digest("hex"),run_id:(record as any).run_id}}};
+    writeFileSync(join(dir,"benchmark-prepared.json"),JSON.stringify(manifest));
+    assert.throws(()=>loadPreparedBatchRecords(dir,context.execution_id),/escaped/);
+    rmSync(join(dir,"benchmark-prepared.json"));
+    writeFileSync(join(outside,"manifest.json"),JSON.stringify(manifest));
+    symlinkSync(join(outside,"manifest.json"),join(dir,"benchmark-prepared.json"));
+    assert.throws(()=>loadPreparedBatchRecords(dir,context.execution_id),/escaped/);
+  }finally{rmSync(dir,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
 });
 test("complete-list question has thirty-three variants bound only to that frozen question", () => {
   const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01",repeats:3});

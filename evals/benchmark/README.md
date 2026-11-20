@@ -22,6 +22,8 @@ A local capacity check on 20 November 2026 used four BM25 variants of RAG26-01 i
 
 Native captures are flushed durably after every completed variant. Before promptfoo finishes grading, captured source evidence remains inspectable as **Nog niet beoordeeld**; fact scores and grading assertions remain unknown. The display-only source counter uses canonical captured text and the existing AND/OR source plans. Final promptfoo rows replace captures by comparison key without duplicating measurements. Cancellation preserves completed captures, including when grading has not started. Frozen references used to inspect those captures never enter the Rust search batch input.
 
+Graded batch results bind to the actual native execution ID and the SHA-256-checked prepared record, including its complete captured payload and canonical question/configuration binding. Promptfoo may redact redundant request metadata; those display fields do not identify an execution. Saved results can be projected without retrieval through the same read-only projection function. Such a replay belongs in a separately tagged derived artifact with original file hashes and zero new retrieval/model calls; it does not replace the original run or constitute a new measurement.
+
 The Rust web server calls `adapter.ts` to enumerate canonical plans and execute existing runners. It adds no provider or scoring framework. History, compatible reference comparisons and the terminal discussion report remain available. The older multi-case and historical-protocol APIs remain supported independently of this single-question page.
 
 ```sh

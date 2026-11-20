@@ -16,6 +16,7 @@ import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { PREPARATION_FAILURES } from "../rag/promptfoo/prepare.ts";
 import { requestKey } from "../rag/promptfoo/provider.ts";
+import { checkedFile } from "../rag/promptfoo/json.ts";
 import { isDeepStrictEqual } from "node:util";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const require = createRequire(import.meta.url);
@@ -1080,6 +1081,62 @@ async function rag(
     throw Error("Een of meer lokale browserpogingen zijn mislukt.");
 }
 
+export function loadPreparedBatchRecords(part: string, executionId: string): Record<string,Record<string,any>> {
+  const manifest=JSON.parse(readFileSync(checkedFile(join(part,"benchmark-prepared.json"),part,2*1024*1024),"utf8"));
+  if(manifest.schema_version!==1||manifest.execution_id!==executionId||!manifest.records)
+    throw Error("De voorbereide brongegevens horen niet bij deze uitvoering.");
+  return Object.fromEntries(Object.entries(manifest.records).map(([key,value])=>{
+    const entry=value as {path:string;sha256:string;run_id:string};
+    const bytes=readFileSync(checkedFile(entry.path,part,2*1024*1024));
+    const record=JSON.parse(bytes.toString());
+    if(!/^[a-f0-9]{64}$/.test(key)||digest(bytes)!==entry.sha256||record.run_id!==entry.run_id)
+      throw Error("De vastgelegde brongegevens zijn gewijzigd.");
+    return [key,record];
+  }));
+}
+
+/** Project already graded captures; metadata redaction never supplies identity. */
+export async function projectQuestionBatchResults(
+  raw: any,
+  tests: CanonicalCase[],
+  context: {execution_id:string;corpus_sha256:string;as_of:string},
+  nativeRecords: Record<string,Record<string,any>>,
+) {
+  const results=raw.results?.results;
+  if(!Array.isArray(results)||results.length!==tests.length||Object.keys(nativeRecords).length!==tests.length)
+    throw Error("De benchmark bevat ontbrekende of dubbele variantbeoordelingen.");
+  const selected=new Map(tests.map(test=>[requestKey(test.vars),test]));
+  const byNativeId=new Map<string,{test:CanonicalCase;record:Record<string,any>}>();
+  for(const [key,test] of selected){
+    const record=nativeRecords[key];
+    if(!record||typeof record.batch_id!=="string"||!record.batch_id.startsWith(context.execution_id+"-native-")||record.run_id!==record.batch_id+"--"+key||
+      record.question!==test.vars.question||record.case_id!==test.vars.case_id||record.dataset?.corpus_sha256!==context.corpus_sha256||record.dataset?.as_of!==context.as_of||
+      !isDeepStrictEqual(config({...test.vars,...record.config?.retrieval,profile:record.config?.profile}),config(test.vars)))
+      throw Error("De bronuitvoering wijkt af van het vastgelegde benchmarkplan.");
+    byNativeId.set(record.run_id,{test,record});
+  }
+  if(selected.size!==tests.length||byNativeId.size!==tests.length) throw Error("De benchmark bevat dubbele bronuitvoeringen.");
+  const {project}=await import(new URL("../rag/scripts/export_promptfoo_results.mjs",import.meta.url).href);
+  const view=project(raw),seen=new Set<string>(),byGroup=new Map<string,Record<string,any>[]>();
+  for(let index=0;index<results.length;index++){
+    const item=results[index],row=view.evaluations[0].rows[index],bound=byNativeId.get(row.native_run_id),vars=item.testCase?.vars;
+    let envelope=item.response?.output;
+    if(typeof envelope==="string") envelope=JSON.parse(envelope);
+    if(!bound||seen.has(row.native_run_id)||!vars||vars.dataset!==bound.test.vars.dataset||vars.case_id!==bound.test.vars.case_id||vars.question!==bound.test.vars.question||
+      !isDeepStrictEqual(config(vars),config(bound.test.vars))||vars.browser_eval_id!==bound.test.vars.browser_eval_id||vars.browser_preset!==bound.test.vars.browser_preset||
+      (vars.corpus_sha256!==undefined&&vars.corpus_sha256!=="[REDACTED]"&&vars.corpus_sha256!==context.corpus_sha256)||
+      (envelope?.record ? !isDeepStrictEqual(envelope.record,bound.record) : !item.response?.error||bound.record.execution_status==="completed")||
+      [item.response?.metadata?.run_id,item.response?.metadata?.native_run_id].some(id=>id!==undefined&&id!==row.native_run_id))
+      throw Error("De variantbeoordeling wijkt af van de vastgelegde bronuitvoering.");
+    seen.add(row.native_run_id);
+    const groupId=String(bound.test.metadata.benchmark_group_id),rows=byGroup.get(groupId)??[];
+    row.configuration=config(bound.test.vars);
+    if(row.status==="error") row.metrics={...Object.fromEntries(Object.keys(row.metrics??{}).map(key=>[key,null])),covered_goals:null,target_goals:null,goal_coverage:null,source_quality_applicable:null,search_calls:null};
+    rows.push(row);byGroup.set(groupId,rows);
+  }
+  return {byGroup,sources:view.sources};
+}
+
 async function questionBatch(
   groups: Group[], sel: Selection, output: string, progress: Progress,
   checkpoint: () => void, executor: Executor,
@@ -1087,10 +1144,8 @@ async function questionBatch(
   const tests = groups.flatMap(group=>testsFor(suites.find(suite=>suite.id===group.suite)!,group.dataset,sel).map(test=>({
     ...test,metadata:{...test.metadata,benchmark_group_id:group.id,benchmark_request_id:requestKey(test.vars)},
   })));
-  const selected=new Map(tests.map(test=>[test.metadata.benchmark_request_id,test]));
   const first=tests[0].vars;
   const questionSet=read(questionPath(first.dataset));
-  const {project}=await import(new URL("../rag/scripts/export_promptfoo_results.mjs",import.meta.url).href);
   for (let repeat=1;repeat<=sel.repeats;repeat++) {
     const execution_id=randomUUID(),part=join(output,`batch-${repeat}`);
     mkdirSync(part,{recursive:true,mode:0o700});
@@ -1106,23 +1161,9 @@ async function questionBatch(
     const code=await executor([process.execPath,join(ROOT,"evals/benchmark/run_local_batch.ts"),"--input",input,"--output-dir",part,"--binary",runtime()],childEnvironment());
     const rawPath=join(part,"benchmark.json");
     if (![0,100].includes(code)||!existsSync(rawPath)) throw Error("De lokale benchmarkbatch is niet afgerond; opgehaalde bronnen blijven bewaard.");
-    const raw=JSON.parse(readFileSync(rawPath,"utf8")),results=raw.results?.results;
-    if (!Array.isArray(results)||results.length!==tests.length||new Set(results.map(row=>row.testCase?.metadata?.benchmark_request_id)).size!==tests.length)
-      throw Error("De benchmark bevat ontbrekende of dubbele variantbeoordelingen.");
-    const view=project(raw),byGroup=new Map<string,Record<string,any>[]>();
-    for(let index=0;index<results.length;index++) {
-      const item=results[index],expected=selected.get(item.testCase?.metadata?.benchmark_request_id),vars=item.testCase?.vars;
-      if(!expected||!vars||vars.dataset!==expected.vars.dataset||vars.case_id!==expected.vars.case_id||vars.question!==expected.vars.question||
-        !isDeepStrictEqual(config(vars),config(expected.vars))||vars.browser_eval_id!==expected.vars.browser_eval_id||vars.browser_preset!==expected.vars.browser_preset)
-        throw Error("De variantbeoordeling wijkt af van het vastgelegde benchmarkplan.");
-      const groupId=expected.metadata.benchmark_group_id;
-      const rows=byGroup.get(groupId)??[];
-      const row={...view.evaluations[0].rows[index],configuration:config(expected.vars)};
-      if(row.status==="error") row.metrics={...Object.fromEntries(Object.keys(row.metrics??{}).map(key=>[key,null])),covered_goals:null,target_goals:null,goal_coverage:null,source_quality_applicable:null,search_calls:null};
-      rows.push(row);
-      byGroup.set(groupId,rows);
-    }
-    for(const group of groups) addRows(progress,group,byGroup.get(group.id)??[],view.sources,repeat);
+    const raw=JSON.parse(readFileSync(rawPath,"utf8"));
+    const view=await projectQuestionBatchResults(raw,tests,{execution_id,corpus_sha256:questionSet.corpus_sha256,as_of:questionSet.as_of},loadPreparedBatchRecords(part,execution_id));
+    for(const group of groups) addRows(progress,group,view.byGroup.get(group.id)??[],view.sources,repeat);
     checkpoint();
   }
 }
