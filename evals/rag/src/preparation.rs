@@ -9,6 +9,7 @@ use crate::{
 };
 use std::{
     path::{Path, PathBuf},
+    sync::OnceLock,
     time::Instant,
 };
 
@@ -437,19 +438,28 @@ impl LocalEmbeddings {
         if self.model.is_none() {
             let started = Instant::now();
             self.model = Some(
-                fastembed::TextEmbedding::try_new(
-                    fastembed::TextInitOptions::new(self.choice.sdk_model())
-                        .with_cache_dir(self.cache.clone())
-                        .with_show_download_progress(false)
-                        .with_max_length(self.choice.spec().max_tokens)
-                        .with_intra_threads(2),
-                )
-                .map_err(|error| error.to_string())?,
+                fastembed::TextEmbedding::try_new(self.init_options()?)
+                    .map_err(|error| error.to_string())?,
             );
             self.last_load_ms = Some(elapsed_ms(started));
             self.load_ms = self.last_load_ms;
         }
         Ok(())
+    }
+    fn init_options(&self) -> Result<fastembed::TextInitOptions, String> {
+        // ORT permits one environment per process. Keep its handle alive across
+        // local model sessions; model weights and vector caches remain session-owned.
+        static ENVIRONMENT: OnceLock<Result<ort::environment::Environment, String>> =
+            OnceLock::new();
+        let environment = ENVIRONMENT
+            .get_or_init(|| ort::init().build().map_err(|error| error.to_string()))
+            .clone()?;
+        Ok(fastembed::TextInitOptions::new(self.choice.sdk_model())
+            .with_environment(environment)
+            .with_cache_dir(self.cache.clone())
+            .with_show_download_progress(false)
+            .with_max_length(self.choice.spec().max_tokens)
+            .with_intra_threads(2))
     }
     fn identity(&mut self) -> Result<EmbeddingIdentity, String> {
         if let Some(identity) = &self.identity {
@@ -530,6 +540,37 @@ mod tests {
         retrieval::{RetrievalConfig, SearchMethod},
         storage::StorageProfile,
     };
+    #[test]
+    fn both_local_models_share_an_environment_without_loading_model_files() {
+        // This factory stops at the pinned SDK's environment/session-builder boundary.
+        // It never opens model files, creates a model session, or performs inference.
+        let initialize = |options: fastembed::TextInitOptions| {
+            let environment = match options.environment {
+                Some(environment) => environment,
+                None => ort::init().build().map_err(|error| error.to_string())?,
+            };
+            let builder =
+                ort::session::Session::builder(&environment).map_err(|error| error.to_string())?;
+            Ok::<_, String>((environment, builder))
+        };
+        let choices = super::super::embedding_models::ModelChoice::all();
+        let models: Vec<_> = choices
+            .into_iter()
+            .map(|choice| {
+                LocalEmbeddings::new(Path::new("/missing-model-contract-fixture"), choice)
+            })
+            .collect();
+        let initialized: Vec<_> = models
+            .iter()
+            .map(|model| initialize(model.init_options().unwrap()))
+            .collect();
+        let errors: Vec<_> = initialized
+            .iter()
+            .filter_map(|result| result.as_ref().err())
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
+        assert!(models.iter().all(|model| model.model.is_none()));
+    }
     #[test]
     fn split_query_execution_preserves_fixed_vector_results_for_every_search_method() {
         let sections: Vec<_> = crate::source::parse_sources(crate::DOCUMENTS)
