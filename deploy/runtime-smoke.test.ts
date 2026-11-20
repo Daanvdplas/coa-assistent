@@ -21,6 +21,7 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
   Object.assign(environment, {
     LD_LIBRARY_PATH: join(release, "lib"),
     COA_OPENAI_API_KEY_FILE: key, COA_DEMO_BUDGET_FILE: budget,
+    COA_BUNDLED_EVALUATIONS: "1",
   });
   const probe = createServer();
   probe.listen(0, "127.0.0.1");
@@ -36,10 +37,13 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
       const deadline = Date.now() + 120_000;
       while (Date.now() < deadline) {
         assert.equal(child.exitCode, null, "packaged runtime exited during warmup");
-        try {
-          const response = await fetch(`http://127.0.0.1:${port}/api/source`);
-          if (response.ok) return await response.json() as { runtime_ready: boolean; sources: unknown[]; as_of: string; model_configuration: Record<string, unknown> };
-        } catch { /* The model is still loading; no answer endpoint is called. */ }
+        const response = await fetch(`http://127.0.0.1:${port}/api/source`).catch(() => undefined);
+        if (response?.ok) {
+          const archive = await fetch(`http://127.0.0.1:${port}/api/evals/rag`, { method: "HEAD" });
+          assert.equal(archive.status, 200);
+          assert.equal(archive.headers.get("cache-control"), "public, max-age=300");
+          return await response.json() as { runtime_ready: boolean; sources: unknown[]; as_of: string; model_configuration: Record<string, unknown> };
+        }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       assert.fail("packaged MiniLM warmup exceeded two minutes");

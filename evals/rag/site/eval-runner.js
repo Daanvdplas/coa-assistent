@@ -236,7 +236,7 @@
   byId('saved-evaluations')?.addEventListener('toggle',event=>{
     if (!event.target.open || archiveLoaded)return;
     archiveLoaded=true;
-    for (const src of ['/assets/results.js?v=20261116-sources','/assets/promptfoo-results.js?v=20261116-sources']) {
+    for (const src of ['/assets/results.js?v=20261116-sources','/assets/promptfoo-results.js?v=20261120-cache']) {
       const script=document.createElement('script');script.src=src;script.async=false;document.head.append(script);
     }
   });

@@ -8,8 +8,12 @@
     technical: ["Hoe het werkt", "How it works"],
     code: ["Bekijk de code", "View the code"],
     projectNotice: [
-      "Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan. Gebruik geen persoonsgegevens. Je vraag en opgehaalde bronpassages worden verwerkt door OpenAI; bij de publieke demo loopt het verkeer via Cloudflare.",
-      "An independent learning project, not an internal COA plan. All data is fictional. Participation is voluntary; a staff member discusses options with the resident. The demo does not change records, send messages or register anyone. Do not enter personal data. OpenAI processes your question and retrieved source passages; traffic for the public demo passes through Cloudflare."
+      "Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan.",
+      "An independent learning project, not an internal COA plan. All data is fictional. Participation is voluntary; a staff member discusses options with the resident. The demo does not change records, send messages or register anyone."
+    ],
+    questionPrivacy: [
+      "Gebruik geen persoonsgegevens. OpenAI verwerkt je vraag en bronpassages. De publieke demo gebruikt Cloudflare en bewaart vragen, antwoorden en zoekstappen totdat de beheerder ze laat verwijderen.",
+      "Do not enter personal data. OpenAI processes your question and source passages. The public demo uses Cloudflare and keeps questions, answers and search steps until the operator authorizes deletion."
     ],
     projectShortNotice: [
       "Eigen leerproject, geïnspireerd door de COA-use case. Alle activiteiten zijn verzonnen.",
@@ -61,6 +65,7 @@
     capacityFull: ["Er worden al tien vragen verwerkt. Probeer het over een moment opnieuw.", "Ten questions are already being processed. Please try again in a moment."],
     rateLimited: ["Je hebt de limiet voor vragen bereikt. Wacht even en probeer het later opnieuw.", "You have reached the question limit. Please wait and try again later."],
     sessionCooldown: ["Wacht vijf seconden voordat je een nieuwe vraag stelt.", "Please wait five seconds before asking another question."],
+    visitorBusy: ["Er wordt al een vraag verwerkt vanaf jouw netwerk. Probeer het zo opnieuw.", "A question from your network is already being processed. Please try again shortly."],
     sessionLimited: ["Je hebt te vaak opnieuw verbinding gemaakt. Wacht een paar minuten voordat je het opnieuw probeert.", "You have reconnected too often. Please wait a few minutes before trying again."],
     offlineTest: ["Lokale test: deze antwoorden komen niet van een echt model.", "Local test: these answers do not come from a real model."],
     questionInvalid: ["Vul een vraag van 1 tot 1000 tekens in.", "Enter a question between 1 and 1000 characters."],

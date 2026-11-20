@@ -1,6 +1,7 @@
 mod eval_jobs;
 use axum::{
     Json, Router,
+    body::Bytes,
     extract::{ConnectInfo, DefaultBodyLimit, Path, State},
     http::{HeaderMap, StatusCode, header},
     response::{Html, IntoResponse, Redirect},
@@ -18,12 +19,12 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     net::{IpAddr, SocketAddr},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::Instant,
 };
 use tokio::sync::Semaphore;
 type App = Arc<WebState>;
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ApiError {
     status: StatusCode,
     body: Value,
@@ -53,6 +54,7 @@ struct WebState {
     runner: Option<ResponsesRunner>,
     capacity: Arc<Semaphore>,
     runner_error: Option<String>,
+    bundled_evaluations: bool,
     manifest: Value,
     sources: Value,
     configuration: Value,
@@ -193,12 +195,13 @@ fn start(
         },
         None => None,
     };
-    limits.record_run(ip, &session, now);
+    let visitor_permit = limits.record_run(ip, &session, now);
     drop(limits);
     let pending = json!(&run);
     let id = run.id.clone();
     tokio::spawn(async move {
         let _permit = permit;
+        let _visitor_permit = visitor_permit;
         let result = if let Some(runner) = &app.runner {
             runner
                 .run_traced(&question, top_k, app.corpus, language, method, trace.clone())
@@ -383,17 +386,24 @@ async fn response_policy(
     request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let private = request.uri().path().starts_with("/api/");
+    let path = request.uri().path();
+    let api = path.starts_with("/api/");
+    let archive = path == "/api/evals/rag";
     let mut response = next.run(request).await;
     for (name, value) in [
-        (header::CONTENT_SECURITY_POLICY, "frame-ancestors 'none'"),
+        (
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        ),
         (header::X_FRAME_OPTIONS, "DENY"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        (header::REFERRER_POLICY, "no-referrer"),
     ] {
         response
             .headers_mut()
             .insert(name, axum::http::HeaderValue::from_static(value));
     }
-    if private {
+    if api && (!archive || !response.headers().contains_key(header::CACHE_CONTROL)) {
         response.headers_mut().insert(
             header::CACHE_CONTROL,
             axum::http::HeaderValue::from_static("no-store"),
@@ -401,28 +411,61 @@ async fn response_policy(
     }
     response
 }
-async fn rag_evaluation_results() -> Result<Json<Value>, ApiError> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("evals/rag/site/promptfoo-results.json");
-    rag_results_from_path(&path)
+const BUNDLED_EVALUATIONS: &[u8] = include_bytes!("../evals/rag/site/promptfoo-results.json");
+
+fn bundled_rag_results() -> Result<Bytes, ApiError> {
+    static ARCHIVE: OnceLock<Result<Bytes, ApiError>> = OnceLock::new();
+    ARCHIVE
+        .get_or_init(|| {
+            let value = validate_rag_results(BUNDLED_EVALUATIONS)?;
+            serde_json::to_vec(&value)
+                .map(Bytes::from)
+                .map_err(|_| error("Evaluatieresultaten kunnen niet worden gelezen."))
+        })
+        .clone()
+}
+
+async fn rag_evaluation_results(
+    State(app): State<App>,
+) -> Result<axum::response::Response, ApiError> {
+    if app.bundled_evaluations {
+        return Ok((
+            [
+                (header::CONTENT_TYPE, "application/json"),
+                (header::CACHE_CONTROL, "public, max-age=300"),
+            ],
+            bundled_rag_results()?,
+        )
+            .into_response());
+    }
+    let results = tokio::task::spawn_blocking(|| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("evals/rag/site/promptfoo-results.json");
+        rag_results_from_path(&path)
+    })
+    .await
+    .map_err(|_| error("Evaluatieresultaten zijn nog niet beschikbaar."))??;
+    Ok(results.into_response())
 }
 fn rag_results_from_path(path: &std::path::Path) -> Result<Json<Value>, ApiError> {
-    let bytes = match std::fs::read(path) {
-        Ok(bytes) => bytes,
+    match std::fs::read(path) {
+        Ok(bytes) => validate_rag_results(&bytes).map(Json),
         Err(cause)
             if matches!(
                 cause.kind(),
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
             ) =>
         {
-            include_bytes!("../evals/rag/site/promptfoo-results.json").to_vec()
+            validate_rag_results(BUNDLED_EVALUATIONS).map(Json)
         }
-        Err(_) => return Err(error("Evaluatieresultaten zijn nog niet beschikbaar.")),
-    };
+        Err(_) => Err(error("Evaluatieresultaten zijn nog niet beschikbaar.")),
+    }
+}
+fn validate_rag_results(bytes: &[u8]) -> Result<Value, ApiError> {
     if bytes.len() > 32 * 1024 * 1024 {
         return Err(error("Evaluatieresultaten zijn te groot."));
     }
-    let value: Value = serde_json::from_slice(&bytes)
+    let value: Value = serde_json::from_slice(bytes)
         .map_err(|_| error("Evaluatieresultaten kunnen niet worden gelezen."))?;
     if value["schema_version"] != 1
         || value["source"] != "promptfoo"
@@ -431,7 +474,7 @@ fn rag_results_from_path(path: &std::path::Path) -> Result<Json<Value>, ApiError
     {
         return Err(error("Evaluatieresultaten hebben een onbekend formaat."));
     }
-    Ok(Json(value))
+    Ok(value)
 }
 
 fn router(app: App) -> Router {
@@ -463,6 +506,11 @@ fn router(app: App) -> Router {
  .layer(axum::middleware::from_fn(response_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
 }
 pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
+    let bundled_evaluations =
+        std::env::var_os("COA_BUNDLED_EVALUATIONS").is_some_and(|value| value == "1");
+    if bundled_evaluations {
+        bundled_rag_results().map_err(|error| std::io::Error::other(error.body.to_string()))?;
+    }
     let traces = std::env::var_os("COA_TRACE_DB")
         .map(|path| TraceStore::open(std::path::Path::new(&path)))
         .transpose()
@@ -500,6 +548,7 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
         capacity: Arc::new(Semaphore::new(10)),
         runner,
         runner_error,
+        bundled_evaluations,
         configuration,
         manifest,
         sources,
@@ -536,6 +585,7 @@ mod tests {
             capacity: Arc::new(Semaphore::new(10)),
             runner: None,
             runner_error: None,
+            bundled_evaluations: true,
             manifest: json!({}),
             sources: json!([]),
             configuration: json!({}),
@@ -565,13 +615,30 @@ mod tests {
         session: &str,
         body: Value,
     ) -> (StatusCode, Value) {
+        request_json_from(
+            app,
+            "127.0.0.1:43210".parse().unwrap(),
+            method,
+            path,
+            session,
+            body,
+        )
+        .await
+    }
+
+    async fn request_json_from(
+        app: App,
+        peer: SocketAddr,
+        method: &str,
+        path: &str,
+        session: &str,
+        body: Value,
+    ) -> (StatusCode, Value) {
         use tower::ServiceExt;
         let response = router(app)
             .oneshot(
                 axum::http::Request::builder()
-                    .extension(ConnectInfo(
-                        "127.0.0.1:43210".parse::<SocketAddr>().unwrap(),
-                    ))
+                    .extension(ConnectInfo(peer))
                     .method(method)
                     .uri(path)
                     .header("content-type", "application/json")
@@ -638,6 +705,11 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=300"
+        );
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
         let bytes = axum::body::to_bytes(response.into_body(), 32 * 1024 * 1024)
             .await
             .unwrap();
@@ -702,11 +774,22 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            assert_eq!(
-                response.headers()[header::CONTENT_SECURITY_POLICY],
-                "frame-ancestors 'none'"
-            );
+            let policy = response.headers()[header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .unwrap();
+            for directive in [
+                "frame-ancestors 'none'",
+                "script-src 'self'",
+                "connect-src 'self'",
+            ] {
+                assert!(policy.split(';').any(|value| value.trim() == directive));
+            }
             assert_eq!(response.headers()[header::X_FRAME_OPTIONS], "DENY");
+            assert_eq!(
+                response.headers()[header::X_CONTENT_TYPE_OPTIONS],
+                "nosniff"
+            );
+            assert_eq!(response.headers()[header::REFERRER_POLICY], "no-referrer");
             if path.starts_with("/api/") {
                 assert_eq!(
                     response
@@ -772,11 +855,29 @@ mod tests {
         });
         let mut visitors = Vec::new();
         for i in 0..11 {
+            let peer = SocketAddr::from(([192, 0, 2, i + 1], 43210));
             let (status, session) =
-                request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+                request_json_from(app.clone(), peer, "POST", "/api/session", "", json!({})).await;
             assert_eq!(status, StatusCode::OK);
             let session = session["session_id"].as_str().unwrap().to_owned();
-            let (status,run)=request_json(app.clone(),"POST","/api/runs",&session,json!({"question":format!("Visitor {i}"),"answer_language":if i%2==0{"nl"}else{"en"},"retrieval_method":if i%2==0{"dense"}else{"bm25"}})).await;
+            let (status,run)=request_json_from(app.clone(),peer,"POST","/api/runs",&session,json!({"question":format!("Visitor {i}"),"answer_language":if i%2==0{"nl"}else{"en"},"retrieval_method":if i%2==0{"dense"}else{"bm25"}})).await;
+            if i == 0 {
+                let (status, extra_session) =
+                    request_json_from(app.clone(), peer, "POST", "/api/session", "", json!({}))
+                        .await;
+                assert_eq!(status, StatusCode::OK);
+                let (status, blocked) = request_json_from(
+                    app.clone(),
+                    peer,
+                    "POST",
+                    "/api/runs",
+                    extra_session["session_id"].as_str().unwrap(),
+                    json!({"question":"Another question from the same visitor"}),
+                )
+                .await;
+                assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+                assert_eq!(blocked["code"], "visitor_busy");
+            }
             if i == 10 {
                 assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
                 assert!(!run.to_string().contains(api_key));
@@ -809,6 +910,13 @@ mod tests {
         })
         .await
         .unwrap();
+        assert!(
+            app.limits
+                .lock()
+                .unwrap()
+                .check_run("192.0.2.1".parse().unwrap(), "new-session", Instant::now())
+                .is_ok()
+        );
         for (i, (session, id)) in visitors.iter().enumerate() {
             let (status, run) = request_json(
                 app.clone(),
@@ -839,14 +947,20 @@ mod tests {
         }
         // Slots are free again, but neither a new session, forged forwarding
         // identity nor the legacy replay endpoint may bypass the hourly quota.
-        let (_, fresh) = request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+        let peer = SocketAddr::from(([192, 0, 2, 1], 43210));
+        {
+            let mut limits = app.limits.lock().unwrap();
+            for index in 1..10 {
+                limits.record_run(peer.ip(), &format!("prior-{index}"), Instant::now());
+            }
+        }
+        let (_, fresh) =
+            request_json_from(app.clone(), peer, "POST", "/api/session", "", json!({})).await;
         use tower::ServiceExt;
         let response = router(app.clone())
             .oneshot(
                 axum::http::Request::builder()
-                    .extension(ConnectInfo(
-                        "127.0.0.1:43210".parse::<SocketAddr>().unwrap(),
-                    ))
+                    .extension(ConnectInfo(peer))
                     .method("POST")
                     .uri("/api/runs")
                     .header("content-type", "application/json")
@@ -868,8 +982,9 @@ mod tests {
         let body: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(body["code"], "rate_limit");
         assert!(body["retry_after_seconds"].as_u64().unwrap() <= 3600);
-        let (status, body) = request_json(
+        let (status, body) = request_json_from(
             app.clone(),
+            peer,
             "POST",
             &format!("/api/runs/{}/replay", visitors[0].1),
             &visitors[0].0,
