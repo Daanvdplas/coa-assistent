@@ -1255,6 +1255,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "libc",
+ "ort",
  "reqwest",
  "rig",
  "rusqlite",
