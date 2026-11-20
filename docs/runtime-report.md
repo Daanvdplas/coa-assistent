@@ -64,7 +64,7 @@ This conditional calculation concerns this application's configured release. It 
 
 The API key is outside the repository, readable only by the application account (`0600`); the budget directory is private (`0700`). Missing, damaged, replaced or concurrently opened budget state blocks new paid work. Restarting does not issue a new allowance. The [budget](../src/demo_budget.rs) stores counters and policy information, not questions or answers.
 
-Questions, answers and traces live in the [RAM run store](../src/runs.rs), bounded by 256 sessions, 256 runs in total and 256 KiB per run. Inactive sessions expire after 30 minutes when cleanup next runs; pending work is preserved until completion. This differs from the durable attempt counter. Restarting removes application RAM history, not provider records, downloads, swap or backups.
+The [RAM run store](../src/runs.rs) holds visitor questions and results, bounded by 256 sessions, 256 runs in total and 256 KiB per run. Inactive sessions expire after 30 minutes when cleanup next runs, and pending work is preserved until completion. A restart clears this in-memory history. The optional [private SQLite trace store](traces.md) keeps questions, model and search events, and results until the owner explicitly authorizes deletion. Provider records, downloads, swap and backups have their own retention.
 
 OpenAI processes the question and selected passages. Cloudflare handles public-route traffic. `store: false` disables Responses application storage; it does not promise zero provider retention. Private model reasoning and raw provider diagnostics are excluded from public results. These boundaries require fictional data only; they do not certify resident-data processing or provide organizational authorization.
 

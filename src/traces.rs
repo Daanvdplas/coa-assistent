@@ -14,8 +14,6 @@ use std::{
 };
 
 const UNAVAILABLE: &str = "runtime: De lokale uitvoeringstraces zijn niet beschikbaar.";
-const RETENTION_MS: i64 = 7 * 24 * 60 * 60 * 1000;
-const MAX_TRACES: usize = 1000;
 const MAX_VALUE_BYTES: usize = 256 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -106,16 +104,6 @@ fn configure(connection: &Connection) -> Result<(), String> {
         .map_err(|_| UNAVAILABLE)?;
     Ok(())
 }
-fn prune(connection: &Connection) -> Result<(), String> {
-    connection
-        .execute(
-            "DELETE FROM traces WHERE status != 'pending' AND created_at_ms < ?1",
-            [now().saturating_sub(RETENTION_MS)],
-        )
-        .map_err(|_| UNAVAILABLE)?;
-    connection.execute("DELETE FROM traces WHERE id IN (SELECT id FROM traces WHERE status != 'pending' ORDER BY created_at_ms DESC, rowid DESC LIMIT -1 OFFSET ?1)", [MAX_TRACES as i64]).map_err(|_| UNAVAILABLE)?;
-    Ok(())
-}
 impl TraceStore {
     /// The operator creates a private directory outside the checkout first.
     pub fn open(path: &Path) -> Result<Self, String> {
@@ -186,7 +174,6 @@ impl TraceStore {
             )
             .map_err(|_| UNAVAILABLE)?;
         connection.execute("UPDATE traces SET status='interrupted', completed_at_ms=?1, error=?2 WHERE status='pending'", params![now(), "runtime: De uitvoering is onderbroken door een herstart."]).map_err(|_| UNAVAILABLE)?;
-        prune(&connection)?;
         Ok(Self(Arc::new(Writer {
             connection: Mutex::new(connection),
             _lock: file,
@@ -203,7 +190,6 @@ impl TraceStore {
         let id = anonymous_id("trace")?;
         let mut connection = self.0.connection.lock().map_err(|_| UNAVAILABLE)?;
         let transaction = connection.transaction().map_err(|_| UNAVAILABLE)?;
-        prune(&transaction)?;
         transaction.execute("INSERT INTO traces (id,thread_id,question,status,created_at_ms,context) VALUES (?1,?2,?3,'pending',?4,?5)", params![id,thread_id,question,now(),context]).map_err(|_| UNAVAILABLE)?;
         transaction
             .execute(
@@ -249,7 +235,6 @@ impl TraceHandle {
             return Err(UNAVAILABLE.into());
         }
         transaction.execute("INSERT INTO trace_events SELECT ?1,COALESCE(MAX(sequence),0)+1,'run.completed',?2,NULL,?3 FROM trace_events WHERE trace_id=?1", params![self.id,now(),json!({"status":status,"error":error}).to_string()]).map_err(|_| UNAVAILABLE)?;
-        prune(&transaction)?;
         transaction.commit().map_err(|_| UNAVAILABLE)?;
         Ok(())
     }
@@ -485,6 +470,56 @@ mod tests {
         assert!(thread.traces[0].completed_at_ms.is_some());
         drop((reader, store));
         std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn retains_old_traces_when_the_writer_restarts() {
+        let path = database();
+        {
+            let store = TraceStore::open(&path).unwrap();
+            store
+                .begin("thread-one", "run-one", "Waar?", json!({}))
+                .unwrap()
+                .complete(Ok(&json!({})))
+                .unwrap();
+            let eight_days_ms = 8 * 24 * 60 * 60 * 1000;
+            store
+                .0
+                .connection
+                .lock()
+                .unwrap()
+                .execute(
+                    "UPDATE traces SET created_at_ms = ?1",
+                    [now() - eight_days_ms],
+                )
+                .unwrap();
+        }
+        let store = TraceStore::open(&path).unwrap();
+        let reader = TraceReader::open(&path).unwrap();
+        let thread = reader.thread("thread-one").unwrap();
+        drop((reader, store));
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+
+        assert_eq!(thread.map(|thread| thread.traces.len()), Some(1));
+    }
+
+    #[test]
+    fn retains_more_than_a_thousand_completed_traces() {
+        let path = database();
+        let store = TraceStore::open(&path).unwrap();
+        for index in 0..1_001 {
+            store
+                .begin("thread-one", &format!("run-{index}"), "Waar?", json!({}))
+                .unwrap()
+                .complete(Ok(&json!({})))
+                .unwrap();
+        }
+        let reader = TraceReader::open(&path).unwrap();
+        let thread = reader.thread("thread-one").unwrap().unwrap();
+        drop((reader, store));
+        std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+
+        assert_eq!(thread.traces.len(), 1_001);
     }
 
     #[test]

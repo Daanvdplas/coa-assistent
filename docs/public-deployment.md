@@ -98,6 +98,8 @@ Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.ser
 
 Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the same v2 budget. An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
 
+If the rollback release prunes traces, unset `COA_TRACE_DB` for that release before restarting. Keep the private trace database and its sidecar files intact for inspection and for the next release that retains traces until owner-approved deletion.
+
 ## Dated references
 
 - [Caddy 2.11.9](https://github.com/caddyserver/caddy/releases/tag/v2.11.9), published **5 November 2026**.

@@ -70,6 +70,6 @@ Each random thread ID groups runs from the same visitor session without storing 
 
 The recorder uses the bounded Rig transport and search-tool path. Rig's global content telemetry stays disabled; there is no external trace service. Each stored JSON value is limited to 256 KiB; oversized records fail rather than being silently truncated.
 
-Completed, failed and interrupted traces are pruned to seven days and at most 1000 records on writer startup, new runs and completion. Pending runs are exempt while active; a writer restart marks unfinished runs interrupted. This is activity-triggered cleanup, not a background deletion timer. Stopping the writer can leave older data on disk until it next runs.
+Recorded traces stay in the database until the owner explicitly authorizes deletion. The writer retains records regardless of age or count. A restart marks unfinished runs interrupted and keeps their records. The database grows as runs are recorded. If rolling back to an older release that prunes traces, unset `COA_TRACE_DB` for that writer and keep the retained database for private inspection.
 
 To remove traces, stop the website writer and dashboard, then remove only the private trace directory you selected, including its database, WAL/SHM and lock files. Keep spending ledgers intact. JSON downloads, copies and backups have separate owners and are not removed by this cleanup. The database is private local storage, not application-level encrypted storage. See [privacy](privacy.md) for the wider data lifecycle.
