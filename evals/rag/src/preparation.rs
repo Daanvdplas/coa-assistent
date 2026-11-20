@@ -413,9 +413,33 @@ struct LocalEmbeddings {
     query_count: usize,
 }
 
+#[derive(Clone, Copy)]
 enum EncodingPurpose {
     Document,
     Query,
+}
+
+pub(crate) const DOCUMENT_EMBEDDING_CHUNK_SIZE: usize = 8;
+
+fn encode_inputs(
+    texts: &[String],
+    purpose: EncodingPurpose,
+    mut encode: impl FnMut(&[String]) -> Result<Vec<Vec<f32>>, String>,
+) -> Result<Vec<Vec<f32>>, String> {
+    if matches!(purpose, EncodingPurpose::Query) {
+        return encode(texts);
+    }
+    let mut vectors = Vec::with_capacity(texts.len());
+    for chunk in texts.chunks(DOCUMENT_EMBEDDING_CHUNK_SIZE) {
+        // Each SDK call pools its outputs before returning. Keep only its small
+        // vectors here so raw token tensors are dropped before the next call.
+        let encoded = encode(chunk)?;
+        if encoded.len() != chunk.len() {
+            return Err("Document encoder returned an unexpected vector count".into());
+        }
+        vectors.extend(encoded);
+    }
+    Ok(vectors)
 }
 
 impl LocalEmbeddings {
@@ -513,12 +537,13 @@ impl LocalEmbeddings {
     ) -> Result<Vec<Vec<f32>>, String> {
         self.load()?;
         let started = Instant::now();
-        let result = self
-            .model
-            .as_mut()
-            .unwrap()
-            .embed(texts, None)
-            .map_err(|error| error.to_string())?;
+        let result = encode_inputs(texts, purpose, |chunk| {
+            self.model
+                .as_mut()
+                .unwrap()
+                .embed(chunk, None)
+                .map_err(|error| error.to_string())
+        })?;
         let (duration, count) = match purpose {
             EncodingPurpose::Document => (&mut self.document_ms, &mut self.document_count),
             EncodingPurpose::Query => (&mut self.query_ms, &mut self.query_count),
@@ -540,6 +565,73 @@ mod tests {
         retrieval::{RetrievalConfig, SearchMethod},
         storage::StorageProfile,
     };
+    #[test]
+    fn embedding_documents_bound_each_sdk_call_and_release_temporary_outputs_in_order() {
+        use std::cell::Cell;
+        struct RawOutput<'a>(&'a Cell<usize>);
+        impl Drop for RawOutput<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() - 1);
+            }
+        }
+        for count in [19, 72] {
+            let texts: Vec<_> = (0..count).map(|i| i.to_string()).collect();
+            let active_raw = Cell::new(0);
+            let mut calls = Vec::new();
+            let vectors = encode_inputs(&texts, EncodingPurpose::Document, |chunk| {
+                assert!(chunk.len() <= 8, "Each SDK call must bound its retained raw outputs");
+                assert_eq!(active_raw.get(), 0, "The previous SDK call must finish pooling and release its temporary outputs first");
+                active_raw.set(active_raw.get() + 1);
+                let _temporary_outputs = RawOutput(&active_raw);
+                calls.push(chunk.len());
+                Ok(chunk.iter().map(|text| vec![text.parse::<f32>().unwrap()]).collect())
+            }).unwrap();
+            assert_eq!(
+                vectors,
+                (0..count).map(|i| vec![i as f32]).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                calls,
+                texts.chunks(8).map(<[String]>::len).collect::<Vec<_>>()
+            );
+            assert_eq!(active_raw.get(), 0);
+        }
+    }
+
+    #[test]
+    fn embedding_documents_stop_before_later_chunks_on_error_or_missing_vectors() {
+        let texts: Vec<_> = (0..24).map(|i| i.to_string()).collect();
+        for fail_with_error in [true, false] {
+            let mut calls = 0;
+            let result = encode_inputs(&texts, EncodingPurpose::Document, |chunk| {
+                calls += 1;
+                if calls == 2 {
+                    return if fail_with_error {
+                        Err("fixture encoder failed".into())
+                    } else {
+                        Ok(Vec::new())
+                    };
+                }
+                Ok(chunk.iter().map(|_| vec![1.0]).collect())
+            });
+            assert!(result.is_err());
+            assert_eq!(calls, 2, "A failed chunk must not start a later model call");
+        }
+    }
+
+    #[test]
+    fn embedding_query_keeps_its_single_sdk_call_and_input() {
+        let texts = vec!["query: Welke activiteiten zijn binnen?".to_owned()];
+        let mut calls = 0;
+        let vectors = encode_inputs(&texts, EncodingPurpose::Query, |chunk| {
+            calls += 1;
+            assert_eq!(chunk, texts);
+            Ok(vec![vec![0.25, 0.75]])
+        })
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(vectors, vec![vec![0.25, 0.75]]);
+    }
     #[test]
     fn both_local_models_share_an_environment_without_loading_model_files() {
         // This factory stops at the pinned SDK's environment/session-builder boundary.

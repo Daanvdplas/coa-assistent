@@ -393,7 +393,7 @@ fn run_with_search(
         .filter(|row| row.record.execution_status == ExecutionStatus::Completed)
         .count();
     Ok(
-        serde_json::json!({"schema_version":1,"execution_id":input.execution_id,"batch_id":batch_id,"planned_rows":input.requests.len(),"completed":completed,"failed":records.len()-completed,"max_concurrent_searches":search_limit,"observed_peak_searches":peak.load(Ordering::SeqCst),"observed_peak_rankings":ranking_peak.load(Ordering::SeqCst),"native_batch_elapsed_ms":batch_started.elapsed().as_secs_f64()*1000.0,"prepared_profiles":prepared_profiles,"codex_calls":0,"ai_judge_calls":0}),
+        serde_json::json!({"schema_version":1,"execution_id":input.execution_id,"batch_id":batch_id,"planned_rows":input.requests.len(),"completed":completed,"failed":records.len()-completed,"document_embedding_chunk_size":super::preparation::DOCUMENT_EMBEDDING_CHUNK_SIZE,"max_concurrent_searches":search_limit,"observed_peak_searches":peak.load(Ordering::SeqCst),"observed_peak_rankings":ranking_peak.load(Ordering::SeqCst),"native_batch_elapsed_ms":batch_started.elapsed().as_secs_f64()*1000.0,"prepared_profiles":prepared_profiles,"codex_calls":0,"ai_judge_calls":0}),
     )
 }
 
@@ -479,6 +479,7 @@ mod tests {
         })
         .unwrap();
         assert_eq!(result["completed"], 4);
+        assert_eq!(result["document_embedding_chunk_size"], 8);
         assert_eq!(
             peak.load(Ordering::SeqCst),
             2,
