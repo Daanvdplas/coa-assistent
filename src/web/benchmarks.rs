@@ -142,6 +142,7 @@ struct Book {
     runs: BTreeMap<String, Value>,
     cancellations: BTreeMap<String, watch::Sender<bool>>,
 }
+const LOCAL_CONCURRENCY: u32 = 2;
 pub(super) struct Benchmarks {
     root: PathBuf,
     directory: PathBuf,
@@ -180,7 +181,7 @@ impl Benchmarks {
                 format!("http://localhost:{port}"),
             ],
             book: Mutex::new(Book::default()),
-            capacity: Arc::new(Semaphore::new(1)),
+            capacity: Arc::new(Semaphore::new(LOCAL_CONCURRENCY as usize)),
             lock: None,
             shutting_down: AtomicBool::new(false),
             runner: None,
@@ -297,6 +298,23 @@ impl Benchmarks {
         persist(&self.directory, &snapshot)?;
         book.runs.insert(id.into(), snapshot.clone());
         Ok(snapshot)
+    }
+    fn mark_running(&self, id: &str) -> Result<(), ApiError> {
+        let mut book = self.locked()?;
+        let observed: Vec<_> = book
+            .runs
+            .iter()
+            .filter(|(other, value)| other.as_str() != id && value["status"] == "running")
+            .map(|(other, _)| other.clone())
+            .collect();
+        let mut snapshot = book.runs.get(id).cloned().ok_or_else(storage_error)?;
+        snapshot["status"] = json!("running");
+        snapshot["scheduling"]["started_at"] = json!(now());
+        snapshot["scheduling"]["observed_running_ids"] = json!(observed);
+        snapshot["updated_at"] = json!(now());
+        persist(&self.directory, &snapshot)?;
+        book.runs.insert(id.into(), snapshot);
+        Ok(())
     }
     fn command(&self) -> Command {
         let mut command = Command::new("node");
@@ -715,6 +733,9 @@ fn finish_snapshot(snapshot: &mut Value, status: &str, error: Option<&str>) {
     snapshot["status"] = json!(status);
     snapshot["updated_at"] = json!(now());
     snapshot["error"] = error.map_or(Value::Null, |error| json!(error));
+    if snapshot["scheduling"].is_object() {
+        snapshot["scheduling"]["finished_at"] = json!(now());
+    }
     if let Some(groups) = snapshot["groups"].as_array_mut() {
         for group in groups {
             if matches!(
@@ -984,20 +1005,30 @@ async fn execute_rig_groups(
     Ok("completed")
 }
 async fn worker(jobs: Arc<Benchmarks>, id: String, mut cancel: watch::Receiver<bool>) {
-    let Ok(_permit) = jobs.capacity.clone().acquire_owned().await else {
+    let Ok(snapshot) = jobs.get(&id) else {
         return;
     };
-    if *cancel.borrow() {
+    let model = snapshot["plan"]["groups"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|group| group["kind"] == "model" && group["block_reason"].is_null());
+    let slots = if model { LOCAL_CONCURRENCY } else { 1 };
+    if jobs.update(&id,|value|value["scheduling"]=json!({"local_concurrency_limit":LOCAL_CONCURRENCY,"reserved_slots":slots,"timing_context":"shared_cpu_possible_not_isolated","started_at":null,"finished_at":null,"observed_running_ids":[]})).is_err() {
+        return;
+    }
+    let _permit = tokio::select! {
+        permit=jobs.capacity.clone().acquire_many_owned(slots)=>permit.ok(),
+        _=cancel.changed()=>None,
+    };
+    if _permit.is_none() || *cancel.borrow() {
         let _ = jobs.update(&id, |value| finish_snapshot(value, "cancelled", None));
         if let Ok(mut book) = jobs.locked() {
             book.cancellations.remove(&id);
         }
         return;
     }
-    if jobs
-        .update(&id, |value| value["status"] = json!("running"))
-        .is_err()
-    {
+    if jobs.mark_running(&id).is_err() {
         return;
     }
     let result = execute(&jobs, &id, &mut cancel).await;
@@ -1238,6 +1269,132 @@ pub(super) async fn discussion(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn scheduling_fixture() -> (PathBuf, Arc<Benchmarks>) {
+        let root = directory();
+        let script = root.join("evals/benchmark/adapter.ts");
+        std::fs::create_dir_all(script.parent().unwrap()).unwrap();
+        std::fs::write(&script,"import fs from 'node:fs';import path from 'node:path';fs.writeFileSync(path.join(process.argv[4],'started'),'ready');setInterval(()=>{},1000);").unwrap();
+        let jobs = Arc::new(Benchmarks::open(
+            root.clone(),
+            root.join("results"),
+            root.join("cache"),
+        ));
+        (root, jobs)
+    }
+    fn scheduled_worker(
+        jobs: &Arc<Benchmarks>,
+        id: &str,
+        model: bool,
+    ) -> (watch::Sender<bool>, tokio::task::JoinHandle<()>) {
+        let mut value = snapshot(id, "bm25", &["P01"]);
+        value["status"] = json!("queued");
+        value["plan"]["groups"][0]["kind"] = json!(if model { "model" } else { "local" });
+        value["plan"]["selection"] = json!({"authorization":{"max_seconds":30}});
+        let (sender, receiver) = watch::channel(false);
+        let mut book = jobs.locked().unwrap();
+        book.runs.insert(id.into(), value);
+        book.cancellations.insert(id.into(), sender.clone());
+        drop(book);
+        (
+            sender,
+            tokio::spawn(worker(jobs.clone(), id.into(), receiver)),
+        )
+    }
+    async fn started(root: &FilePath, id: &str) -> bool {
+        let marker = root.join("results").join(id).join("started");
+        let until = Instant::now() + Duration::from_secs(3);
+        while !marker.exists() && Instant::now() < until {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        marker.exists()
+    }
+    #[tokio::test]
+    async fn two_local_processes_overlap_but_a_third_waits_and_cancel_releases_capacity() {
+        let (root, jobs) = scheduling_fixture();
+        let a = "10000000000000000000000000000000";
+        let b = "20000000000000000000000000000000";
+        let c = "30000000000000000000000000000000";
+        let (sa, ha) = scheduled_worker(&jobs, a, false);
+        assert!(started(&root, a).await);
+        let (sb, hb) = scheduled_worker(&jobs, b, false);
+        let overlap = started(&root, b).await;
+        let (sc, hc) = scheduled_worker(&jobs, c, false);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let bounded = !root.join("results").join(c).join("started").exists();
+        sa.send(true).unwrap();
+        ha.await.unwrap();
+        let released = started(&root, c).await;
+        sb.send(true).unwrap();
+        sc.send(true).unwrap();
+        hb.await.unwrap();
+        hc.await.unwrap();
+        let recorded = jobs.get(b).unwrap()["scheduling"].clone();
+        drop(jobs);
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(
+            overlap && bounded && released,
+            "Two actual local workers must overlap, a third must wait, cancellation must release capacity"
+        );
+        assert_eq!(recorded["local_concurrency_limit"], 2);
+        assert!(recorded["started_at"].is_u64() && recorded["finished_at"].is_u64());
+        assert!(
+            recorded["observed_running_ids"]
+                .as_array()
+                .is_some_and(|ids| ids.contains(&json!(a)))
+        );
+    }
+    #[tokio::test]
+    async fn model_worker_excludes_both_local_slots_without_making_any_model_call() {
+        let (root, jobs) = scheduling_fixture();
+        let model = "40000000000000000000000000000000";
+        let local = "50000000000000000000000000000000";
+        let (sm, hm) = scheduled_worker(&jobs, model, true);
+        assert!(started(&root, model).await);
+        let (sl, hl) = scheduled_worker(&jobs, local, false);
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        let exclusive = !root.join("results").join(local).join("started").exists();
+        sm.send(true).unwrap();
+        hm.await.unwrap();
+        let released = started(&root, local).await;
+        sl.send(true).unwrap();
+        hl.await.unwrap();
+        drop(jobs);
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(
+            exclusive && released,
+            "Model work must hold every slot and release them on cancel"
+        );
+    }
+    #[tokio::test]
+    async fn queued_cancel_finishes_without_waiting_for_an_execution_permit() {
+        let (root, jobs) = scheduling_fixture();
+        let held = jobs
+            .capacity
+            .clone()
+            .acquire_many_owned(jobs.capacity.available_permits() as u32)
+            .await
+            .unwrap();
+        let id = "60000000000000000000000000000000";
+        let (sender, mut handle) = scheduled_worker(&jobs, id, false);
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        sender.send(true).unwrap();
+        let cancelled = tokio::time::timeout(Duration::from_millis(300), &mut handle)
+            .await
+            .is_ok();
+        if !cancelled {
+            handle.abort();
+            let _ = handle.await;
+        }
+        let untouched = !root.join("results").join(id).join("started").exists();
+        drop(held);
+        drop(jobs);
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(
+            cancelled && untouched,
+            "Cancelling a queued job must not wait or launch native work"
+        );
+    }
 
     fn directory() -> PathBuf {
         let path = std::env::temp_dir().join(format!("coa-benchmark-{}", identifier().unwrap()));

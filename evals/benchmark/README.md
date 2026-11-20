@@ -12,6 +12,8 @@ An independent local browser configuration that fails preparation receives an ex
 
 Top-k counts seed **sections** for every storage layout, including `_activities`, whose records are flattened before ranking. Explicit `activity_expansion` adds other sections of the seed activities while whole sections fit the common ceiling of 1200 estimated context tokens. Candidate limit 30 and all other retrieval/fusion settings are unchanged. A low-k baseline can be incapable of covering the required source set; preserve that outcome and its capacity flag.
 
+Local benchmark scheduling admits at most two independent question jobs. Configuration and repetition order inside each job remains serial. A job containing authorized model work reserves both slots exclusively; its existing ledgers and limits are unchanged. Cancelling a queued job releases its wait without starting native work. Scheduling provenance records the configured limit, actual worker start/end and the IDs observed running at start. Parallel timings can include shared CPU/I/O contention and are not isolated model-speed measurements.
+
 The Rust web server calls `adapter.ts` to enumerate canonical plans and execute existing runners. It adds no provider or scoring framework. History, compatible reference comparisons and the terminal discussion report remain available. The older multi-case and historical-protocol APIs remain supported independently of this single-question page.
 
 ```sh

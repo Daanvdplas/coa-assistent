@@ -559,6 +559,8 @@ async fn execute(
             &input.method,
             "--embedding-model",
             &input.embedding_model,
+            "--browser-preset",
+            "standard",
             "--no-publish",
             "--binary",
         ])
@@ -587,6 +589,7 @@ async fn execute(
         "COA_PROMPTFOO_REPEATS",
         "COA_PROMPTFOO_EMBEDDING_MANIFEST",
         "COA_PROMPTFOO_EMBEDDING_MANIFEST_SHA256",
+        "COA_PROMPTFOO_BROWSER_PRESET",
     ] {
         command.env_remove(key);
     }
@@ -618,23 +621,54 @@ async fn execute(
     }
     let value: Value = serde_json::from_slice(&std::fs::read(path).map_err(|_| "eval_output")?)
         .map_err(|_| "eval_output")?;
-    let rows = value["rows"].as_array().ok_or("eval_output")?;
-    let expected = definition(&input.eval_id).unwrap();
-    if rows.len() != 1
-        || rows[0]["case_id"] != expected.case_id
-        || rows[0]["dataset"] != expected.dataset_id
-        || rows[0]["configuration"]["method"] != input.method
-        || !matches!(rows[0]["status"].as_str(), Some("passed" | "failed"))
-        || !rows[0]["source_complete"].is_boolean()
-    {
+    if !valid_browser_result(&value, input) {
         return Err("eval_integrity");
     }
     Ok(Some(value))
 }
 
+fn valid_browser_result(value: &Value, input: &Start) -> bool {
+    let Some(rows) = value["rows"].as_array() else {
+        return false;
+    };
+    let Some(expected) = definition(&input.eval_id) else {
+        return false;
+    };
+    rows.len() == 1
+        && rows[0]["case_id"] == expected.case_id
+        && rows[0]["dataset"] == expected.dataset_id
+        && rows[0]["configuration"]["method"] == input.method
+        && rows[0]["configuration"]["top_k"] == 5
+        && rows[0]["configuration"]["candidate_k"] == 30
+        && rows[0]["configuration"]["context_token_limit"] == 1200
+        && rows[0]["configuration"]["profile"] == "documents_sections"
+        && rows[0]["configuration"]["selection"] == "sections"
+        && matches!(rows[0]["status"].as_str(), Some("passed" | "failed"))
+        && rows[0]["source_complete"].is_boolean()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_browser_results_cannot_silently_use_a_benchmark_only_preset() {
+        let input = Start {
+            eval_id: "quality-music".into(),
+            method: "dense".into(),
+            embedding_model: "e5-small-multilingual".into(),
+        };
+        let value = json!({"rows":[{"case_id":"RAG26-06","dataset":"demo-12-20261118","status":"failed","source_complete":false,"configuration":{"method":"dense","top_k":5,"candidate_k":30,"context_token_limit":1200,"profile":"documents_sections","selection":"sections"}}]});
+        assert!(valid_browser_result(&value, &input));
+        let mut preset = value.clone();
+        preset["rows"][0]["configuration"]["top_k"] = json!(3);
+        assert!(
+            !valid_browser_result(&preset, &input),
+            "Evals promises k5, even if an inherited environment requests an E5 k3 benchmark preset"
+        );
+        let mut expanded = value;
+        expanded["rows"][0]["configuration"]["selection"] = json!("activity_expansion");
+        assert!(!valid_browser_result(&expanded, &input));
+    }
     #[test]
     fn direct_eval_projects_actual_required_sections_without_turning_bundled_goals_into_counts() {
         let jobs = EvalJobs::new();

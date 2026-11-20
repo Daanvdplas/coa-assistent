@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { canonicalJson, checkedFile, readJson, same, sha256 } from "./json.ts";
 import type {
   AuditRow,
@@ -24,10 +25,17 @@ import type {
   SourceMetrics,
   ToolCall,
   Variables,
+  BrowserCaseBinding,
+  BrowserPreset,
 } from "./types.ts";
 import { classifyResult } from "./model_control.ts";
 export const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const HERE = fileURLToPath(new URL(".", import.meta.url));
+const browserCases = createRequire(import.meta.url)("./browser_cases.cjs") as {
+  resolveBrowserCase(id: string): BrowserCaseBinding;
+  resolveLegacyBrowserCase(id: string): BrowserCaseBinding;
+  browserPreset(id?: BrowserPreset): Partial<Variables>;
+};
 const DATASETS = new Set([
   "legacy",
   "independent-20261103",
@@ -255,28 +263,33 @@ function validateConfig(
 }
 function browserEmbedding(record: NativeRecord, variables: Variables): string {
   if (variables.browser_eval_id === undefined) return "";
-  const cases: Record<string, string> = {
-    "garden-time-location": "P01",
-    "indoor-tuesday": "T02",
-    "two-activities": "T05",
-  };
+  const selected =
+    variables.dataset === "legacy"
+      ? browserCases.resolveLegacyBrowserCase(variables.browser_eval_id)
+      : browserCases.resolveBrowserCase(variables.browser_eval_id);
   requireCondition(
-    cases[variables.browser_eval_id] === variables.case_id &&
-      ["legacy", "demo-12-20261118"].includes(variables.dataset),
-    "Browser case differs from its existing reference",
+    selected.dataset === variables.dataset &&
+      selected.case_id === variables.case_id &&
+      selected.question === variables.question &&
+      selected.corpus_sha256 === record.dataset.corpus_sha256 &&
+      selected.as_of === record.dataset.as_of &&
+      variables.mode === "local",
+    "Browser case differs from its frozen reference",
   );
-  const fixed = {
-    profile: "documents_sections",
-    top_k: 5,
-    candidate_k: 30,
-    context_token_limit: 1200,
-    selection: "sections",
-    apply_filters: false,
-    mmr: false,
-  };
+  // Promptfoo can redact this redundant vars field in saved JSON. It is never
+  // corpus evidence: the native record and protected frozen corpus were checked
+  // above and in validateLocal, including their reference date and exact bytes.
   requireCondition(
-    Object.entries(fixed).every(([field, value]) =>
-      same(variables[field as keyof Variables], value),
+    variables.corpus_sha256 === undefined ||
+      variables.corpus_sha256 === "[REDACTED]" ||
+      variables.corpus_sha256 === selected.corpus_sha256,
+    "Declared browser corpus differs from its frozen reference",
+  );
+  const fixed = browserCases.browserPreset(variables.browser_preset);
+  requireCondition(
+    Object.entries(fixed).every(
+      ([field, value]) =>
+        field in variables && same(variables[field as keyof Variables], value),
     ),
     "Browser search treatment differs from its fixed protocol",
   );
