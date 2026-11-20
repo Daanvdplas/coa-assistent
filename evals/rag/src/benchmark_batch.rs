@@ -391,13 +391,15 @@ mod tests {
     use std::time::{Duration, Instant};
 
     fn fixture() -> (BatchInput, BatchOptions, PathBuf) {
+        static NEXT_FIXTURE: AtomicUsize = AtomicUsize::new(0);
         let base = std::env::temp_dir().join(format!(
-            "coa-batch-worker-{}-{}",
+            "coa-batch-worker-{}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));
         std::fs::create_dir(&base).unwrap();
         let input = BatchInput {
