@@ -326,6 +326,11 @@ impl Benchmarks {
             .process_group(0);
         command.env("TOKENIZERS_PARALLELISM", "false");
         command.env("RAYON_NUM_THREADS", "2");
+        if let Ok(workers) =
+            meedoen_retrieval::retrieval_lab::benchmark_batch::search_worker_limit()
+        {
+            command.env("COA_BENCHMARK_SEARCH_WORKERS", workers.to_string());
+        }
         for (key, _) in std::env::vars_os() {
             if key.to_string_lossy().starts_with("COA_PROMPTFOO_") {
                 command.env_remove(key);
@@ -1025,10 +1030,21 @@ async fn worker(jobs: Arc<Benchmarks>, id: String, mut cancel: watch::Receiver<b
     if jobs.get(&id).is_err() {
         return;
     }
-    // A local batch uses both search slots internally; admitting another batch
-    // here would multiply the global limit. Model jobs keep exclusive ownership.
+    let search_limit =
+        match meedoen_retrieval::retrieval_lab::benchmark_batch::search_worker_limit() {
+            Ok(limit) => limit,
+            Err(error) => {
+                let _ = jobs.update(&id, |value| finish_snapshot(value, "failed", Some(&error)));
+                if let Ok(mut book) = jobs.locked() {
+                    book.cancellations.remove(&id);
+                }
+                return;
+            }
+        };
+    // Admission slots are an exclusive batch reservation, not search threads.
+    // Internal benchmark searches share the selected limit; batches never multiply it.
     let slots = LOCAL_CONCURRENCY;
-    if jobs.update(&id,|value|value["scheduling"]=json!({"local_concurrency_limit":LOCAL_CONCURRENCY,"local_batch_concurrency_limit":1,"reserved_slots":slots,"timing_context":"shared_cpu_possible_not_isolated","started_at":null,"finished_at":null,"observed_running_ids":[]})).is_err() {
+    if jobs.update(&id,|value|value["scheduling"]=json!({"local_concurrency_limit":search_limit,"admission_capacity":LOCAL_CONCURRENCY,"local_batch_concurrency_limit":1,"reserved_slots":slots,"timing_context":"shared_cpu_possible_not_isolated","started_at":null,"finished_at":null,"observed_running_ids":[]})).is_err() {
         return;
     }
     let _permit = tokio::select! {
@@ -1578,6 +1594,10 @@ mod tests {
         };
         assert_eq!(selected("TOKENIZERS_PARALLELISM").as_deref(), Some("false"));
         assert_eq!(selected("RAYON_NUM_THREADS").as_deref(), Some("2"));
+        assert_eq!(
+            selected("COA_BENCHMARK_SEARCH_WORKERS").as_deref(),
+            Some("2")
+        );
         drop(jobs);
         std::fs::remove_dir_all(root).unwrap();
     }

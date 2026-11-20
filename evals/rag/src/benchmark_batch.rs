@@ -24,9 +24,22 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Instant,
 };
 
-const SEARCH_LIMIT: usize = 2;
+/// Operator-only bound for benchmark searches; never changes retrieval settings.
+pub fn search_worker_limit() -> Result<usize, String> {
+    match std::env::var("COA_BENCHMARK_SEARCH_WORKERS") {
+        Err(std::env::VarError::NotPresent) => Ok(2),
+        Ok(value) => match value.as_str() {
+            "1" => Ok(1),
+            "2" => Ok(2),
+            "4" => Ok(4),
+            _ => Err("COA_BENCHMARK_SEARCH_WORKERS must be 1, 2 or 4".into()),
+        },
+        Err(_) => Err("COA_BENCHMARK_SEARCH_WORKERS must be 1, 2 or 4".into()),
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -100,6 +113,8 @@ fn run_with_search(
          + Sync
      ),
 ) -> Result<serde_json::Value, String> {
+    let batch_started = Instant::now();
+    let search_limit = search_worker_limit()?;
     if input.schema_version != 1
         || input.requests.is_empty()
         || input.requests.len() > 64
@@ -261,11 +276,13 @@ fn run_with_search(
 
     let active = AtomicUsize::new(0);
     let peak = AtomicUsize::new(0);
+    let ranking_active = AtomicUsize::new(0);
+    let ranking_peak = AtomicUsize::new(0);
     let records = std::thread::scope(|scope| -> Result<Vec<Envelope>, String> {
         let mut pending = VecDeque::new();
         let mut records = Vec::new();
         for request in &input.requests {
-            if pending.len() == SEARCH_LIMIT {
+            if pending.len() == search_limit {
                 let handle: std::thread::ScopedJoinHandle<'_, Result<Envelope, String>> =
                     pending.pop_front().unwrap();
                 records.push(
@@ -346,9 +363,15 @@ fn run_with_search(
             };
             let output = Arc::clone(&output);
             let active = &active;
+            let ranking_active = &ranking_active;
+            let ranking_peak = &ranking_peak;
             pending.push_back(scope.spawn(move || {
                 let attempt = query.finish_with(|query, vector| {
-                    search(&corpus, query, &envelope.record.config.retrieval, vector)
+                    let count = ranking_active.fetch_add(1, Ordering::SeqCst) + 1;
+                    ranking_peak.fetch_max(count, Ordering::SeqCst);
+                    let outcome = search(&corpus, query, &envelope.record.config.retrieval, vector);
+                    ranking_active.fetch_sub(1, Ordering::SeqCst);
+                    outcome
                 });
                 apply_attempt(&mut envelope.record, attempt);
                 active.fetch_sub(1, Ordering::SeqCst);
@@ -370,7 +393,7 @@ fn run_with_search(
         .filter(|row| row.record.execution_status == ExecutionStatus::Completed)
         .count();
     Ok(
-        serde_json::json!({"schema_version":1,"execution_id":input.execution_id,"batch_id":batch_id,"planned_rows":input.requests.len(),"completed":completed,"failed":records.len()-completed,"max_concurrent_searches":SEARCH_LIMIT,"observed_peak_searches":peak.load(Ordering::SeqCst),"prepared_profiles":prepared_profiles,"codex_calls":0,"ai_judge_calls":0}),
+        serde_json::json!({"schema_version":1,"execution_id":input.execution_id,"batch_id":batch_id,"planned_rows":input.requests.len(),"completed":completed,"failed":records.len()-completed,"max_concurrent_searches":search_limit,"observed_peak_searches":peak.load(Ordering::SeqCst),"observed_peak_rankings":ranking_peak.load(Ordering::SeqCst),"native_batch_elapsed_ms":batch_started.elapsed().as_secs_f64()*1000.0,"prepared_profiles":prepared_profiles,"codex_calls":0,"ai_judge_calls":0}),
     )
 }
 
@@ -519,5 +542,103 @@ mod tests {
             assert!(!options.sqlite_dir.exists());
             std::fs::remove_dir_all(base).unwrap();
         }
+    }
+
+    #[test]
+    fn operator_worker_limits_bound_searches_and_reject_invalid_before_output() {
+        for (value, expected) in [
+            ("1", "1"),
+            ("2", "2"),
+            ("4", "4"),
+            ("3", "invalid"),
+            ("8", "invalid"),
+            ("0", "invalid"),
+            ("", "invalid"),
+        ] {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "retrieval_lab::benchmark_batch::tests::operator_worker_limit_child",
+                    "--nocapture",
+                ])
+                .env("COA_BENCHMARK_SEARCH_WORKERS", value)
+                .env("COA_TEST_EXPECTED_SEARCH_WORKERS", expected)
+                .status()
+                .unwrap();
+            assert!(
+                status.success(),
+                "Configured worker limit {value:?} must be applied or rejected before preparation"
+            );
+        }
+    }
+
+    #[test]
+    fn operator_worker_limit_child() {
+        let Ok(expected) = std::env::var("COA_TEST_EXPECTED_SEARCH_WORKERS") else {
+            return;
+        };
+        let (input, options, base) = fixture();
+        let active = AtomicUsize::new(0);
+        let peak = AtomicUsize::new(0);
+        let signal = std::sync::Condvar::new();
+        let shared = Mutex::new(());
+        let result = run_with_search(input, &options, &|corpus, query, config, vector| {
+            let count = active.fetch_add(1, Ordering::SeqCst) + 1;
+            peak.fetch_max(count, Ordering::SeqCst);
+            signal.notify_all();
+            let expected_count = expected.parse::<usize>().unwrap_or(1);
+            let _ = signal
+                .wait_timeout_while(shared.lock().unwrap(), Duration::from_millis(150), |_| {
+                    active.load(Ordering::SeqCst) < expected_count
+                })
+                .unwrap();
+            let outcome = crate::retrieval::retrieve(corpus, query, config, vector);
+            active.fetch_sub(1, Ordering::SeqCst);
+            outcome
+        });
+        if expected == "invalid" {
+            assert!(
+                result.is_err(),
+                "An unsupported worker limit must fail closed"
+            );
+            assert!(!options.output.exists());
+            assert!(!options.embedding_manifest.exists());
+            assert!(!options.sqlite_dir.exists());
+        } else {
+            let result = result.unwrap();
+            let expected = expected.parse::<usize>().unwrap();
+            assert_eq!(result["max_concurrent_searches"], expected);
+            assert_eq!(result["observed_peak_rankings"], expected);
+            assert_eq!(
+                peak.load(Ordering::SeqCst),
+                expected,
+                "Actual retrieve callbacks must use the configured ceiling"
+            );
+            assert_eq!(result["completed"], 4);
+            assert!(!options.model_cache.exists());
+        }
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
+    #[test]
+    fn native_batch_elapsed_clock_includes_durable_captures_without_summing_queries() {
+        let (input, options, base) = fixture();
+        let started = Instant::now();
+        let result = run(input, &options).unwrap();
+        let outer_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let total = result["native_batch_elapsed_ms"]
+            .as_f64()
+            .expect("The native batch needs its own directly measured elapsed clock");
+        let rows: Vec<serde_json::Value> = std::fs::read_to_string(&options.output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 4);
+        assert!(total.is_finite() && total > 0.0 && total <= outer_ms);
+        for row in rows {
+            assert!(row["record"]["timings"]["query_total_ms"].as_f64().unwrap() <= total);
+        }
+        std::fs::remove_dir_all(base).unwrap();
     }
 }

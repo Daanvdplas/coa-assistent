@@ -2,7 +2,7 @@
 pub mod agent_assessment;
 pub mod agent_run;
 pub mod assessment;
-mod benchmark_batch;
+pub mod benchmark_batch;
 pub mod catalog;
 pub mod cli;
 pub mod dataset;
