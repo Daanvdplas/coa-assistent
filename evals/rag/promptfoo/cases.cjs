@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { resolveBrowserCase, browserPreset } = require('./browser_cases.cjs');
 const ROOT = path.resolve(__dirname, '../../..');
 const METHODS = ['dense', 'bm25', 'hybrid_rrf', 'hybrid_weighted'];
 const PROFILES = ['documents_sections', 'documents_activities', 'sqlite_sections', 'sqlite_activities'];
@@ -33,7 +34,7 @@ function testCase(input, config, suite, repeat = 1) {
 }
 function selected(value) { return value ? new Set(value.split(',').map(part => part.trim()).filter(Boolean)) : null; }
 function suitesFor(suite, dataset) {
-  if (dataset === REGRESSION && !['all-local', 'retrieval', 'quality'].includes(suite)) throw new Error('The twelve-source regression supports retrieval and quality; use assistant-rig for the current assistant');
+  if (dataset === REGRESSION && !['all-local', 'retrieval', 'quality', 'browser'].includes(suite)) throw new Error('The twelve-source regression supports retrieval and quality; use assistant-rig for the current assistant');
   if (dataset === DEMO && !['all-local', 'retrieval', 'quality', 'agentic', 'browser'].includes(suite))
     throw new Error('This historical suite has a fixed source protocol; select retrieval, quality, agentic or browser for the twelve-document dataset');
   return suite === 'all-local' ? ([DEMO, REGRESSION].includes(dataset) ? ['retrieval', 'quality'] : ['garden', 'retrieval', 'quality', 'compact']) : [suite];
@@ -43,15 +44,17 @@ function buildConfig(env = process.env) {
   suitesFor(suite, env.COA_PROMPTFOO_DATASET);
   let tests = [];
   if (suite === 'browser') {
-    const cases = { 'garden-time-location':'P01', 'indoor-tuesday':'T02', 'two-activities':'T05' };
     const evalId = env.COA_PROMPTFOO_EVAL_ID;
-    if (!Object.hasOwn(cases,evalId)) throw new Error('Unknown existing browser test');
+    const resolved = resolveBrowserCase(evalId);
+    const presetId = env.COA_PROMPTFOO_BROWSER_PRESET || 'standard';
+    const preset = browserPreset(presetId);
     const method = env.COA_PROMPTFOO_METHODS || 'dense';
     const embeddingModel = env.COA_PROMPTFOO_EMBEDDING_MODEL || 'minilm-multilingual';
     if (!METHODS.includes(method)) throw new Error('Unknown browser retrieval method');
     if (!['minilm-multilingual','e5-small-multilingual'].includes(embeddingModel)) throw new Error('Unknown embedding model');
-    const input=questions(DEMO).find(row=>row.case_id===cases[evalId]);
-    tests=[testCase({...input,browser_eval_id:evalId,embedding_model:embeddingModel},{method,top_k:5,profile:'documents_sections'},suite)];
+    if ((preset.method && preset.method !== method) || (preset.embedding_model && preset.embedding_model !== embeddingModel)) throw new Error('Browser preset requires its fixed dense E5 model');
+    const input=questions(resolved.dataset).find(row=>row.case_id===resolved.case_id);
+    tests=[testCase({...input,corpus_sha256:resolved.corpus_sha256,browser_eval_id:evalId,embedding_model:embeddingModel,...(presetId==='standard'?{}:{browser_preset:presetId})},{method,...preset},suite)];
   } else if (suite === 'garden') {
     tests = questions('garden').flatMap(input => ['dense', 'keyword_overlap'].map(method => testCase(input, { mode: 'garden', method }, suite)));
   } else if (suite === 'retrieval') {

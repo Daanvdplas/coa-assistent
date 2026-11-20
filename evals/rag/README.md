@@ -2,17 +2,19 @@
 
 Promptfoo controls RAG cases, configuration matrices, repetitions and assertions. Existing Rust code performs local retrieval or bounded Codex sessions. Promptfoo assertions assess the evidence; native readers remain for historical records, whose scores are not relabelled as new promptfoo results.
 
-## Three browser retrieval tests
+## Individual browser retrieval tests
 
-`/resultaten/` begins with P01 (gardening time/location), T02 (Tuesday indoors, time/address) and T05 (language café and cooking times/addresses). They use the current twelve activities, 72 sections and the separately reviewed `demo-12-20261118` source criteria; T02 accepts a complete bicycle or creative-workshop option. A click runs one question/configuration, not a full matrix.
+`/resultaten/` shows the eleven approved [quality questions](../shared/selections/README.md) (RAG26-01–10 and IND26-01) plus T05. All use the same twelve activities and 72 sections. Source contracts were independently checked before implementation; human labels remain empty. RAG26-03 accepts one complete bicycle OR creative-workshop option. Old P01/T02 routes preserve their original criteria and history. A click runs one question/configuration; Benchmark starts that question across all applicable configurations with two fresh repetitions.
 
-This browser protocol fixes top-k **5**, candidate-k 30, context ceiling 1200 and `documents_sections`, allowing T05's minimum four-section evidence set. It is not a repeat of old top-3 measurements. All twelve documents are searched; expected section IDs are never filters or encoder inputs. Dataset, question, criteria and corpus identities distinguish this version from historical measurements.
+The individual browser protocol fixes top-k **5 section seeds**, candidate-k 30, a ceiling of 1200 estimated context tokens and `documents_sections`. Benchmark also retains native k3/k6 baselines and adds matched dense E5 k3 with/without activity expansion. Some baselines cannot fit all required sections; those remain real capacity misses. It is not a repeat of old top-3 measurements. Activity-organized storage is flattened to sections before ranking; only explicit activity expansion adds other sections of seed activities. All twelve documents are searched; expected section IDs are never filters or encoder inputs. Dataset, question, criteria and corpus identities distinguish this version from historical measurements.
 
 Choose dense, BM25, hybrid RRF or weighted hybrid. Dense/hybrid genuinely use multilingual MiniLM or multilingual E5 Small from the [model catalog](embedding-models.json). E5 uses `passage: ` for documents and `query: ` for questions; MiniLM keeps its original unprefixed input. Model/revision, artifact hashes, prefixes, dimensions, actual input hashes and vector hashes bind the run/cache. BM25 loads/downloads no encoder and shows no used embedding model. The catalog uses the existing SDK contract from [fastembed-rs 7.1.2](https://github.com/Anush008/fastembed-rs/releases/tag/v7.1.2), released **19 October 2026**, without a dependency upgrade or general model-ranking claim.
 
 The worker runs only promptfoo's fixed `browser` configuration, existing retrieval provider and source assertions. Model API/Codex settings are removed from its child environment. Raw output and `browser-view.json` remain private under `results/local/browser/<run_id>/`; public snapshots are not overwritten. Missing required support stays visible; unjudged hits are not automatically wrong.
 
 Starting/cancelling requires an owned session, a local connection and valid Host/Origin; forwarded/proxy requests are refused. One heavy job runs at a time without a queue, at most 300 seconds. Separate free-test limits are sixty starts/hour and five/minute per network address. Cancellation cleans up identified owned detached children before releasing capacity. Website model-question limits remain separate. This worker is for direct local use, not a supported public start endpoint.
+
+Directly measured `query_total_ms` covers a prepared-index query, including query-vector cache lookup/inference, ranking, expansion and context construction. Corpus/model/index preparation is separate and may be shared; stages overlap and must not be summed. `retrieval_ms` is ranking/selection only. Historical query totals remain unknown. Query-cache hits are captured explicitly, and two repetitions are not a universal speed comparison.
 
 ## Full suites
 

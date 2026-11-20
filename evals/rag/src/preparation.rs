@@ -239,6 +239,7 @@ impl PreparationSession {
                 timings,
             };
         }
+        let query_started = Instant::now();
         let vector = if config.retrieval.method != SearchMethod::Bm25 {
             let started = Instant::now();
             let result = (|| {
@@ -275,6 +276,7 @@ impl PreparationSession {
                     Some(vector)
                 }
                 Err(error) => {
+                    timings.query_total_ms = Some(elapsed_ms(query_started));
                     return SearchAttempt {
                         outcome: Err(error),
                         timings,
@@ -292,6 +294,7 @@ impl PreparationSession {
             vector.as_deref(),
         );
         timings.retrieval_ms = Some(elapsed_ms(started));
+        timings.query_total_ms = Some(elapsed_ms(query_started));
         SearchAttempt { outcome, timings }
     }
 }
@@ -525,6 +528,13 @@ mod tests {
         );
         assert!(search.preparation().profile_preparation_ms.is_some());
         assert_eq!(timings.query_embedding_ms, None);
+        let measured = serde_json::to_value(&timings).unwrap();
+        assert!(
+            measured["query_total_ms"].as_f64().is_some_and(|total| {
+                total.is_finite() && total >= timings.retrieval_ms.unwrap()
+            }),
+            "Each prepared-index query must have its own direct elapsed clock"
+        );
         assert!(!missing_cache.exists());
     }
 

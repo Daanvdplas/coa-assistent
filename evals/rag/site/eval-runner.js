@@ -47,6 +47,9 @@
   const referenceKey=ref=>ref.source_id+':'+(ref.section_id || ref.id);
   function clearPresentation(card) {
     card.results.replaceChildren();
+    for (const view of card.sourceViews.values()) {
+      view.state.textContent='';view.content.classList.remove('eval-source-found');
+    }
     state(card,'');
   }
   function selectionChanged(card) {
@@ -60,14 +63,25 @@
     const section=node('section',null,'eval-expectations');
     section.append(node('h3','Verwachte bronstukken'));
     const goals=node('ul',null,'eval-goals');
+    card.sourceViews=new Map();
     for (const goal of evaluation.expected_goals || []) {
       const item=node('li');item.dataset.goalId=goal.id;
       const content=node('div',null,'eval-goal-content');
       const alternatives=goal.alternatives || [];
-      const label=alternatives.map(option=>option.map(sourceLabel).join(' + ')).join(' of ');
-      const simple=alternatives.length===1 && alternatives[0].length===1;
-      content.append(node('h4',label,'eval-goal-source'),node(simple?'blockquote':'p',simple?alternatives[0][0].text:goal.description,'eval-goal-fragment'));
-      item.append(content);goals.append(item);
+      for (const [index,option] of alternatives.entries()) {
+        if (index) content.append(node('p','of','eval-source-or'));
+        for (const ref of option) {
+          const key=referenceKey(ref);
+          if (card.sourceViews.has(key)) {
+            if (alternatives.length>1) content.append(node('p',sourceLabel(ref),'eval-goal-source'));
+            continue;
+          }
+          const source=node('div',null,'eval-source'),heading=node('h4',sourceLabel(ref),'eval-goal-source'),status=node('span','','eval-source-state');
+          heading.append(status);source.append(heading,node('blockquote',ref.text,'eval-goal-fragment'));content.append(source);
+          card.sourceViews.set(key,{content:source,state:status});
+        }
+      }
+      if(content.children.length){item.append(content);goals.append(item);}
       const references=new Set();
       for (const option of alternatives) for (const ref of option) {
         const key=referenceKey(ref);references.add(key);card.references.set(key,ref);
@@ -99,30 +113,41 @@
         }
       }
     }
-    card.results.append(node('h3','Gevonden bronstukken'));
+    const verified=new Set(),seen=new Set();
     const hits=node('ol',null,'eval-hits');
     for (const call of row.calls || []) {
       for (const key of call.hits || []) {
         const source=run.result.sources[key];
         if (!source) throw new Error('Een gevonden bronstuk ontbreekt in het resultaat.');
+        const identity=referenceKey(source);
+        if (seen.has(identity))continue;
+        seen.add(identity);
         const item=node('li');item.dataset.sourceId=source.source_id;item.dataset.sectionId=source.id;
         const details=node('details');
         const summary=node('summary');summary.append(node('span',sourceLabel(source),'eval-hit-title'));
         const expected=card.references.get(referenceKey(source));
         if (matched.has(referenceKey(source)) && expected && ['source_id','source_title','source_date','heading','text'].every(field=>source[field]===expected[field])) {
-          item.classList.add('eval-expected-hit');summary.setAttribute('aria-label','Verwacht bronstuk: '+sourceLabel(source));
+          verified.add(identity);continue;
         }
         details.append(summary,node('blockquote',source.text,'source-text'));
         item.append(details);hits.append(item);
       }
     }
-    if (hits.children.length) card.results.append(hits);
-    else card.results.append(node('p','Geen bronstukken gevonden.'));
-    const score=node('p',applicable?`${row.metrics.covered_goals}/${row.metrics.target_goals} verwachtingen compleet`:'N/A','eval-score');
+    for(const [key,view] of card.sourceViews){
+      view.state.textContent=applicable?(verified.has(key)?'Gevonden':'Ontbreekt'):'';
+      view.content.classList.toggle('eval-source-found',applicable&&verified.has(key));
+    }
+    if (hits.children.length) card.results.append(node('h3','Andere gevonden bronstukken'),hits);
+    else if (!seen.size) card.results.append(node('p','Geen bronstukken gevonden.'));
+    const coverage=row.required_source_coverage;
+    const known=coverage?.unit==='sections'&&Number.isInteger(coverage.found)&&Number.isInteger(coverage.total)&&coverage.found>=0&&coverage.found<=coverage.total;
+    const score=node('p',coverage?.applicable===false||coverage?.total===0?'N.v.t.':known?`${coverage.found}/${coverage.total} bronsecties gevonden`:'Bronsecties: onbekend','eval-score');
+    if(applicable&&known&&(coverage.found!==row.metrics.covered_goals||coverage.total!==row.metrics.target_goals))card.results.append(node('p',`${row.metrics.covered_goals}/${row.metrics.target_goals} bewijsdoelen compleet`,'eval-goal-score'));
     score.dataset.status=applicable?(row.source_complete?'complete':'incomplete'):'unassessed';
     score.setAttribute('role','status');card.results.append(score);
   }
   function failed(card, message) {
+    clearPresentation(card);
     state(card,'Uitvoeringsfout: '+message,'error');
     card.results.replaceChildren();
   }
@@ -243,7 +268,7 @@
     byId('eval-catalog-status').textContent = 'Zoektests laden…';
     try {
       const loaded = await request('/api/evals/rag/catalog');
-      if (loaded.schema_version !== 1 || !Array.isArray(loaded.evals) || loaded.evals.length !== 3 || !Array.isArray(loaded.methods) || !loaded.methods.length || !Array.isArray(loaded.embedding_models) || !loaded.embedding_models.length) throw new Error('De drie zoektests zijn nu niet beschikbaar.');
+      if (loaded.schema_version !== 1 || !Array.isArray(loaded.evals) || !loaded.evals.length || !Array.isArray(loaded.methods) || !loaded.methods.length || !Array.isArray(loaded.embedding_models) || !loaded.embedding_models.length) throw new Error('De zoektests zijn nu niet beschikbaar.');
       catalog = loaded;
       cards.length = 0; list.replaceChildren(...catalog.evals.map(makeCard)); controls();
       byId('eval-catalog-status').textContent = canRun() ? '' : localOnly;

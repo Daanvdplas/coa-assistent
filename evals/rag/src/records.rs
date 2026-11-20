@@ -22,6 +22,7 @@ pub fn validate_record(record: &RetrievalRecord) -> Result<(), String> {
         record.preparation.storage_load_ms,
         record.preparation.profile_preparation_ms,
         record.timings.query_embedding_ms,
+        record.timings.query_total_ms,
         record.timings.retrieval_ms,
     ]
     .into_iter()

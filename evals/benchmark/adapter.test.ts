@@ -5,6 +5,11 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 process.env.COA_RAG_BINARY ??= "/usr/bin/true";
+function expectedBrowserSettings(command: string[]) {
+  const index = command.indexOf("--browser-preset");
+  const preset = index < 0 ? "standard" : command[index + 1];
+  return { top_k: preset === "standard" ? 5 : 3, selection: preset === "dense-k3-activity-expansion" ? "activity_expansion" : "sections" };
+}
 const adapter = new URL("./adapter.ts", import.meta.url);
 function cli(command: string, input?: unknown) {
   const dir = mkdtempSync(join(tmpdir(), "coa-benchmark-adapter-test-"));
@@ -47,13 +52,13 @@ test("twelve-document canonical plan includes 272 retrieval and 408 context rows
     ),
   );
 });
-test("browser plans seven distinct configurations without redundant BM25 encoders", () => {
+test("browser plans nine distinct configurations for all seventeen demo cases without redundant BM25 encoders", () => {
   const p = cli("plan", {
     datasets: ["demo-12-20261118"],
     suites: ["browser"],
   });
-  assert.equal(p.totals.local, 21);
-  assert.equal(p.groups[0].configuration_count, 7);
+  assert.equal(p.totals.local, 17 * 9);
+  assert.equal(p.groups[0].configuration_count, 9);
   assert.equal(
     p.groups[0].configurations.filter(
       (c: any) => c.configuration.method === "bm25",
@@ -326,7 +331,7 @@ test("browser E5 and MiniLM results remain bound to distinct configurations", as
                       mode: "local",
                       method: "dense",
                       profile: "documents_sections",
-                      top_k: 5,
+                      ...expectedBrowserSettings(command),
                     },
                   },
                   response: {
@@ -344,10 +349,10 @@ test("browser E5 and MiniLM results remain bound to distinct configurations", as
         return 0;
       },
     );
-    assert.equal(new Set(p.result.rows.map((r) => r.configuration_id)).size, 2);
+    assert.equal(new Set(p.result.rows.map((r) => r.configuration_id)).size, 4);
     assert.deepEqual(
       p.result.rows.map((r) => r.configuration.embedding_model),
-      ["minilm-multilingual", "e5-small-multilingual"],
+      ["minilm-multilingual", "e5-small-multilingual", "e5-small-multilingual", "e5-small-multilingual"],
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -371,15 +376,15 @@ test("question plan runs one current question twice across every distinct local 
   const p = cli("question-plan", {dataset:"demo-12-20261118",case_id:"P01"});
   assert.deepEqual(p.selection.case_ids,["P01"]);
   assert.equal(p.selection.repeats,2);
-  assert.deepEqual(p.groups.map((g:any)=>[g.suite,g.configuration_count,g.execution_count]),[["quality",24,48],["browser",7,14]]);
-  assert.equal(p.totals.local,62);
+  assert.deepEqual(p.groups.map((g:any)=>[g.suite,g.configuration_count,g.execution_count]),[["quality",24,48],["browser",9,18]]);
+  assert.equal(p.totals.local,66);
   assert.equal(p.totals.model,0);
 });
-test("complete-list question has twenty-four local variants and no unrelated browser questions", () => {
+test("complete-list question has thirty-three variants bound only to that frozen question", () => {
   const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01",repeats:3});
-  assert.equal(p.groups.length,1);
-  assert.equal(p.groups[0].configuration_count,24);
-  assert.equal(p.totals.local,72);
+  assert.equal(p.groups.length,2);
+  assert.deepEqual(p.groups.map((g:any)=>g.configuration_count),[24,9]);
+  assert.equal(p.totals.local,99);
 });
 test("question picker exposes current eighteen questions with explicit corpus identities",()=>{
   const c=cli("catalog");assert.equal(c.questions.length,18);
@@ -401,14 +406,14 @@ test("configuration labels explain search-result limits and expansion units",()=
  const configs=p.groups[0].configurations;
  assert.ok(configs.every((c:any)=>!/(?:^| · )k[36](?: · |$)/.test(c.label)));
  assert.ok(configs.some((c:any)=>c.label.includes("Maximaal 6 secties")));
- assert.ok(configs.some((c:any)=>c.label.includes("Maximaal 3 activiteiten")));
- assert.ok(configs.some((c:any)=>c.label.includes("Eerst 3 secties · hele activiteit")));
+ assert.ok(configs.some((c:any)=>String(c.configuration.profile).endsWith("_activities")&&c.label.includes("Maximaal 3 secties")));
+ assert.ok(configs.some((c:any)=>c.label.includes("Eerst 3 secties · activiteitcontext uitbreiden")));
 });
 
 test("question plans retain canonical file-only variants when SQLite is absent",async()=>{
  const original=process.env.COA_BENCHMARK_SQLITE;process.env.COA_BENCHMARK_SQLITE="0";
  try { const {questionPlan}=await import("./adapter.ts"); const p=questionPlan({dataset:"regression-12-20261118",case_id:"IND26-01"});
- assert.equal(p.totals.local,32);assert.ok(p.groups[0].configurations.every(c=>!String(c.configuration.profile).startsWith("sqlite_")));
+ assert.equal(p.totals.local,50);assert.ok(p.groups[0].configurations.every(c=>!String(c.configuration.profile).startsWith("sqlite_")));
  } finally {if(original===undefined)delete process.env.COA_BENCHMARK_SQLITE;else process.env.COA_BENCHMARK_SQLITE=original;}
 });
 
@@ -461,7 +466,7 @@ test("one browser encoder failure remains an explicit unknown result while indep
                       mode: "local",
                       method,
                       profile: "documents_sections",
-                      top_k: 5,
+                      ...expectedBrowserSettings(command),
                     },
                   },
                   response: {
@@ -498,15 +503,15 @@ test("one browser encoder failure remains an explicit unknown result while indep
     );
     assert.equal(
       observed.length,
-      6,
+      10,
       "planned attempts continue exactly once without retries",
     );
-    assert.equal(progress.result.rows.length, 6);
+    assert.equal(progress.result.rows.length, 10);
     assert.equal(progress.groups[0].status, "failed");
     assert.match(progress.groups[0].error || "", /ONNX/);
     assert.equal(
       new Set(progress.result.rows.map((row) => row.comparison_key)).size,
-      6,
+      10,
     );
     const errors = progress.result.rows.filter((row) => row.status === "error");
     assert.equal(errors.length, 1);
@@ -574,4 +579,74 @@ test("a failed model attempt still stops later model groups without retries", as
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("every active question plans 33 canonical configurations including two matched E5 k3 probes", async () => {
+  const { questionPlan, catalog } = await import("./adapter.ts");
+  for (const question of catalog().questions) {
+    const p = questionPlan({
+      dataset: question.dataset,
+      case_id: question.id,
+      repeats: 1,
+    });
+    assert.equal(p.totals.local, 33, question.id);
+    const browser = p.groups.find((g) => g.suite === "browser")!;
+    assert.equal(browser.configuration_count, 9, question.id);
+    const presets = browser.configurations.filter(
+      (c) =>
+        c.configuration.embedding_model === "e5-small-multilingual" &&
+        c.configuration.method === "dense" &&
+        c.configuration.top_k === 3,
+    );
+    assert.equal(presets.length, 2);
+    assert.deepEqual(presets.map((c) => c.configuration.selection).sort(), [
+      "activity_expansion",
+      "sections",
+    ]);
+  }
+});
+test("top-k labels consistently describe section limits regardless of storage record layout", async () => {
+  const { plan } = await import("./adapter.ts");
+  const p = plan({
+    datasets: ["demo-12-20261118"],
+    suites: ["quality"],
+    methods: ["dense"],
+  });
+  const activity = p.groups[0].configurations.find(
+    (c) =>
+      c.configuration.profile === "documents_activities" &&
+      c.configuration.top_k === 3,
+  )!;
+  assert.match(activity.label, /Maximaal 3 secties/);
+  assert.doesNotMatch(activity.label, /Maximaal 3 activiteiten/);
+});
+
+test("labels distinguish historic criteria and describe expansion without promising full activity context", async () => {
+  const { catalog, questionPlan } = await import("./adapter.ts");
+  const questions = catalog().questions;
+  assert.ok(
+    questions
+      .find((q) => q.id === "P01")!
+      .title.includes("Historische criteria"),
+  );
+  assert.ok(
+    questions
+      .find((q) => q.id === "RAG26-01")!
+      .title.includes("Kwaliteitseval"),
+  );
+  const expanded = questionPlan({
+    dataset: "demo-12-20261118",
+    case_id: "RAG26-01",
+    repeats: 1,
+  })
+    .groups.flatMap((g) => g.configurations)
+    .filter((c) => c.configuration.selection === "activity_expansion");
+  assert.ok(expanded.length > 0);
+  assert.ok(
+    expanded.every(
+      (c) =>
+        c.label.includes("activiteitcontext uitbreiden") &&
+        !c.label.includes("hele activiteit"),
+    ),
+  );
 });

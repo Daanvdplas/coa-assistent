@@ -10,6 +10,17 @@ function fixture(metrics) {
   success:false,latencyMs:3,gradingResult:{pass:false,reason:'Bronnen ontbreken',componentResults:[{pass:false,score:0.5,reason:'1 van 2 bewijsdoelen',metadata:{source_metrics:metrics}}]},private:'PRIVATE'
  }]}};
 }
+test('prepared-index query clock is direct, stages remain separate and old totals stay unknown',()=>{
+ const input=fixture({target_goals:1,covered_goals:1,source_quality_applicable:true});
+ const record=input.results.results[0].response.output.record;
+ record.timings={query_total_ms:120,query_embedding_ms:110,retrieval_ms:8,query_embedding_cache_hit:false};
+ record.preparation={preparation_id:'prep-1',profile_preparation_ms:900,document_embedding_ms:700,model_load_ms:400};
+ const row=project(input).evaluations[0].rows[0];
+ assert.deepEqual(row.rag_timing,{query_total_ms:120,scope:'prepared_index_query',query_embedding_ms:110,query_embedding_cache_hit:false,ranking_ms:8});
+ assert.deepEqual(row.rag_preparation,{preparation_id:'prep-1',profile_preparation_ms:900,document_embedding_ms:700,model_load_ms:400});
+ delete record.timings.query_total_ms;
+ assert.equal(project(input).evaluations[0].rows[0].rag_timing.query_total_ms,null);
+});
 test('actual source failures remain failures and public output only includes allowed evidence',()=>{
  const result=project(fixture({target_goals:2,covered_goals:1,source_quality_applicable:true}));
  assert.equal(result.evaluations[0].rows[0].status,'failed');

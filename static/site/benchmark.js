@@ -316,7 +316,12 @@ function pollRun() {
   }, 1000);
 }
 function variantLabel(config) {
-  if (config.label && !/\bk\d+\b/.test(config.label)) return config.label;
+  if (
+    config.label &&
+    !config.configuration?.top_k &&
+    !/\bk\d+\b/.test(config.label)
+  )
+    return config.label;
   const value = config.configuration || {},
     name = (items, id) => items?.find((item) => item.id === id)?.label || id;
   const expanded =
@@ -325,7 +330,7 @@ function variantLabel(config) {
   const limit = value.top_k
     ? expanded
       ? `Eerst ${value.top_k} secties · hele activiteit`
-      : `Maximaal ${value.top_k} ${String(value.profile).endsWith("_activities") ? "activiteiten" : "secties"}`
+      : `Maximaal ${value.top_k} secties`
     : "";
   return [
     name(state.catalog.methods, value.method),
@@ -392,22 +397,20 @@ function variantSettings(column, row) {
           ? String(identity).split("@")[0].split("/").at(-1)
           : "Onbekend",
     storage: profile.startsWith("sqlite_")
-      ? "SQLite"
+      ? `SQLite · ${profile.endsWith("_activities") ? "activiteiten" : "secties"}`
       : profile.startsWith("documents_")
-        ? "Bestanden"
+        ? `Bestanden · ${profile.endsWith("_activities") ? "activiteiten" : "secties"}`
         : "Onbekend",
-    searches: profile.endsWith("_activities")
-      ? "Activiteiten"
-      : profile.endsWith("_sections")
+    searches:
+      profile.endsWith("_activities") || profile.endsWith("_sections")
         ? "Bronsecties"
         : "Onbekend",
     selection: Number.isInteger(value.top_k)
-      ? `${value.top_k} ${profile.endsWith("_activities") ? "activiteiten" : "bronsecties"}`
+      ? `${value.top_k} bronsecties`
       : "—",
     expansion:
       value.selection === "activity_expansion" ||
-      value.context_mode === "activity_expand" ||
-      profile.endsWith("_activities")
+      value.context_mode === "activity_expand"
         ? "Ja"
         : "Nee",
     filters: value.apply_filters ? "Uit de vraag" : "Nee",
@@ -435,6 +438,16 @@ function retrievedActivities(row) {
   return Number.isInteger(actual.activities) && actual.activities >= 0
     ? String(actual.activities)
     : "Onbekend";
+}
+function measuredMilliseconds(value, unknown = "Onbekend") {
+  return Number.isFinite(value) && value >= 0
+    ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 3 }).format(value)
+    : unknown;
+}
+function queryTiming(row, field) {
+  return row?.rag_timing?.scope === "prepared_index_query"
+    ? row.rag_timing[field]
+    : null;
 }
 function evidenceGoals(row) {
   const metrics = row?.metrics;
@@ -595,19 +608,33 @@ function renderRun() {
       "timing",
       runMode(run) === "assistant"
         ? "Gemeten uitvoertijd (ms)"
-        : "Gemeten zoektijd (ms)",
+        : "Zoektijd incl. query-embedding (ms)",
       (row) => {
-        const value =
-          row?.[
-            runMode(run) === "assistant" ? "native_elapsed_ms" : "retrieval_ms"
-          ];
-        return Number.isFinite(value)
-          ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 3 }).format(
-              value,
-            )
-          : "—";
+        if (!row) return "—";
+        return measuredMilliseconds(
+          runMode(run) === "assistant"
+            ? row.native_elapsed_ms
+            : queryTiming(row, "query_total_ms"),
+        );
       },
     ],
+    ...(runMode(run) !== "assistant" &&
+    records.some(({ row }) =>
+      Number.isFinite(row?.rag_preparation?.profile_preparation_ms),
+    )
+      ? [
+          [
+            "preparation",
+            "Indexvoorbereiding (gedeeld, ms)",
+            (row) =>
+              row
+                ? measuredMilliseconds(
+                    row.rag_preparation?.profile_preparation_ms,
+                  )
+                : "—",
+          ],
+        ]
+      : []),
     [
       "execution",
       "Uitvoeringstatus",
@@ -1048,11 +1075,54 @@ function renderEvidence(item, columns, repeat, close) {
     )
   )
     section.append(el("p", "Geen broncontrole beschikbaar."));
-  const timingField = assistant ? "native_elapsed_ms" : "retrieval_ms";
-  const measured = records.map(
-    ({ row }) => row?.[timingField] ?? row?.metrics?.[timingField],
-  );
-  if (measured.some(Number.isFinite)) {
+  const timingRows = assistant
+    ? [["Gemeten uitvoertijd (ms)", (row) => row?.native_elapsed_ms]]
+    : [
+        [
+          "Rankingstijd (ms)",
+          (row) =>
+            queryTiming(row, "ranking_ms") ??
+            row?.retrieval_ms ??
+            row?.metrics?.retrieval_ms,
+        ],
+        [
+          "Query-embedding (ms)",
+          (row) => queryTiming(row, "query_embedding_ms"),
+        ],
+        [
+          "Query-embedding uit cache",
+          (row) => queryTiming(row, "query_embedding_cache_hit"),
+          (value) => (value === true ? "Ja" : value === false ? "Nee" : "—"),
+        ],
+        [
+          "Model laden (gedeeld, ms)",
+          (row) => row?.rag_preparation?.model_load_ms,
+        ],
+        [
+          "Documentembeddings (gedeeld, ms)",
+          (row) => row?.rag_preparation?.document_embedding_ms,
+        ],
+        [
+          "Opslag synchroniseren (gedeeld, ms)",
+          (row) => row?.rag_preparation?.storage_sync_ms,
+        ],
+        [
+          "Opslag laden (gedeeld, ms)",
+          (row) => row?.rag_preparation?.storage_load_ms,
+        ],
+      ];
+  for (const [
+    title,
+    valueFor,
+    format = (value) => measuredMilliseconds(value, "—"),
+  ] of timingRows) {
+    const measured = records.map(({ row }) => valueFor(row));
+    if (
+      !measured.some(
+        (value) => Number.isFinite(value) || typeof value === "boolean",
+      )
+    )
+      continue;
     let body = section.querySelector("table tbody");
     if (!body) {
       const times = table(["Meting", ...columns.map((column) => column.label)]);
@@ -1060,21 +1130,11 @@ function renderEvidence(item, columns, repeat, close) {
       section.append(times.scroll);
     }
     const tr = el("tr"),
-      label = el(
-        "th",
-        assistant ? "Gemeten uitvoertijd (ms)" : "Gemeten zoektijd (ms)",
-      );
+      label = el("th", title);
     label.scope = "row";
     tr.append(label);
     for (const value of measured) {
-      const td = el(
-        "td",
-        Number.isFinite(value)
-          ? new Intl.NumberFormat("nl-NL", { maximumFractionDigits: 3 }).format(
-              value,
-            )
-          : "—",
-      );
+      const td = el("td", format(value));
       if (Number.isFinite(value)) td.title = String(value) + " ms";
       tr.append(td);
     }

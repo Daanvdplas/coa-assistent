@@ -10,7 +10,7 @@ import { project, saveProjection } from './export_promptfoo_results.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const options = {};
 const args = process.argv.slice(2);
-const allowed = new Set(['suite','dataset','cases','methods','profiles','models','binary','model-cache','output-dir','ledger','max-generations','max-seconds','repeat','phase','approval','eval-id','embedding-model']);
+const allowed = new Set(['suite','dataset','cases','methods','profiles','models','binary','model-cache','output-dir','ledger','max-generations','max-seconds','repeat','phase','approval','eval-id','embedding-model','browser-preset']);
 for (let i=0;i<args.length;i++) {
   const key = args[i].replace(/^--/,'');
   if (key==='help') { console.log('Gebruik: npm run eval:rag -- --suite garden|retrieval|quality|compact|all-local [--dataset ID --cases ID --methods METHOD --profiles PROFILE]\nBrowser: --suite browser --eval-id ID --methods METHOD --embedding-model minilm-multilingual|e5-small-multilingual --no-publish\nCodex: npm run eval:rag:live -- --suite agentic|models|compact-live --ledger PAD --max-generations 8 --max-seconds 900 [--phase pilot|remaining|smoke --approval PAD --repeat 1]'); process.exit(0); }
@@ -22,7 +22,8 @@ for (let i=0;i<args.length;i++) {
 const suite = options.suite || 'retrieval';
 const { suitesFor } = createRequire(import.meta.url)('../promptfoo/cases.cjs');
 const suites = suitesFor(suite, options.dataset);
-if (suite!=='browser' && (options['eval-id'] || options['embedding-model'])) throw new Error('--eval-id en --embedding-model horen uitsluitend bij browser.');
+if (suite!=='browser' && (options['eval-id'] || options['embedding-model'] || options['browser-preset'])) throw new Error('--eval-id, --embedding-model en --browser-preset horen uitsluitend bij browser.');
+if (options['browser-preset']) createRequire(import.meta.url)('../promptfoo/browser_cases.cjs').browserPreset(options['browser-preset']);
 if (suite==='browser' && !options['eval-id']) throw new Error('Browser vereist --eval-id voor één bestaande test.');
 if (suite==='browser' && options.live) throw new Error('Browser zoekt uitsluitend lokaal, zonder live-generaties.');
 if (suite==='browser' && options.repeat && options.repeat!=='1') throw new Error('Browser voert één bestaande test eenmaal uit.');
@@ -51,7 +52,7 @@ if (options.repeat) env.COA_PROMPTFOO_REPEATS=options.repeat;
 for (const name of ['COA_PROMPTFOO_PHASE','COA_PROMPTFOO_APPROVAL']) delete env[name];
 if (options.phase) env.COA_PROMPTFOO_PHASE=options.phase;
 if (options.approval) env.COA_PROMPTFOO_APPROVAL=resolve(options.approval);
-for (const [flag,name] of Object.entries({dataset:'DATASET',cases:'CASES',methods:'METHODS',profiles:'PROFILES',models:'MODELS','eval-id':'EVAL_ID','embedding-model':'EMBEDDING_MODEL'})) if (options[flag]) env['COA_PROMPTFOO_'+name]=options[flag];
+for (const [flag,name] of Object.entries({dataset:'DATASET',cases:'CASES',methods:'METHODS',profiles:'PROFILES',models:'MODELS','eval-id':'EVAL_ID','embedding-model':'EMBEDDING_MODEL','browser-preset':'BROWSER_PRESET'})) if (options[flag]) env['COA_PROMPTFOO_'+name]=options[flag];
 if (options.live) Object.assign(env,{COA_PROMPTFOO_ALLOW_CODEX:'1',COA_PROMPTFOO_LEDGER:resolve(options.ledger),COA_PROMPTFOO_MAX_GENERATIONS:options['max-generations'],COA_PROMPTFOO_MAX_SECONDS:options['max-seconds']});
 else delete env.COA_PROMPTFOO_ALLOW_CODEX;
 let interrupted = false;

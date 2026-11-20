@@ -34,6 +34,9 @@ const canonical = require("../rag/promptfoo/cases.cjs") as {
   };
   questions: (dataset: string) => Variables[];
 };
+const browserCatalog = require("../rag/promptfoo/browser_cases.cjs") as {
+  activeBrowserCases(): { id: string; dataset: string; case_id: string }[];
+};
 const DEMO = "demo-12-20261118";
 const REGRESSION = "regression-12-20261118";
 const methods = [
@@ -95,10 +98,10 @@ const suites: Suite[] = [
   },
   {
     id: "browser",
-    label: "Drie bronproeven",
+    label: "Zoekmethode en embeddingmodel",
     family: "retrieval",
     kind: "local",
-    datasets: [DEMO],
+    datasets: [DEMO, REGRESSION],
   },
   {
     id: "garden",
@@ -243,10 +246,13 @@ const datasetLabels: Record<string, string> = {
   garden: "Tuinregressie · vijf documenten",
 };
 export function catalog() {
+  const qualitySelectionBytes = readFileSync(join(ROOT, "evals/shared/selections/rag-quality-12-20261120.json"));
+  const qualitySelection = JSON.parse(qualitySelectionBytes.toString());
   return {
     schema_version: 1,
+    quality_selection: { id: qualitySelection.id, sha256: digest(qualitySelectionBytes) },
     questions: [DEMO, REGRESSION].flatMap(dataset => inputs(dataset).map(row => ({
-      id: row.case_id, case_id: row.case_id, dataset, question: row.question, title: row.question + (["P01","T02"].includes(row.case_id) ? " · Evals" : ["RAG26-01","RAG26-03"].includes(row.case_id) ? " · Ontwikkeling" : ""),
+      id: row.case_id, case_id: row.case_id, dataset, question: row.question, title: row.question + (["P01","T02"].includes(row.case_id) ? " · Historische criteria" : ["RAG26-01","RAG26-03"].includes(row.case_id) ? " · Kwaliteitseval" : ""),
       corpus_sha256: read(questionPath(dataset)).corpus_sha256,
       supported_modes: ["rag", "assistant"],
     }))),
@@ -453,7 +459,7 @@ function configLabel(c: Record<string, unknown>) {
     c.embedding_model
       ? encoders.find((e) => e.id === c.embedding_model)?.label
       : null,
-    c.top_k ? c.selection === "activity_expansion" ? `Eerst ${c.top_k} secties · hele activiteit` : `Maximaal ${c.top_k} ${String(c.profile).endsWith("_activities") ? "activiteiten" : "secties"}` : null,
+    c.top_k ? c.selection === "activity_expansion" ? `Eerst ${c.top_k} secties · activiteitcontext uitbreiden` : `Maximaal ${c.top_k} secties` : null,
     c.apply_filters ? "Filters" : null,
     c.payload_mode,
     c.mode === "codex" ? c.model : null,
@@ -483,38 +489,56 @@ function testsFor(s: Suite, dataset: string, sel: Selection): CanonicalCase[] {
       );
   }
   if (s.id === "browser") {
-    const browser = {
-      "garden-time-location": "P01",
-      "indoor-tuesday": "T02",
-      "two-activities": "T05",
-    };
-    return Object.keys(browser)
-      .flatMap((id) =>
-        (sel.methods.length ? sel.methods : methods.map((m) => m.id))
-          .filter((m) => m !== "keyword_overlap")
-          .flatMap((method) =>
-            (method === "bm25"
-              ? ["minilm-multilingual"]
-              : sel.embedding_models.length
-                ? sel.embedding_models
-                : encoders.map((e) => e.id)
-            ).flatMap(
-              (encoder) =>
-                canonical.buildConfig({
-                  COA_PROMPTFOO_SUITE: "browser",
-                  COA_PROMPTFOO_EVAL_ID: id,
-                  COA_PROMPTFOO_METHODS: method,
-                  COA_PROMPTFOO_EMBEDDING_MODEL: encoder,
-                }).tests,
-            ),
+    const selectedMethods = (
+      sel.methods.length ? sel.methods : methods.map((method) => method.id)
+    ).filter((method) => method !== "keyword_overlap");
+    const selectedEncoders = sel.embedding_models.length
+      ? sel.embedding_models
+      : encoders.map((encoder) => encoder.id);
+    return browserCatalog
+      .activeBrowserCases()
+      .filter(
+        (row) =>
+          row.dataset === dataset &&
+          (!sel.case_ids.length || sel.case_ids.includes(row.case_id)),
+      )
+      .flatMap((row) => {
+        const standard = selectedMethods.flatMap((method) =>
+          (method === "bm25"
+            ? ["minilm-multilingual"]
+            : selectedEncoders
+          ).flatMap(
+            (encoder) =>
+              canonical.buildConfig({
+                COA_PROMPTFOO_SUITE: "browser",
+                COA_PROMPTFOO_EVAL_ID: row.id,
+                COA_PROMPTFOO_DATASET: dataset,
+                COA_PROMPTFOO_METHODS: method,
+                COA_PROMPTFOO_EMBEDDING_MODEL: encoder,
+              }).tests,
           ),
-      )
+        );
+        const matchedE5 =
+          selectedMethods.includes("dense") &&
+          selectedEncoders.includes("e5-small-multilingual")
+            ? ["dense-k3-sections", "dense-k3-activity-expansion"].flatMap(
+                (preset) =>
+                  canonical.buildConfig({
+                    COA_PROMPTFOO_SUITE: "browser",
+                    COA_PROMPTFOO_EVAL_ID: row.id,
+                    COA_PROMPTFOO_DATASET: dataset,
+                    COA_PROMPTFOO_METHODS: "dense",
+                    COA_PROMPTFOO_EMBEDDING_MODEL: "e5-small-multilingual",
+                    COA_PROMPTFOO_BROWSER_PRESET: preset,
+                  }).tests,
+              )
+            : [];
+        return [...standard, ...matchedE5];
+      })
       .filter(
-        (t) => !sel.case_ids.length || sel.case_ids.includes(t.vars.case_id),
-      )
-      .filter(
-        (t) =>
-          !sel.profiles.length || sel.profiles.includes(String(t.vars.profile)),
+        (test) =>
+          !sel.profiles.length ||
+          sel.profiles.includes(String(test.vars.profile)),
       );
   }
   const env: Record<string, string> = { COA_PROMPTFOO_SUITE: s.id };
@@ -963,6 +987,7 @@ async function rag(
             "--embedding-model",
             String(variant!.vars.embedding_model),
           );
+          if (variant!.vars.browser_preset) command.push("--browser-preset", String(variant!.vars.browser_preset));
         } else if (group.suite !== "models") {
           if (sel.methods.length)
             command.push("--methods", sel.methods.join(","));

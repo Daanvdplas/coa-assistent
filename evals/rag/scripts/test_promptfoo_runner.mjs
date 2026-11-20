@@ -24,3 +24,10 @@ test('browser execution requires one existing test and never accepts live genera
  const result=spawnSync(process.execPath,['evals/rag/scripts/run_promptfoo.mjs','--suite','browser','--no-publish','--binary','/nonexistent-runtime'],{encoding:'utf8'});
  assert.notEqual(result.status,0);assert.match(result.stderr,/browser.*eval-id/i);
 });
+
+test('typed browser preset flags cannot escape the browser runner or name an unknown preset',()=>{
+ const elsewhere=spawnSync(process.execPath,['evals/rag/scripts/run_promptfoo.mjs','--suite','retrieval','--browser-preset','dense-k3-sections','--binary','/nonexistent-runtime'],{encoding:'utf8'});
+ assert.notEqual(elsewhere.status,0);assert.match(elsewhere.stderr,/uitsluitend.*browser/);
+ const unknown=spawnSync(process.execPath,['evals/rag/scripts/run_promptfoo.mjs','--suite','browser','--eval-id','quality-garden','--browser-preset','invented','--binary','/nonexistent-runtime'],{encoding:'utf8'});
+ assert.notEqual(unknown.status,0);assert.match(unknown.stderr,/unknown.*preset/i);
+});

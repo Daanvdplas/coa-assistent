@@ -47,12 +47,28 @@ export interface Settings extends Config {
   model: string;
   payload_mode?: string;
 }
+export type BrowserPreset =
+  | "standard"
+  | "dense-k3-sections"
+  | "dense-k3-activity-expansion";
+export interface BrowserCaseBinding {
+  id: string;
+  dataset: string;
+  case_id: string;
+  question: string;
+  corpus_sha256: string;
+  as_of: string;
+  dataset_version: string;
+  title?: string;
+}
 export interface Variables extends Settings {
   dataset: string;
   case_id: string;
   question: string;
   filters?: Filters;
   browser_eval_id?: string;
+  browser_preset?: BrowserPreset;
+  corpus_sha256?: string;
   embedding_model?: string;
   payload_mode?: string;
   replay_path?: string;
@@ -251,6 +267,12 @@ export interface NativeRecord {
   status?: string;
   execution_status: string;
   execution_kind: string;
+  timings?: {
+    query_total_ms?: number | null;
+    query_embedding_ms?: number | null;
+    query_embedding_cache_hit?: boolean | null;
+    retrieval_ms?: number | null;
+  };
   live?: LiveRecord;
 }
 export interface GardenRecord {

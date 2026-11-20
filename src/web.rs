@@ -1003,7 +1003,27 @@ mod tests {
                 .unwrap();
             let catalog: Value = serde_json::from_slice(&bytes).unwrap();
             assert_eq!(catalog["can_run"], expected);
-            assert_eq!(catalog["evals"].as_array().unwrap().len(), 3);
+            let evaluations = catalog["evals"].as_array().unwrap();
+            assert_eq!(evaluations.len(), 12);
+            let questions: std::collections::BTreeSet<_> = evaluations
+                .iter()
+                .map(|row| row["question"].as_str().unwrap())
+                .collect();
+            assert_eq!(
+                questions.len(),
+                12,
+                "Canonical cards must not duplicate legacy question text"
+            );
+            assert!(evaluations.iter().any(|row| row["case_id"] == "RAG26-01"));
+            assert!(
+                evaluations.iter().any(|row| row["case_id"] == "IND26-01"
+                    && row["dataset"] == "regression-12-20261118")
+            );
+            assert!(
+                !evaluations
+                    .iter()
+                    .any(|row| row["case_id"] == "P01" || row["case_id"] == "T02")
+            );
             assert_eq!(catalog["embedding_models"][0]["available"], true);
         }
     }

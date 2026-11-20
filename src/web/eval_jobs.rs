@@ -13,15 +13,61 @@ use tokio::{process::Command, sync::watch};
 const TIMEOUT: Duration = Duration::from_secs(300);
 const WINDOW: Duration = Duration::from_secs(3600);
 const MAX_LOG: u64 = 1024 * 1024;
-const EVALS: [(&str, &str, &str); 3] = [
+const QUALITY_SELECTION: &str =
+    include_str!("../../evals/shared/selections/rag-quality-12-20261120.json");
+#[derive(Clone, Deserialize)]
+struct Definition {
+    id: String,
+    dataset_id: String,
+    case_id: String,
+    title: String,
+}
+fn definitions() -> Vec<Definition> {
+    let selection: Value =
+        serde_json::from_str(QUALITY_SELECTION).expect("Valid quality selection");
+    let mut definitions: Vec<Definition> =
+        serde_json::from_value(selection["cases"].clone()).expect("Valid quality references");
+    definitions.push(Definition {
+        id: "two-activities".into(),
+        dataset_id: "demo-12-20261118".into(),
+        case_id: "T05".into(),
+        title: "Twee activiteiten plannen".into(),
+    });
+    definitions
+}
+fn definition(id: &str) -> Option<Definition> {
+    definitions()
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .or_else(|| {
+            let (case_id, title) = match id {
+                "garden-time-location" => ("P01", "Tijd en locatie van tuinieren"),
+                "indoor-tuesday" => ("T02", "Binnen op dinsdag"),
+                _ => return None,
+            };
+            Some(Definition {
+                id: id.into(),
+                dataset_id: "demo-12-20261118".into(),
+                case_id: case_id.into(),
+                title: title.into(),
+            })
+        })
+}
+fn inputs(dataset_id: &str) -> (Value, Value) {
+    use meedoen_retrieval::retrieval_lab::dataset;
+    let (questions, expectations) = if dataset_id == dataset::REGRESSION_ID {
+        (
+            dataset::REGRESSION_QUESTIONS,
+            dataset::REGRESSION_EXPECTATIONS,
+        )
+    } else {
+        (dataset::DEMO_QUESTIONS, dataset::DEMO_EXPECTATIONS)
+    };
     (
-        "garden-time-location",
-        "P01",
-        "Tijd en locatie van tuinieren",
-    ),
-    ("indoor-tuesday", "T02", "Binnen op dinsdag"),
-    ("two-activities", "T05", "Twee activiteiten plannen"),
-];
+        serde_json::from_str(questions).unwrap(),
+        serde_json::from_str(expectations).unwrap(),
+    )
+}
 
 fn reject(status: StatusCode, code: &str, message: &str) -> ApiError {
     ApiError {
@@ -97,7 +143,7 @@ pub(super) struct Start {
 }
 impl Start {
     fn validate(&self) -> Result<(), ApiError> {
-        if !EVALS.iter().any(|row| row.0 == self.eval_id)
+        if definition(&self.eval_id).is_none()
             || !["dense", "bm25", "hybrid_rrf", "hybrid_weighted"].contains(&self.method.as_str())
             || self.embedding_model.parse::<ModelChoice>().is_err()
         {
@@ -171,7 +217,11 @@ impl EvalJobs {
             && let Some(entry) = book.entries.get_mut(id)
         {
             entry.snapshot["status"] = json!(status);
-            if let Some(result) = result {
+            if let Some(mut result) = result {
+                super::benchmark_sources::enrich_eval(
+                    &mut result,
+                    meedoen_retrieval::corpus::CorpusId::DemoTwelve,
+                );
                 let identity = result["rows"][0]["embedding_identity"].clone();
                 entry.snapshot["embedding_identity"] = identity.clone();
                 entry.snapshot["embedding_model"] = if identity.is_object() {
@@ -269,7 +319,8 @@ impl EvalJobs {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let (tx, rx) = watch::channel(false);
-        let snapshot = json!({"run_id":id,"eval_id":input.eval_id,"dataset":meedoen_retrieval::retrieval_lab::dataset::DEMO_ID,"method":input.method,"requested_embedding_model":input.embedding_model,"embedding_model":null,"embedding_identity":null,"status":"preparing","progress":{"completed":0,"total":1}});
+        let selected = definition(&input.eval_id).expect("Validated evaluation");
+        let snapshot = json!({"run_id":id,"eval_id":input.eval_id,"dataset":selected.dataset_id,"case_id":selected.case_id,"method":input.method,"requested_embedding_model":input.embedding_model,"embedding_model":null,"embedding_identity":null,"status":"preparing","progress":{"completed":0,"total":1}});
         book.entries.insert(
             id.clone(),
             Entry {
@@ -291,14 +342,12 @@ pub(super) async fn catalog(
     headers: HeaderMap,
 ) -> Json<Value> {
     let can_run = require_local(peer, &headers).is_ok();
-    use meedoen_retrieval::retrieval_lab::dataset;
-    let questions: Value = serde_json::from_str(dataset::DEMO_QUESTIONS).unwrap();
-    let labels: Value = serde_json::from_str(dataset::DEMO_EXPECTATIONS).unwrap();
     let corpus = meedoen_retrieval::corpus::CorpusId::DemoTwelve;
     let sources = corpus.sources().unwrap();
-    let evaluations:Vec<_>=EVALS.iter().map(|(id,case,title)| {
-        let question=questions["cases"].as_array().unwrap().iter().find(|row|row["id"]==*case).unwrap();
-        let criteria=labels["cases"].as_array().unwrap().iter().find(|row|row["case_id"]==*case).unwrap();
+    let evaluations:Vec<_>=definitions().into_iter().map(|entry| {
+        let (questions,labels)=inputs(&entry.dataset_id);
+        let question=questions["cases"].as_array().unwrap().iter().find(|row|row["id"]==entry.case_id).unwrap();
+        let criteria=labels["cases"].as_array().unwrap().iter().find(|row|row["case_id"]==entry.case_id).unwrap();
         let goals:Vec<_>=criteria["facts"].as_array().unwrap().iter().filter(|fact|fact["evidence_alternatives"].as_array().is_some_and(|value|!value.is_empty())).map(|fact| {
             let alternatives:Vec<Vec<Value>>=fact["evidence_alternatives"].as_array().unwrap().iter().map(|option|option.as_array().unwrap().iter().map(|reference| {
                 let source=sources.iter().find(|source|source.id==reference["source_id"].as_str().unwrap()).unwrap();
@@ -307,7 +356,7 @@ pub(super) async fn catalog(
             }).collect()).collect();
             json!({"id":fact["id"],"description":fact["description"],"alternatives":alternatives})
         }).collect();
-        json!({"id":id,"case_id":case,"title":title,"question":question["question"],"description":"Een vaste vraag op twaalf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"dataset":dataset::DEMO_ID,"dataset_version":questions["dataset_version"],"corpus":{"id":corpus.id(),"sha256":corpus.sha256(),"document_count":12,"section_count":72,"as_of":corpus.as_of()},"expected_goals":goals})
+        json!({"id":entry.id,"case_id":entry.case_id,"title":entry.title,"question":question["question"],"description":"Een vaste vraag op twaalf fictieve activiteiten. Hetzelfde corpus en dezelfde bronverwachtingen voor iedere vergelijking.","question_count":1,"top_k":5,"context_token_limit":1200,"dataset":entry.dataset_id,"dataset_version":questions["dataset_version"],"corpus":{"id":corpus.id(),"sha256":corpus.sha256(),"document_count":12,"section_count":72,"as_of":corpus.as_of()},"expected_goals":goals})
     }).collect();
     let models:Vec<_>=ModelChoice::all().iter().map(|model|json!({"id":model.id(),"label":model.spec().label,"repository":model.spec().repository,"dimensions":model.spec().dimensions,"available":true,"cached":model.cached(&jobs.cache)})).collect();
     Json(
@@ -570,10 +619,10 @@ async fn execute(
     let value: Value = serde_json::from_slice(&std::fs::read(path).map_err(|_| "eval_output")?)
         .map_err(|_| "eval_output")?;
     let rows = value["rows"].as_array().ok_or("eval_output")?;
-    let expected = EVALS.iter().find(|row| row.0 == input.eval_id).unwrap();
+    let expected = definition(&input.eval_id).unwrap();
     if rows.len() != 1
-        || rows[0]["case_id"] != expected.1
-        || rows[0]["dataset"] != meedoen_retrieval::retrieval_lab::dataset::DEMO_ID
+        || rows[0]["case_id"] != expected.case_id
+        || rows[0]["dataset"] != expected.dataset_id
         || rows[0]["configuration"]["method"] != input.method
         || !matches!(rows[0]["status"].as_str(), Some("passed" | "failed"))
         || !rows[0]["source_complete"].is_boolean()
@@ -586,6 +635,90 @@ async fn execute(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn direct_eval_projects_actual_required_sections_without_turning_bundled_goals_into_counts() {
+        let jobs = EvalJobs::new();
+        let input = Start {
+            eval_id: "garden-time-location".into(),
+            method: "bm25".into(),
+            embedding_model: "minilm-multilingual".into(),
+        };
+        let (id, _) = jobs
+            .reserve("test", "127.0.0.1".parse().unwrap(), &input)
+            .unwrap();
+        let sections: Vec<_> = meedoen_retrieval::corpus::CorpusId::DemoTwelve
+            .sources()
+            .unwrap()
+            .into_iter()
+            .flat_map(|source| source.sections)
+            .collect();
+        let section = sections
+            .iter()
+            .find(|section| section.source_id == "ACT-TUIN-001" && section.id == "S2")
+            .unwrap();
+        let corpus =
+            meedoen_retrieval::retrieval::PreparedCorpus::new(sections.clone(), None, None)
+                .unwrap();
+        let result = json!({"sources":{"actual":section},"rows":[{"case_id":"RAG26-01","status":"failed","metrics":{"covered_goals":0,"target_goals":1},"corpus_identity":{"source_sha256":corpus.identity.source_sha256},"goals":[{"alternatives":[[{"source_id":"ACT-TUIN-001","section_id":"S2"},{"source_id":"ACT-TUIN-001","section_id":"S3"}]]}],"calls":[{"status":"completed","hits":["actual"]}]}]});
+        jobs.update(&id, "completed", Some(result), None);
+        let value = jobs.get("test", &id).unwrap();
+        assert_eq!(
+            value["result"]["rows"][0]["required_source_coverage"]["found"],
+            1
+        );
+        assert_eq!(
+            value["result"]["rows"][0]["required_source_coverage"]["total"],
+            2
+        );
+        assert_eq!(value["result"]["rows"][0]["metrics"]["covered_goals"], 0);
+    }
+    #[test]
+    fn quality_cards_use_canonical_cases_and_legacy_routes_keep_their_criteria() {
+        assert_eq!(
+            definitions().len(),
+            12,
+            "Eleven approved quality questions plus T05"
+        );
+        let jobs = EvalJobs::new();
+        for id in [
+            "quality-garden",
+            "quality-indoor",
+            "quality-sunday",
+            "quality-complete-options",
+        ] {
+            let input = Start {
+                eval_id: id.into(),
+                method: "dense".into(),
+                embedding_model: "e5-small-multilingual".into(),
+            };
+            assert!(
+                input.validate().is_ok(),
+                "{id} must run through the public local route"
+            );
+        }
+        for (id, dataset, case_id) in [
+            ("garden-time-location", "demo-12-20261118", "P01"),
+            ("indoor-tuesday", "demo-12-20261118", "T02"),
+            (
+                "quality-complete-options",
+                "regression-12-20261118",
+                "IND26-01",
+            ),
+        ] {
+            let input = Start {
+                eval_id: id.into(),
+                method: "bm25".into(),
+                embedding_model: "minilm-multilingual".into(),
+            };
+            let (run, _) = jobs
+                .reserve("test", "127.0.0.1".parse().unwrap(), &input)
+                .unwrap();
+            let snapshot = jobs.get("test", &run).unwrap();
+            assert_eq!(snapshot["dataset"], dataset);
+            assert_eq!(snapshot["case_id"], case_id);
+            jobs.update(&run, "completed", None, None);
+        }
+    }
     #[test]
     fn only_fixed_local_selections_reserve_work_and_results_remain_owner_scoped() {
         let jobs = EvalJobs::new();

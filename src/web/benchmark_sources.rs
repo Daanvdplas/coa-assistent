@@ -323,6 +323,25 @@ fn actual_retrieval(
     json!({"activities":activities.len(),"sections":sections.len(),"applicable":true})
 }
 
+/// Direct local evals have a fixed validated corpus instead of a benchmark plan.
+/// Use the identical actual-text/corpus gate without changing their gold scores.
+pub(super) fn enrich_eval(result: &mut Value, corpus: CorpusId) {
+    let corpora = canonical_corpora();
+    let identity = corpus.sha256();
+    let Some(mut rows) = result
+        .as_object_mut()
+        .and_then(|result| result.remove("rows"))
+    else {
+        return;
+    };
+    if let (Some(rows), Some(sources)) = (rows.as_array_mut(), result["sources"].as_object()) {
+        for row in rows {
+            row["required_source_coverage"] = projection(row, sources, Some(&identity), &corpora);
+            row["actual_retrieval"] = actual_retrieval(row, sources, Some(&identity), &corpora);
+        }
+    }
+    result["rows"] = rows;
+}
 pub(super) fn enrich(snapshot: &mut Value) {
     let identities: BTreeMap<_, _> = snapshot["plan"]["groups"]
         .as_array()

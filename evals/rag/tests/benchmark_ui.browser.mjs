@@ -9,6 +9,12 @@ const { chromium } = require(
   process.env.COA_PLAYWRIGHT_CORE || "playwright-core",
 );
 const root = new URL("../../../", import.meta.url);
+const qualitySelection = JSON.parse(
+  await readFile(
+    new URL("evals/shared/selections/rag-quality-12-20261120.json", root),
+    "utf8",
+  ),
+).cases;
 let server, browser, base;
 const dataset = "demo-12-20261118";
 const questions = Array.from({ length: 18 }, (_, i) => ({
@@ -21,7 +27,9 @@ const questions = Array.from({ length: 18 }, (_, i) => ({
           ? "T05"
           : i === 17
             ? "IND26-01"
-            : "CASE-" + i,
+            : i < 13
+              ? "RAG26-" + String(i - 2).padStart(2, "0")
+              : "CASE-" + i,
   case_id:
     i === 0
       ? "P01"
@@ -31,8 +39,10 @@ const questions = Array.from({ length: 18 }, (_, i) => ({
           ? "T05"
           : i === 17
             ? "IND26-01"
-            : "CASE-" + i,
-  dataset,
+            : i < 13
+              ? "RAG26-" + String(i - 2).padStart(2, "0")
+              : "CASE-" + i,
+  dataset: i === 17 ? "regression-12-20261118" : dataset,
   question:
     i === 0
       ? "Waar en wanneer kan ik tuinieren?"
@@ -259,6 +269,7 @@ async function fixture({
   running = false,
   repeats = 2,
   partial = false,
+  timed = false,
 } = {}) {
   const page = await browser.newPage({
     viewport: mobile
@@ -280,6 +291,21 @@ async function fixture({
     firstLost = uncertain,
     cancelled = false;
   if (current && running) current.status = "running";
+  if (current && timed) {
+    current.result.rows[0].rag_timing = {
+      scope: "prepared_index_query",
+      query_total_ms: 100,
+      ranking_ms: 4.609042,
+      query_embedding_ms: 20,
+      query_embedding_cache_hit: false,
+    };
+    current.result.rows[0].rag_preparation = {
+      preparation_id: "shared-profile",
+      profile_preparation_ms: 5000,
+      model_load_ms: 2000,
+      document_embedding_ms: 4000,
+    };
+  }
   if (current && partial) {
     current.status = "failed";
     current.progress.completed = 7;
@@ -339,9 +365,18 @@ async function fixture({
     }
     return route.fulfill({ status: 404, json: { error: "Onbekend" } });
   });
-  const evals = questions.slice(0, 3).map((question, i) => ({
+  const evals = [
+    ...qualitySelection.map((item) => ({
+      ...questions.find(
+        (question) =>
+          question.case_id === item.case_id &&
+          question.dataset === item.dataset_id,
+      ),
+      id: item.id,
+    })),
+    { ...questions[2], id: "two-activities" },
+  ].map((question) => ({
     ...question,
-    id: ["garden-time-location", "indoor-tuesday", "two-activities"][i],
     expected_goals: [
       { id: "time", description: "Tijd", alternatives: [[expected]] },
     ],
@@ -422,15 +457,15 @@ test("each Evals question deliberately starts its exact benchmark once before na
   const { page } = flow;
   try {
     await page.locator(".eval-benchmark").first().waitFor();
-    assert.equal(await page.locator(".eval-benchmark").count(), 3);
+    assert.equal(await page.locator(".eval-benchmark").count(), 12);
     assert.equal(await page.locator(".search-eval-card[open]").count(), 0);
     assert.equal(flow.starts.length, 0);
-    await page.locator("#eval-indoor-tuesday .eval-benchmark").click();
+    await page.locator("#eval-quality-indoor .eval-benchmark").click();
     await page.waitForURL("**/benchmark/?run=run-one");
     await page.locator(".benchmark-coverage").waitFor();
     assert.equal(flow.starts.length, 1);
     assert.equal(flow.starts[0].dataset, dataset);
-    assert.equal(flow.starts[0].case_id, "T02");
+    assert.equal(flow.starts[0].case_id, "RAG26-03");
     assert.equal(flow.starts[0].repeats, 2);
     assert.equal(flow.starts[0].mode, "rag");
     await page.reload();
@@ -440,6 +475,34 @@ test("each Evals question deliberately starts its exact benchmark once before na
     assert.equal(flow.starts.length, 1);
   } finally {
     await page.close();
+  }
+});
+test("new complete-options Evals card starts its regression corpus with two repetitions and all variants", async () => {
+  const flow = await fixture({ pagePath: "/resultaten/" });
+  try {
+    const card = flow.page.locator("#eval-quality-complete-options");
+    await card.waitFor();
+    assert.equal(
+      await card.locator(".eval-card-title").textContent(),
+      questions[17].question,
+    );
+    await card.locator(".eval-benchmark").click();
+    await flow.page.waitForURL("**/benchmark/?run=run-one");
+    await flow.page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+    assert.equal(flow.starts[0].dataset, "regression-12-20261118");
+    assert.equal(flow.starts[0].case_id, "IND26-01");
+    assert.equal(flow.starts[0].repeats, 2);
+    assert.equal(
+      await flow.page.locator(".benchmark-coverage>thead th").count(),
+      configurations.length + 1,
+    );
+    assert.equal(await flow.page.getByRole("tab").count(), 2);
+    await flow.page.reload();
+    await flow.page.locator(".benchmark-coverage").waitFor();
+    assert.equal(flow.starts.length, 1);
+  } finally {
+    await flow.page.close();
   }
 });
 test("comparison properties are rows and repetitions remain separate accessible tabs", async () => {
@@ -487,7 +550,19 @@ test("comparison properties are rows and repetitions remain separate accessible 
     );
     assert.match(
       await page.locator('tr[data-metric="selection"]').innerText(),
-      /3 activiteiten/,
+      /3 bronsecties/,
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="searches"] td').nth(3).textContent(),
+      "Bronsecties",
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="storage"] td').nth(3).textContent(),
+      "Bestanden · activiteiten",
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="expansion"] td').nth(3).textContent(),
+      "Nee",
     );
     assert.equal(
       await page.locator('tr[data-metric="expansion"] td').last().textContent(),
@@ -524,6 +599,83 @@ test("comparison properties are rows and repetitions remain separate accessible 
       /Gevonden/,
     );
     assert.equal(await page.evaluate(() => window.injected === true), false);
+  } finally {
+    await page.close();
+  }
+});
+test("query time includes query embedding while shared preparation and historical ranking stay separate", async () => {
+  const { page } = await fixture({
+    saved: true,
+    timed: true,
+    pagePath: "/benchmark/?run=run-one",
+  });
+  try {
+    await page.locator(".benchmark-coverage").waitFor();
+    const timing = page.locator('tr[data-metric="timing"]');
+    assert.equal(
+      await timing.locator("th").textContent(),
+      "Zoektijd incl. query-embedding (ms)",
+    );
+    assert.deepEqual(await timing.locator("td").allTextContents(), [
+      "100",
+      "Onbekend",
+      "Onbekend",
+      "Onbekend",
+      "Onbekend",
+    ]);
+    assert.equal(
+      await page
+        .locator('tr[data-metric="preparation"] td')
+        .first()
+        .textContent(),
+      "5.000",
+    );
+    await page
+      .getByRole("button", { name: /Herhaling 1.*Variant 1.*3\/8/ })
+      .click();
+    const detail = page.locator(".benchmark-evidence");
+    assert.equal(
+      await detail
+        .getByRole("row", { name: /^Rankingstijd \(ms\)/ })
+        .locator("td")
+        .first()
+        .textContent(),
+      "4,609",
+    );
+    assert.equal(
+      await detail
+        .getByRole("row", { name: /^Query-embedding \(ms\)/ })
+        .locator("td")
+        .first()
+        .textContent(),
+      "20",
+    );
+    assert.equal(
+      await detail
+        .getByRole("row", { name: /^Query-embedding uit cache/ })
+        .locator("td")
+        .first()
+        .textContent(),
+      "Nee",
+    );
+    assert.equal(
+      await detail
+        .getByRole("row", { name: /^Model laden \(gedeeld, ms\)/ })
+        .locator("td")
+        .first()
+        .textContent(),
+      "2.000",
+    );
+    assert.doesNotMatch(await detail.innerText(), /Gemeten zoektijd/);
+    await page.getByRole("tab", { name: "Herhaling 2", exact: true }).click();
+    assert.equal(
+      await page.locator('tr[data-metric="timing"] td').first().textContent(),
+      "Onbekend",
+    );
+    assert.equal(
+      await page.locator('tr[data-metric="preparation"]').count(),
+      0,
+    );
   } finally {
     await page.close();
   }
