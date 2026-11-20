@@ -16,6 +16,7 @@
     capacity: "capacityFull",
     rate_limit: "rateLimited",
     session_cooldown: "sessionCooldown",
+    visitor_busy: "visitorBusy",
     session_limit: "sessionLimited",
   };
   function requestError(key) { return Object.assign(new Error(key), { code: key }); }

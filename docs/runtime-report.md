@@ -45,7 +45,7 @@ These checks establish provenance. They do not prove that every sentence is corr
 
 ## Bounds around each question
 
-Ten questions may run concurrently, with one active question per session. A further question receives a capacity response instead of entering an unbounded queue. Address and session limits constrain repeated use. These are application limits, not a promise of external provider capacity.
+The current runtime allows ten questions concurrently and one active question per visitor network across all its sessions. A further question receives a capacity or rate-limit response. Address and session limits also constrain repeated use.
 
 A question has at most four sequential searches, five model attempts and a 120-second deadline. Each attempt allows at most 4096 output tokens. Before generation, the [transport](../src/responses/transport.rs) reserves an attempt in the persistent budget and asks OpenAI to count the full input, including instructions, tools, schema and accumulated context. An unknown, invalid or greater-than-300,000-token count blocks generation. The accepted generation payload is then sent unchanged. Automatic HTTP retries are disabled.
 

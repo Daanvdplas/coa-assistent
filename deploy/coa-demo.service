@@ -9,6 +9,7 @@ User=coa-demo
 Group=coa-demo
 WorkingDirectory=/var/lib/coa-demo
 Environment=COA_PORT=8766
+Environment=COA_BUNDLED_EVALUATIONS=1
 Environment=COA_TRUSTED_PROXY_IP=127.0.0.1
 Environment=COA_OPENAI_API_KEY_FILE=/var/lib/coa-demo/openai-api-key
 Environment=COA_DEMO_BUDGET_FILE=/var/lib/coa-demo/budget/attempts-v2.json
