@@ -121,11 +121,10 @@ impl ResponsesRunner {
             .filter(|key| !key.trim().is_empty())
         {
             Some(key) => key,
-            None => {
-                let path = std::env::var_os("COA_OPENAI_API_KEY_FILE")
-                    .ok_or("runtime: De antwoordservice is nog niet ingesteld. Een OpenAI API-sleutel ontbreekt.")?;
-                read_key(Path::new(&path))?
-            }
+            None => match std::env::var_os("COA_OPENAI_API_KEY_FILE") {
+                Some(path) => read_key(Path::new(&path))?,
+                None => dotenv_key()?.ok_or("runtime: De antwoordservice is nog niet ingesteld. Een OpenAI API-sleutel ontbreekt.")?,
+            },
         };
         let mut runner = Self::new(key, ENDPOINT, search)?;
         runner.budget = configured_budget(true)?;
@@ -142,26 +141,50 @@ impl ResponsesRunner {
         language: AnswerLanguage,
         method: DemoSearchMethod,
     ) -> Result<Value, String> {
-        let query = crate::validate_query(query).map_err(|_| "input: Ongeldige vraag.")?;
-        crate::ranking::validate_top_k(top_k)
-            .map_err(|_| "input: Ongeldig aantal bronpassages.")?;
-        tokio::time::timeout(
-            self.timeout,
-            self.run_inner(&query, top_k, corpus, language, method),
-        )
-        .await
-        .map_err(|_| "runtime: De antwoordservice heeft te lang gewacht.".to_owned())?
+        self.run_traced(query, top_k, corpus, language, method, None)
+            .await
     }
-    async fn run_inner(
+    pub async fn run_traced(
         &self,
         query: &str,
         top_k: usize,
         corpus: CorpusId,
         language: AnswerLanguage,
         method: DemoSearchMethod,
+        trace: Option<crate::traces::TraceHandle>,
     ) -> Result<Value, String> {
-        rig_runtime::run(self, query, top_k, corpus, language, method).await
+        let query = crate::validate_query(query).map_err(|_| "input: Ongeldige vraag.")?;
+        crate::ranking::validate_top_k(top_k)
+            .map_err(|_| "input: Ongeldig aantal bronpassages.")?;
+        tokio::time::timeout(
+            self.timeout,
+            rig_runtime::run(self, &query, top_k, corpus, language, method, trace),
+        )
+        .await
+        .map_err(|_| "runtime: De antwoordservice heeft te lang gewacht.".to_owned())?
     }
+}
+
+fn dotenv_key() -> Result<Option<String>, String> {
+    if std::env::var("COA_DISABLE_DOTENV").as_deref() == Ok("1") {
+        return Ok(None);
+    }
+    // Read only the local key without mutating the multithreaded process's
+    // environment or importing budget/test configuration from the file.
+    let entries = match dotenvy::from_path_iter(".env") {
+        Ok(entries) => entries,
+        Err(error) if error.not_found() => return Ok(None),
+        Err(_) => return Err("runtime: Het .env-bestand kan niet worden gelezen.".into()),
+    };
+    let mut key = None;
+    for entry in entries {
+        let (name, value) =
+            entry.map_err(|_| "runtime: Het .env-bestand kan niet worden gelezen.")?;
+        if name == "OPENAI_API_KEY" && key.is_none() && !value.trim().is_empty() {
+            key = Some(value);
+        }
+    }
+    Ok(key)
 }
 
 fn configured_budget(
@@ -351,6 +374,165 @@ mod tests {
                 crate::DemoSearchMethod::Bm25,
             )
             .await
+    }
+
+    #[tokio::test]
+    async fn rig_traces_record_public_model_and_tool_steps_without_private_replay() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory =
+            std::env::temp_dir().join(crate::traces::anonymous_id("coa-rig-trace").unwrap());
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.join("traces.sqlite");
+        let store = crate::traces::TraceStore::open(&path).unwrap();
+        let trace = store
+            .begin(
+                "anonymous-thread",
+                "run-one",
+                "Wanneer tuinieren?",
+                json!({}),
+            )
+            .unwrap();
+        let mut first = envelope(
+            json!([{"type":"reasoning","id":"private","summary":[],"encrypted_content":"PRIVATE-REPLAY-CANARY"},call("one","tuinieren")]),
+        );
+        first["usage"]["unknown_field"] = json!("PRIVATE-USAGE-CANARY");
+        let (url, seen, task) = mock(vec![first, envelope(json!([final_answer()]))]).await;
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        let result = runner
+            .run_traced(
+                "Wanneer tuinieren?",
+                3,
+                CorpusId::ExpandedTen,
+                AnswerLanguage::En,
+                DemoSearchMethod::Bm25,
+                Some(trace.clone()),
+            )
+            .await;
+        assert!(result.is_ok());
+        trace
+            .complete(result.as_ref().map_err(String::as_str))
+            .unwrap();
+        let reader = crate::traces::TraceReader::open(&path).unwrap();
+        let thread = reader.thread("anonymous-thread").unwrap().unwrap();
+        let events = &thread.traces[0].events;
+        assert_eq!(
+            events
+                .iter()
+                .filter(|e| e.kind == "model.completed")
+                .count(),
+            2,
+            "each Rig model call needs a trace event"
+        );
+        assert_eq!(
+            events.iter().filter(|e| e.kind == "tool.completed").count(),
+            1
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| e.kind == "model.started" && e.data["instructions"].as_str().is_some())
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| e.kind == "tool.completed" && e.data["result"]["hits"].is_array())
+        );
+        let export = serde_json::to_string(&thread).unwrap();
+        assert!(!export.contains("PRIVATE-REPLAY-CANARY"));
+        assert!(!export.contains("PRIVATE-USAGE-CANARY"));
+        assert!(!export.contains(MOCK_KEY));
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        task.abort();
+        drop((runner, reader, store, trace));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn failed_preflight_and_timeout_remain_visible_without_new_generation() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory =
+            std::env::temp_dir().join(crate::traces::anonymous_id("coa-trace-failure").unwrap());
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.join("traces.sqlite");
+        let store = crate::traces::TraceStore::open(&path).unwrap();
+        let trace = store
+            .begin("failure-thread", "oversized", "Oversized", json!({}))
+            .unwrap();
+        let (url, seen, _, task) = mock_with_counts(
+            vec![],
+            Some(vec![
+                json!({"object":"response.input_tokens","input_tokens":300001}),
+            ]),
+        )
+        .await;
+        let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        let result = runner
+            .run_traced(
+                "Wanneer tuinieren?",
+                3,
+                CorpusId::ExpandedTen,
+                AnswerLanguage::En,
+                DemoSearchMethod::Bm25,
+                Some(trace.clone()),
+            )
+            .await;
+        assert!(result.as_ref().unwrap_err().starts_with("budget:"));
+        trace
+            .complete(result.as_ref().map_err(String::as_str))
+            .unwrap();
+        assert!(seen.lock().unwrap().is_empty());
+        task.abort();
+        let provider = Router::new().route(
+            "/v1/responses/input_tokens",
+            post(|| async {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                Json(json!({"object":"response.input_tokens","input_tokens":1}))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move { axum::serve(listener, provider).await.unwrap() });
+        let mut runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+        runner.timeout = Duration::from_millis(30);
+        let timeout = store
+            .begin("failure-thread", "timeout", "Timeout", json!({}))
+            .unwrap();
+        let result = runner
+            .run_traced(
+                "Wanneer tuinieren?",
+                3,
+                CorpusId::ExpandedTen,
+                AnswerLanguage::En,
+                DemoSearchMethod::Bm25,
+                Some(timeout.clone()),
+            )
+            .await;
+        assert!(result.as_ref().unwrap_err().contains("te lang"));
+        timeout
+            .complete(result.as_ref().map_err(String::as_str))
+            .unwrap();
+        let reader = crate::traces::TraceReader::open(&path).unwrap();
+        let thread = reader.thread("failure-thread").unwrap().unwrap();
+        assert_eq!(thread.traces.len(), 2);
+        assert!(thread.traces.iter().all(|trace| trace.status == "failed"));
+        assert!(
+            thread.traces[0]
+                .events
+                .iter()
+                .any(|event| event.kind == "model.failed")
+        );
+        assert!(
+            thread.traces[1]
+                .events
+                .iter()
+                .any(|event| event.kind == "model.cancelled"),
+            "local timeout must close its pending model observation"
+        );
+        task.abort();
+        drop((runner, reader, store, trace, timeout));
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]

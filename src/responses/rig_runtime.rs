@@ -26,6 +26,7 @@ pub(super) struct RecordedSearch {
 }
 
 pub(super) struct RunState {
+    pub trace: Option<crate::traces::TraceHandle>,
     pub calls: Vec<RecordedSearch>,
     pub ids: HashSet<String>,
     pub requests: usize,
@@ -36,6 +37,7 @@ pub(super) struct RunState {
 impl Default for RunState {
     fn default() -> Self {
         Self {
+            trace: None,
             calls: Vec::new(),
             ids: HashSet::new(),
             requests: 0,
@@ -69,11 +71,35 @@ impl std::error::Error for BoundaryError {}
 
 impl SearchTool {
     async fn execute(&self, arguments: SearchArguments) -> Result<Value, BoundaryError> {
+        let started = Instant::now();
+        let trace = self.state.lock().ok().and_then(|state| state.trace.clone());
+        if let Some(trace) = &trace {
+            trace.event("tool.started", None, json!({"tool":"search_document","arguments":{"query":arguments.query,"top_k":arguments.top_k,"search_goal":arguments.search_goal}})).map_err(|_| BoundaryError("runtime: De uitvoeringstrace kon niet worden opgeslagen."))?;
+        }
         let result = self.execute_inner(arguments).await;
         if let Err(error) = &result
             && let Ok(mut state) = self.state.lock()
         {
             state.error = Some(error.0);
+        }
+        if let Some(trace) = &trace {
+            let data = match &result {
+                Ok(result) => json!({"tool":"search_document","result":result}),
+                Err(error) => json!({"tool":"search_document","error":error.0}),
+            };
+            trace
+                .event(
+                    if result.is_ok() {
+                        "tool.completed"
+                    } else {
+                        "tool.failed"
+                    },
+                    Some(started.elapsed().as_millis() as u64),
+                    data,
+                )
+                .map_err(|_| {
+                    BoundaryError("runtime: De uitvoeringstrace kon niet worden opgeslagen.")
+                })?;
         }
         result
     }
@@ -205,9 +231,13 @@ pub(super) async fn run(
     corpus: crate::corpus::CorpusId,
     language: crate::codex::AnswerLanguage,
     method: DemoSearchMethod,
+    trace: Option<crate::traces::TraceHandle>,
 ) -> Result<Value, String> {
     let started = Instant::now();
-    let state = Arc::new(Mutex::new(RunState::default()));
+    let state = Arc::new(Mutex::new(RunState {
+        trace,
+        ..RunState::default()
+    }));
     let transport = super::transport::BoundedTransport {
         client: runner.client.clone(),
         endpoint: runner.endpoint.clone(),

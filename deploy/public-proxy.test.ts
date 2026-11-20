@@ -42,6 +42,7 @@ test(`${profile.name} proxy allows only public routes, replaces visitor headers 
   assert.equal(result.status, 0, result.stderr);
   const adapted = JSON.parse(result.stdout);
   const directory = await mkdtemp(join(tmpdir(), "coa-proxy-contract-"));
+  const appPolicy = "script-src 'self'; connect-src 'self'; frame-ancestors 'none'";
   const requests: { path: string; method: string; headers: Record<string, unknown> }[] = [];
   const backend = createServer((request, response) => {
     const entry = { path: request.url!, method: request.method!, headers: request.headers };
@@ -51,8 +52,9 @@ test(`${profile.name} proxy allows only public routes, replaces visitor headers 
       return;
     }
     response.setHeader("Content-Type", "application/json");
-    response.setHeader("Content-Security-Policy", "frame-ancestors 'none'");
+    response.setHeader("Content-Security-Policy", appPolicy);
     response.setHeader("X-Frame-Options", "DENY");
+    if (request.url === "/api/evals/rag") response.setHeader("Cache-Control", "public, max-age=300");
     response.end(JSON.stringify(entry));
   });
   backend.listen(0, "127.0.0.1");
@@ -95,8 +97,9 @@ test(`${profile.name} proxy allows only public routes, replaces visitor headers 
     for (const path of ["/", "/demo", "/demo/", "/techniek/", "/resultaten/", "/assets/site.css", "/api/source", "/api/session", "/api/runs/r-123-1", "/api/evals/rag", "/api/evals/rag/catalog"]) {
       const response = await fetch(origin + path, { headers: profile.edgeHeaders });
       assert.equal(response.status, 200, path);
-      assert.equal(response.headers.get("content-security-policy"), "frame-ancestors 'none'", path);
+      assert.equal(response.headers.get("content-security-policy"), appPolicy, path);
       assert.equal(response.headers.get("x-frame-options"), "DENY", path);
+      if (path === "/api/evals/rag") assert.equal(response.headers.get("cache-control"), "public, max-age=300");
     }
     for (const path of ["/api/session", "/api/runs"]) {
       assert.equal((await fetch(origin + path, { method: "POST", body: "{}", headers: profile.edgeHeaders })).status, 200, path);

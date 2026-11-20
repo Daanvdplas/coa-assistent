@@ -41,6 +41,8 @@ Historical migration: an earlier private preparation had an unused schema-1 allo
 
 Install packaged `config/coa-demo.service` as `/etc/systemd/system/coa-demo.service`. It runs as `coa-demo`, with read-only code, private temporary files, hidden personal home directories and write access only under `/var/lib/coa-demo`. Key/budget paths are fixed; Rust listens only on `127.0.0.1:8766`.
 
+The unit sets `COA_BUNDLED_EVALUATIONS=1` to serve the validated public evaluation archive from memory with a five-minute browser cache. Session and run endpoints remain `no-store`.
+
 `MemoryMax=1536M` is a configured ceiling, not proven sustained capacity. Warm MiniLM from the service working directory so its approximately 235 MB model cache stays under `/var/lib/coa-demo`. Startup embeds 72 fictional sections using two CPU threads; answer generation runs externally. Do not copy personal cache collections.
 
 After `systemctl daemon-reload` and `systemctl start coa-demo.service`, retain private-only access until checks pass:
@@ -74,7 +76,7 @@ Begin with maintenance `config/Caddyfile.quick-tunnel`: loopback 9899, automatic
 
 The app variant keeps the public allowlist and rejects worker/admin routes. It overwrites `X-Real-IP` from edge-supplied `CF-Connecting-IP`, only via its owned local tunnel. With an isolated fake backend, prove spoofed public `CF-Connecting-IP`, `X-Real-IP` and `X-Forwarded-For` do not become visitor identity. Without evidence, trust no forwarded address and use a conservative shared counter. Public results must remain read-only.
 
-Cloudflare terminates TLS and processes traffic. Public UI must identify both Cloudflare and OpenAI and prohibit personal data. Keep maintenance mode until privacy, budget, UI and release conditions are approved.
+Cloudflare terminates TLS and processes traffic. The question form identifies Cloudflare, OpenAI and private trace storage and tells visitors to avoid personal data. Keep maintenance mode until privacy, budget, UI and release conditions are approved.
 
 Before changes, privately record `tailscale serve status --json` and PID/start identities of existing private services; compare afterwards without publishing those details. Do not run `tailscale serve reset`, enable Funnel on an existing private port or change broad policies. Stop the tunnel with `systemctl stop coa-demo-tunnel.service`, without a quota reset or coupled app stop. Retain the original IP-route configuration for a separately reviewed permanent route.
 
@@ -92,9 +94,13 @@ Without evidence, local policy enforcement, approved key access and release appr
 
 ## Stop date and rollback
 
+Optional execution traces are operator-only. Read JSON through `traces list` and `traces export` over existing SSH access as the database-owning application user; the dashboard is optional. Keep the trace directory private to that user and exclude the dashboard port and its `/api/threads` routes from public Caddy/tunnel configuration. See [private trace inspection](traces.md) for commands. Trace setup or local preview does not authorize deployment or a new model allowance.
+
 Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
 Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the same v2 budget. An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
+
+If the rollback release prunes traces, unset `COA_TRACE_DB` for that release before restarting. Keep the private trace database and its sidecar files intact for inspection and for the next release that retains traces until owner-approved deletion.
 
 ## Dated references
 

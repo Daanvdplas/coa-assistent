@@ -13,6 +13,8 @@ flowchart LR
     Rig --> Search["Local Index: MiniLM or BM25"]
     Web --> Results["Saved evaluation projections"]
     Web --> LocalJob["Local promptfoo retrieval job"]
+    Web -. "optional" .-> Traces["Private SQLite trace store"]
+    Dashboard["Separate local trace dashboard"] --> Traces
     CLI["CLI / model evaluations"] --> Codex["Codex + read-only MCP"]
     Codex --> Search
 ```
@@ -37,6 +39,8 @@ The application is Rust. Browser assets remain JavaScript/HTML/CSS; owned evalua
 | `/api/benchmarks/questions/plan`, `/api/benchmarks/questions/start` | Plan/start one current question; explicit start requests require a durable idempotency ID. |
 
 Hosting adds a separate route allowlist; the local evaluation worker is not a supported public endpoint. See [deployment](public-deployment.md).
+
+`COA_TRACE_DB` optionally records projected model/search events through [`traces.rs`](../src/traces.rs), with random thread IDs separate from visitor bearer sessions. [`trace_dashboard.rs`](../src/trace_dashboard.rs) serves a read-only dashboard through `traces serve --db PATH [--port 8767]`. This command dispatches before index/key/answer-service initialization, binds only to loopback, checks Host/Origin and exposes its own thread list/detail/JSON export routes. The visitor router has no trace-reading routes. See [trace setup](traces.md) for captured fields, retention and private access.
 
 ## Trace one question
 
@@ -69,7 +73,7 @@ Rig preserves original input/output items for subsequent calls, including encryp
 
 Each attempt receives a durable, atomic reservation in the schema-2 budget **before** input counting. The count includes all token-bearing fields, tools, schema and encrypted replay; unknown fields or invalid counts stop generation. Model, Standard pricing tier, `30m` cache policy and output ceiling stay fixed. Missing/corrupt/replaced/unwritable state fails closed. Restarts preserve usage; the same budget cannot be opened concurrently. [`demo_budget.rs`](../src/demo_budget.rs) owns this policy; [setup](LOCAL_SETUP.md#token-and-price-assumptions) records price assumptions and initialization.
 
-`ResponsesRunner::from_env` reads `OPENAI_API_KEY` or an explicit external `COA_OPENAI_API_KEY_FILE`. The file must be regular, owned by the user, without links or group/other access, and bounded to 4096 trimmed bytes. Public configuration exposes neither key nor path. Missing setup permits source/result browsing with answers unavailable, without a Codex fallback. `runtime_ready` means configured, not proven quota or credit. The debug-only loopback mock uses a fixed fake key and does not read a real one; release builds refuse that override.
+`ResponsesRunner::from_env` reads an inherited nonempty `OPENAI_API_KEY`, an explicit external `COA_OPENAI_API_KEY_FILE`, or finally `OPENAI_API_KEY` from `.env` in the current working directory, in that order. The external key file must be regular, owned by the user, without links or group/other access, and bounded to 4096 trimmed bytes. The `.env` parser does not mutate the process environment or import budget/other settings; `COA_DISABLE_DOTENV=1` skips it. Start from the project root and keep `.env` private and untracked. Public configuration exposes neither key nor path, and parser errors omit file contents. Missing setup permits source/result browsing with answers unavailable, without a Codex fallback. `runtime_ready` means configured, not proven quota or credit. The debug-only loopback mock uses a fixed fake key and does not read `.env` or a real key; release builds refuse that override.
 
 New run metadata identifies `provider: openai`, `transport: responses_api`, `runtime: rig-0.46.0` and matching `client_version`. Successful runs sum available usage across provider requests; reasoning tokens are part of output. Missing usage remains unknown. Failed runs may already have incurred charges. These records are not a billing ledger, and a local timeout cannot guarantee provider cancellation.
 

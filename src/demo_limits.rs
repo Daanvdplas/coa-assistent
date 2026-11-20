@@ -2,6 +2,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     net::{IpAddr, Ipv6Addr},
+    sync::{Arc, Weak},
     time::{Duration, Instant},
 };
 const QUESTION_WINDOW: Duration = Duration::from_secs(3600);
@@ -32,6 +33,7 @@ struct Visitor {
     questions: VecDeque<Instant>,
     sessions: VecDeque<Instant>,
     last_question: HashMap<String, Instant>,
+    active_question: Weak<()>,
 }
 #[derive(Default)]
 pub struct DemoLimits {
@@ -49,7 +51,9 @@ impl DemoLimits {
             visitor
                 .last_question
                 .retain(|_, at| now.duration_since(*at) < COOLDOWN);
-            !visitor.questions.is_empty() || !visitor.sessions.is_empty()
+            !visitor.questions.is_empty()
+                || !visitor.sessions.is_empty()
+                || visitor.active_question.strong_count() > 0
         });
     }
     fn check_capacity(&mut self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
@@ -82,13 +86,24 @@ impl DemoLimits {
                     COOLDOWN.saturating_sub(now.duration_since(*at)),
                 ));
             }
+            if visitor.active_question.strong_count() > 0 {
+                return Err(Blocked::until(
+                    "visitor_busy",
+                    "Er wordt al een vraag verwerkt vanaf jouw netwerk. Probeer het zo opnieuw.",
+                    COOLDOWN,
+                ));
+            }
         }
         Ok(())
     }
-    pub fn record_run(&mut self, ip: IpAddr, session: &str, now: Instant) {
+    pub fn record_run(&mut self, ip: IpAddr, session: &str, now: Instant) -> Arc<()> {
         let visitor = self.visitors.entry(ip).or_default();
+        // The run task owns the permit, so completion or cancellation releases it.
+        let permit = Arc::new(());
+        visitor.active_question = Arc::downgrade(&permit);
         visitor.questions.push_back(now);
         visitor.last_question.insert(session.to_owned(), now);
+        permit
     }
     pub fn check_session(&mut self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
         self.check_capacity(ip, now)?;

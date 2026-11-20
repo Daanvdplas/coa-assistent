@@ -18,7 +18,7 @@
 }
 
 {$COA_PUBLIC_HOST} {
-	header >Content-Security-Policy "frame-ancestors 'none'"
+	header ?Content-Security-Policy "frame-ancestors 'none'"
 	header >X-Frame-Options DENY
 	# Publicly trusted IP certificates need the explicit short-lived ACME profile.
 	tls {

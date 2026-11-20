@@ -10,7 +10,7 @@ use super::{
 use rig::http_client::{
     Bytes, Error, HttpClientExt, LazyBody, MultipartForm, Request, Response, StreamingResponse,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -30,6 +30,41 @@ impl BoundedTransport {
     }
 
     async fn request(&self, request: Request<Bytes>) -> Result<Vec<u8>, Error> {
+        let started = std::time::Instant::now();
+        let trace = self.state.lock().ok().and_then(|state| state.trace.clone());
+        if let Some(trace) = &trace {
+            let input: Value = serde_json::from_slice(request.body()).unwrap_or(Value::Null);
+            trace.event("model.started", None, json!({"model":MODEL,"instructions":input["instructions"].as_str(),"input":public_items(&input["input"]),"includes_input_token_preflight":true})).map_err(|_|self.failure("runtime: De uitvoeringstrace kon niet worden opgeslagen."))?;
+        }
+        let result = self.request_inner(request).await;
+        if let Some(trace) = &trace {
+            let data = match &result {
+                Ok(bytes) => {
+                    let response: Value = serde_json::from_slice(bytes).unwrap_or(Value::Null);
+                    json!({"model":MODEL,"output":public_items(&response["output"]),"usage":{"input_tokens":response["usage"]["input_tokens"].as_u64(),"output_tokens":response["usage"]["output_tokens"].as_u64(),"cached_input_tokens":response["usage"]["input_tokens_details"]["cached_tokens"].as_u64(),"reasoning_output_tokens":response["usage"]["output_tokens_details"]["reasoning_tokens"].as_u64()}})
+                }
+                Err(_) => {
+                    json!({"model":MODEL,"error":self.state.lock().ok().and_then(|state|state.error).unwrap_or("runtime: De antwoordservice is niet beschikbaar.")})
+                }
+            };
+            trace
+                .event(
+                    if result.is_ok() {
+                        "model.completed"
+                    } else {
+                        "model.failed"
+                    },
+                    Some(started.elapsed().as_millis() as u64),
+                    data,
+                )
+                .map_err(|_| {
+                    self.failure("runtime: De uitvoeringstrace kon niet worden opgeslagen.")
+                })?;
+        }
+        result
+    }
+
+    async fn request_inner(&self, request: Request<Bytes>) -> Result<Vec<u8>, Error> {
         if request.method() != reqwest::Method::POST || request.uri() != self.endpoint.as_str() {
             return Err(self.failure("runtime: API-adres is niet toegestaan."));
         }
@@ -145,6 +180,30 @@ impl BoundedTransport {
         }
         Ok(bytes)
     }
+}
+
+/// An explicit projection, never a dump of Rig's private replay or HTTP data.
+fn public_items(value: &Value) -> Value {
+    let Some(items) = value.as_array() else {
+        return value.as_str().map_or(Value::Null, |text| json!(text));
+    };
+    Value::Array(items.iter().filter_map(|item| {
+        match item["type"].as_str() {
+            Some("reasoning") => None,
+            Some("function_call") => Some(json!({"type":"function_call","call_id":item["call_id"],"name":item["name"],"arguments":item["arguments"]})),
+            Some("function_call_output") => Some(json!({"type":"function_call_output","call_id":item["call_id"],"output":item["output"]})),
+            Some("message") | None => {
+                let content = if let Some(text) = item["content"].as_str() {json!(text)} else {
+                    Value::Array(item["content"].as_array().into_iter().flatten().filter_map(|part| match part["type"].as_str() {
+                        Some("input_text" | "output_text" | "text") => part["text"].as_str().map(|text|json!({"type":part["type"],"text":text})),
+                        _ => None,
+                    }).collect())
+                };
+                Some(json!({"type":"message","role":item["role"],"content":content}))
+            }
+            _ => None,
+        }
+    }).collect())
 }
 
 fn count_payload(body: &[u8]) -> Result<Value, &'static str> {

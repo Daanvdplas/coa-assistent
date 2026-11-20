@@ -10,7 +10,7 @@
   const method = value => ({dense:'Op betekenis',bm25:'Op woorden',keyword_overlap:'Woordoverlap',hybrid_rrf:'Combinatie op volgorde',hybrid_weighted:'Gewogen combinatie'})[value] || value || '';
   const status = row => row.status === 'error' ? 'Uitvoeringsfout' : row.status === 'failed' ? 'Controle niet geslaagd' : 'Controles geslaagd';
   try {
-    const response = await fetch('/api/evals/rag', {cache:'no-store'});
+    const response = await fetch('/api/evals/rag');
     if (!response.ok) throw new Error('De actuele evaluaties konden niet worden geladen.');
     const data = await response.json();
     if (data.schema_version !== 1 || data.source !== 'promptfoo' || !Array.isArray(data.evaluations)) throw new Error('Onbekend evaluatieformaat.');

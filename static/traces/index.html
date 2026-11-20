@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>COA Assistent · Traces</title>
+  <link rel="stylesheet" href="/assets/traces.css">
+  <script src="/assets/traces.js" defer></script>
+</head>
+<body>
+  <header class="toolbar">
+    <h1>Traces</h1>
+    <button id="refresh" type="button">Refresh</button>
+  </header>
+  <p id="status" role="status" hidden></p>
+  <main>
+    <section id="threads" aria-labelledby="threads-heading">
+      <h2 id="threads-heading">Threads</h2>
+      <p id="empty" hidden>No traces recorded.</p>
+      <table id="thread-table" aria-labelledby="threads-heading" hidden>
+        <thead><tr><th scope="col">Latest question</th><th scope="col">Updated</th><th scope="col">Runs</th></tr></thead>
+        <tbody id="thread-list"></tbody>
+      </table>
+    </section>
+    <section id="detail" aria-labelledby="detail-heading">
+      <div class="detail-toolbar">
+        <h2 id="detail-heading" tabindex="-1">Select a thread</h2>
+        <a id="download" hidden>Download JSON</a>
+      </div>
+      <div id="runs"></div>
+    </section>
+  </main>
+</body>
+</html>

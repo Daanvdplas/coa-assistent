@@ -45,7 +45,7 @@ These checks establish provenance. They do not prove that every sentence is corr
 
 ## Bounds around each question
 
-Ten questions may run concurrently, with one active question per session. A further question receives a capacity response instead of entering an unbounded queue. Address and session limits constrain repeated use. These are application limits, not a promise of external provider capacity.
+The current runtime allows ten questions concurrently and one active question per visitor network across all its sessions. A further question receives a capacity or rate-limit response. Address and session limits also constrain repeated use.
 
 A question has at most four sequential searches, five model attempts and a 120-second deadline. Each attempt allows at most 4096 output tokens. Before generation, the [transport](../src/responses/transport.rs) reserves an attempt in the persistent budget and asks OpenAI to count the full input, including instructions, tools, schema and accumulated context. An unknown, invalid or greater-than-300,000-token count blocks generation. The accepted generation payload is then sent unchanged. Automatic HTTP retries are disabled.
 
@@ -64,7 +64,7 @@ This conditional calculation concerns this application's configured release. It 
 
 The API key is outside the repository, readable only by the application account (`0600`); the budget directory is private (`0700`). Missing, damaged, replaced or concurrently opened budget state blocks new paid work. Restarting does not issue a new allowance. The [budget](../src/demo_budget.rs) stores counters and policy information, not questions or answers.
 
-Questions, answers and traces live in the [RAM run store](../src/runs.rs), bounded by 256 sessions, 256 runs in total and 256 KiB per run. Inactive sessions expire after 30 minutes when cleanup next runs; pending work is preserved until completion. This differs from the durable attempt counter. Restarting removes application RAM history, not provider records, downloads, swap or backups.
+The [RAM run store](../src/runs.rs) holds visitor questions and results, bounded by 256 sessions, 256 runs in total and 256 KiB per run. Inactive sessions expire after 30 minutes when cleanup next runs, and pending work is preserved until completion. A restart clears this in-memory history. The optional [private SQLite trace store](traces.md) keeps questions, model and search events, and results until the owner explicitly authorizes deletion. Provider records, downloads, swap and backups have their own retention.
 
 OpenAI processes the question and selected passages. Cloudflare handles public-route traffic. `store: false` disables Responses application storage; it does not promise zero provider retention. Private model reasoning and raw provider diagnostics are excluded from public results. These boundaries require fictional data only; they do not certify resident-data processing or provide organizational authorization.
 
