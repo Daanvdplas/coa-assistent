@@ -270,7 +270,10 @@ fn actual_retrieval(
     corpora: &BTreeMap<String, CanonicalCorpus>,
 ) -> Value {
     let unknown = || json!({"activities":null,"sections":null,"applicable":null});
-    if !matches!(row["status"].as_str(), Some("passed" | "failed")) {
+    if !matches!(
+        row["status"].as_str(),
+        Some("passed" | "failed" | "retrieved_ungraded")
+    ) {
         return unknown();
     }
     let Some((identity, corpus)) =

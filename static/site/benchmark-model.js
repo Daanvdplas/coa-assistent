@@ -9,6 +9,7 @@ export function outcome(row) {
       "queued",
       "running",
       "preparing",
+      "retrieved_ungraded",
     ].includes(row.status)
   )
     return row.status;
@@ -39,6 +40,7 @@ export const labels = {
   queued: "In wachtrij",
   running: "Bezig",
   preparing: "Voorbereiden",
+  retrieved_ungraded: "Nog niet beoordeeld",
   cancelled: "Gestopt",
   cancelling: "Stoppen…",
   interrupted: "Onderbroken",

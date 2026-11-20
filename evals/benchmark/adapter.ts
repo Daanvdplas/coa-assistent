@@ -1,5 +1,5 @@
 /** Canonical evaluation plans and adapters for the local benchmark workbench. */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   existsSync,
   readFileSync,
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { PREPARATION_FAILURES } from "../rag/promptfoo/prepare.ts";
+import { requestKey } from "../rag/promptfoo/provider.ts";
 import { isDeepStrictEqual } from "node:util";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const require = createRequire(import.meta.url);
@@ -1078,6 +1079,53 @@ async function rag(
   if (browserAttemptFailed)
     throw Error("Een of meer lokale browserpogingen zijn mislukt.");
 }
+
+async function questionBatch(
+  groups: Group[], sel: Selection, output: string, progress: Progress,
+  checkpoint: () => void, executor: Executor,
+) {
+  const tests = groups.flatMap(group=>testsFor(suites.find(suite=>suite.id===group.suite)!,group.dataset,sel).map(test=>({
+    ...test,metadata:{...test.metadata,benchmark_group_id:group.id,benchmark_request_id:requestKey(test.vars)},
+  })));
+  const selected=new Map(tests.map(test=>[test.metadata.benchmark_request_id,test]));
+  const first=tests[0].vars;
+  const questionSet=read(questionPath(first.dataset));
+  const {project}=await import(new URL("../rag/scripts/export_promptfoo_results.mjs",import.meta.url).href);
+  for (let repeat=1;repeat<=sel.repeats;repeat++) {
+    const execution_id=randomUUID(),part=join(output,`batch-${repeat}`);
+    mkdirSync(part,{recursive:true,mode:0o700});
+    const input=join(part,"batch-input.json");
+    durable(input,{schema_version:1,execution_id,tests});
+    // Display-only expectations stay outside the native search input and worker.
+    durable(join(output,"active-native-capture.json"),{schema_version:1,execution_id,dataset:first.dataset,case_id:first.case_id,
+      question:first.question,corpus_sha256:questionSet.corpus_sha256,as_of:questionSet.as_of,
+      native_path:`batch-${repeat}/native.jsonl`,embedding_manifest:`batch-${repeat}/benchmark-embeddings.json`,
+      requests:tests.map(test=>({request_id:test.metadata.benchmark_request_id,group_id:test.metadata.benchmark_group_id,
+        configuration_id:configurationId(test.vars),comparison_key:`${test.metadata.benchmark_group_id}:${test.vars.case_id}:${configurationId(test.vars)}:${repeat}`,
+        repeat,vars:test.vars,...(test.vars.method!=="bm25"?{embedding_model:test.vars.embedding_model??"minilm-multilingual"}:{})}))});
+    const code=await executor([process.execPath,join(ROOT,"evals/benchmark/run_local_batch.ts"),"--input",input,"--output-dir",part,"--binary",runtime()],childEnvironment());
+    const rawPath=join(part,"benchmark.json");
+    if (![0,100].includes(code)||!existsSync(rawPath)) throw Error("De lokale benchmarkbatch is niet afgerond; opgehaalde bronnen blijven bewaard.");
+    const raw=JSON.parse(readFileSync(rawPath,"utf8")),results=raw.results?.results;
+    if (!Array.isArray(results)||results.length!==tests.length||new Set(results.map(row=>row.testCase?.metadata?.benchmark_request_id)).size!==tests.length)
+      throw Error("De benchmark bevat ontbrekende of dubbele variantbeoordelingen.");
+    const view=project(raw),byGroup=new Map<string,Record<string,any>[]>();
+    for(let index=0;index<results.length;index++) {
+      const item=results[index],expected=selected.get(item.testCase?.metadata?.benchmark_request_id),vars=item.testCase?.vars;
+      if(!expected||!vars||vars.dataset!==expected.vars.dataset||vars.case_id!==expected.vars.case_id||vars.question!==expected.vars.question||
+        !isDeepStrictEqual(config(vars),config(expected.vars))||vars.browser_eval_id!==expected.vars.browser_eval_id||vars.browser_preset!==expected.vars.browser_preset)
+        throw Error("De variantbeoordeling wijkt af van het vastgelegde benchmarkplan.");
+      const groupId=expected.metadata.benchmark_group_id;
+      const rows=byGroup.get(groupId)??[];
+      const row={...view.evaluations[0].rows[index],configuration:config(expected.vars)};
+      if(row.status==="error") row.metrics={...Object.fromEntries(Object.keys(row.metrics??{}).map(key=>[key,null])),covered_goals:null,target_goals:null,goal_coverage:null,source_quality_applicable:null,search_calls:null};
+      rows.push(row);
+      byGroup.set(groupId,rows);
+    }
+    for(const group of groups) addRows(progress,group,byGroup.get(group.id)??[],view.sources,repeat);
+    checkpoint();
+  }
+}
 function assistantRows(records: Record<string, any>[], group: Group) {
   const sources: Record<string, unknown> = {};
   const key = (section: Record<string, any>) => {
@@ -1305,6 +1353,25 @@ export async function execute(
   };
   const checkpoint = () => durable(statePath, progress);
   checkpoint();
+  const batchGroups=current.groups.filter(group=>!group.block_reason&&group.kind==="local"&&["quality","browser"].includes(group.suite));
+  if(current.selection.datasets.length===1&&current.selection.case_ids.length===1&&batchGroups.length===current.groups.length&&
+    batchGroups.some(group=>group.suite==="quality")&&batchGroups.reduce((sum,group)=>sum+group.configuration_count,0)>1) {
+    for(const state of progress.groups) state.status="running";
+    checkpoint();
+    try {
+      await questionBatch(batchGroups,current.selection,output,progress,checkpoint,executor);
+      for(const state of progress.groups) {
+        const failed=progress.result.rows.some(row=>row.group_id===state.id&&row.status==="error");
+        state.status=failed?"failed":"completed";
+        if(failed) {state.error="Een of meer lokale varianten konden niet worden afgerond.";progress.error??=state.error;}
+      }
+    } catch(error) {
+      for(const state of progress.groups) {state.status="failed";state.error="De lokale batch kon niet worden afgerond; opgehaalde bronnen blijven bewaard.";}
+      progress.error=progress.groups[0].error;
+    }
+    checkpoint();
+    return progress;
+  }
   let modelsStopped = false;
   for (const group of current.groups) {
     const state = progress.groups.find((g) => g.id === group.id)!;

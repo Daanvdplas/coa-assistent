@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 process.env.COA_RAG_BINARY ??= "/usr/bin/true";
@@ -379,6 +380,76 @@ test("question plan runs one current question twice across every distinct local 
   assert.deepEqual(p.groups.map((g:any)=>[g.suite,g.configuration_count,g.execution_count]),[["quality",24,48],["browser",9,18]]);
   assert.equal(p.totals.local,66);
   assert.equal(p.totals.model,0);
+});
+test("one question shares one native preparation and grading batch per fresh repetition", async () => {
+  const { execute, questionPlan } = await import("./adapter.ts");
+  const { buildConfig } = createRequire(import.meta.url)("../rag/promptfoo/cases.cjs");
+  const planned = questionPlan({dataset:"demo-12-20261118",case_id:"RAG26-06"});
+  const dir = mkdtempSync(join(tmpdir(), "coa-question-batch-"));
+  const calls: string[][] = [];
+  try {
+    const progress = await execute(planned.selection, dir, planned, async command => {
+      calls.push(command);
+      const output = command[command.indexOf("--output-dir") + 1];
+      const suiteIndex = command.indexOf("--suite");
+      const suite = suiteIndex < 0 ? "benchmark" : command[suiteIndex + 1];
+      let tests: any[];
+      if (suite === "benchmark") {
+        tests = JSON.parse(readFileSync(command[command.indexOf("--input") + 1], "utf8")).tests;
+      } else {
+        const env: Record<string, string> = {COA_PROMPTFOO_SUITE:suite};
+        for (const [flag, key] of Object.entries({"--dataset":"DATASET","--cases":"CASES","--methods":"METHODS","--eval-id":"EVAL_ID","--embedding-model":"EMBEDDING_MODEL","--browser-preset":"BROWSER_PRESET"})) {
+          const index = command.indexOf(flag);
+          if (index >= 0) env["COA_PROMPTFOO_" + key] = command[index + 1];
+        }
+        tests = buildConfig(env).tests;
+      }
+      writeFileSync(join(output, suite + ".json"), JSON.stringify({evalId:`fresh-batch-${calls.length}`,results:{results:tests.map((test,index)=>({
+        testCase:test,
+        response:{output:JSON.stringify({status:"completed",record:{run_id:`fresh-native-${calls.length}-${index}`,outcome:{hits:[]}}})},
+        gradingResult:{pass:false,componentResults:[{pass:false,metadata:{source_metrics:{source_quality_applicable:true,target_goals:1,covered_goals:0}}}]}
+      }))}}));
+      return 100;
+    });
+    assert.equal(calls.length,2,"one shared batch per repetition replaces twenty runner chains");
+    assert.ok(calls.every(command=>command.some(arg=>arg.endsWith("run_local_batch.ts"))));
+    assert.notEqual(calls[0][calls[0].indexOf("--output-dir")+1],calls[1][calls[1].indexOf("--output-dir")+1]);
+    assert.equal(progress.result.rows.length,66);
+    assert.deepEqual(progress.groups.map(group=>[group.status,group.completed]),[["completed",48],["completed",18]]);
+    assert.equal(new Set(progress.result.rows.map(row=>row.comparison_key)).size,66);
+    assert.equal(new Set(progress.result.rows.map(row=>row.native_run_id)).size,66);
+    assert.deepEqual(progress.result.rows.filter(row=>row.repeat===1&&row.group_id===planned.groups[1].id).map(row=>row.configuration.embedding_model),[
+      "minilm-multilingual","e5-small-multilingual",undefined,"minilm-multilingual","e5-small-multilingual","minilm-multilingual","e5-small-multilingual","e5-small-multilingual","e5-small-multilingual"
+    ]);
+  } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+test("a shared batch preserves one failed variant as unknown while grading every other variant",async()=>{
+  const {execute,questionPlan}=await import("./adapter.ts");
+  const planned=questionPlan({dataset:"regression-12-20261118",case_id:"IND26-01",repeats:1});
+  const dir=mkdtempSync(join(tmpdir(),"coa-batch-error-row-"));
+  try{
+    const progress=await execute(planned.selection,dir,planned,async command=>{
+      const input=JSON.parse(readFileSync(command[command.indexOf("--input")+1],"utf8"));
+      const output=command[command.indexOf("--output-dir")+1];
+      writeFileSync(join(output,"benchmark.json"),JSON.stringify({evalId:"mixed-technical-outcomes",results:{results:input.tests.map((test:any,index:number)=>({
+        testCase:test,
+        response:index===25?{error:"Native execution status: failed",metadata:{native_run_id:`actual-${index}`}}:{output:JSON.stringify({status:"completed",record:{run_id:`actual-${index}`,outcome:{hits:[]}}})},
+        gradingResult:{pass:false,componentResults:[{pass:false,metadata:{source_metrics:{source_quality_applicable:true,target_goals:10,covered_goals:0}}}]}
+      }))}}));
+      return 100;
+    });
+    assert.equal(progress.result.rows.length,33);
+    assert.equal(new Set(progress.result.rows.map(row=>row.comparison_key)).size,33);
+    const failed=progress.result.rows.filter(row=>row.status==="error");
+    assert.equal(failed.length,1);
+    assert.equal(failed[0].source_complete,null);
+    assert.equal(failed[0].native_run_id,"actual-25");
+    assert.equal(failed[0].metrics.covered_goals,null);
+    assert.deepEqual(failed[0].calls,[]);
+    assert.equal(progress.groups[0].status,"completed");
+    assert.equal(progress.groups[1].status,"failed");
+    assert.ok(progress.error);
+  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 test("complete-list question has thirty-three variants bound only to that frozen question", () => {
   const p=cli("question-plan",{dataset:"regression-12-20261118",case_id:"IND26-01",repeats:3});

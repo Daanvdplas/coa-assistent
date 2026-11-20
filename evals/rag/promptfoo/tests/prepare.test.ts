@@ -7,9 +7,11 @@ import {
   mkdirSync,
   rmSync,
   readdirSync,
+  existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { prepare } from "../prepare.ts";
 import { DEFAULTS, callApi, question, requestKey, ROOT } from "../provider.ts";
 import type { Executor } from "../provider.ts";
@@ -48,6 +50,185 @@ const completed = {
   stdout: Buffer.from("{}"),
   stderr: Buffer.alloc(0),
 };
+test("single-question benchmark prepares different retrieval settings in one fresh native batch", async (t) => {
+  const module = await import("../prepare.ts") as any;
+  assert.equal(typeof module.prepareBenchmarkBatch,"function","benchmark variants need a shared native preparation entrypoint");
+  const {root}=setup(t);
+  const selected=[3,6].map(top_k=>({vars:{...DEFAULTS,method:"bm25",top_k,dataset:"demo-12-20261118",case_id:"RAG26-06",question:question("demo-12-20261118","RAG26-06")}}));
+  let calls=0;
+  const execute: Executor=async(command)=>{
+    calls++;
+    assert.equal(command[2],"benchmark-batch");
+    const input=readJson<any>(command[command.indexOf("--input")+1]);
+    assert.deepEqual(Object.keys(input).sort(),["case_id","dataset","execution_id","requests","schema_version"]);
+    assert.equal(input.requests.length,2);
+    assert.ok(input.requests.every((row:any)=>!row.embedding_model&&/^[a-f0-9]{64}$/.test(row.request_id)));
+    const data=readJson<any>(join(ROOT,"evals/shared/datasets/demo-12-20261118/questions.json"));
+    const native=input.requests.map((request:any)=>{
+      const record=localRecord().record as any;
+      const batch_id=input.execution_id+"-native-123-0";
+      return {request_id:request.request_id,record:{...record,batch_id,run_id:batch_id+"--"+request.request_id,case_id:input.case_id,question:selected[0].vars.question,dataset:{...record.dataset,corpus_sha256:data.corpus_sha256,as_of:data.as_of},config:request.config,outcome:{...record.outcome,query:selected[0].vars.question,config:request.config.retrieval,corpus_identity:{...record.outcome.corpus_identity,embedding:null,vectors_sha256:null}},request_filters:{weekdays:[],environment:null,time:null}}};
+    });
+    writeFileSync(command[command.indexOf("--output")+1],native.reverse().map((row:any)=>canonicalJson(row)).join("\n")+"\n");
+    writeFileSync(command[command.indexOf("--embedding-manifest")+1],JSON.stringify({schema_version:1,execution_id:input.execution_id,models:{}}));
+    return completed;
+  };
+  const manifest=await module.prepareBenchmarkBatch({schema_version:1,execution_id:"fresh-test-execution",tests:selected},join(root,"benchmark-prepared.json"),execute);
+  assert.equal(calls,1);
+  assert.equal(Object.keys(manifest.records).length,2);
+  assert.equal(new Set(Object.values(manifest.records).map((row:any)=>row.run_id)).size,2);
+  assert.equal(manifest.execution_id,"fresh-test-execution");
+  for(const test of selected){
+    const entry=manifest.records[requestKey(test.vars)];
+    const record=readJson<any>(entry.path);
+    assert.equal(record.config.retrieval.top_k,test.vars.top_k,"native rows must map by request identity, never completion order");
+    assert.equal(sha256(readFileSync(entry.path)),entry.sha256);
+  }
+});
+test("benchmark worker grades the shared native batch with one existing promptfoo process", async (t) => {
+  const workerPath=new URL("../../../benchmark/run_local_batch.ts",import.meta.url);
+  assert.ok(existsSync(workerPath),"the benchmark needs one worker for its shared preparation and grading");
+  const {runLocalBatch}=await import(workerPath.href);
+  const {root}=setup(t),output=join(root,"worker");
+  const vars={...DEFAULTS,method:"bm25",dataset:"demo-12-20261118",case_id:"RAG26-01",question:question("demo-12-20261118","RAG26-01")};
+  const tests=[{vars,metadata:{suite:"quality"}}];
+  const commands:string[][]=[];
+  const execute:Executor=async(command,env)=>{
+    commands.push(command);
+    assert.equal(env.OPENAI_API_KEY,undefined);
+    assert.equal(env.COA_PROMPTFOO_ALLOW_CODEX,undefined);
+    if(command[2]==="benchmark-batch") {
+      const input=readJson<any>(command[command.indexOf("--input")+1]),request=input.requests[0];
+      const original=localRecord().record as any,data=readJson<any>(join(ROOT,"evals/shared/datasets/demo-12-20261118/questions.json")),batch_id=input.execution_id+"-native-123-0";
+      writeFileSync(command[command.indexOf("--output")+1],canonicalJson({request_id:request.request_id,record:{...original,batch_id,run_id:batch_id+"--"+request.request_id,case_id:vars.case_id,question:vars.question,dataset:{...original.dataset,corpus_sha256:data.corpus_sha256,as_of:data.as_of},config:request.config,outcome:{...original.outcome,query:vars.question,config:request.config.retrieval,corpus_identity:{...original.outcome.corpus_identity,embedding:null,vectors_sha256:null}},request_filters:{weekdays:[],environment:null,time:null}}})+"\n");
+      writeFileSync(command[command.indexOf("--embedding-manifest")+1],JSON.stringify({schema_version:1,execution_id:input.execution_id,models:{}}));
+      return completed;
+    }
+    assert.equal(command[2],"eval");
+    assert.ok(command.includes("--no-cache"));
+    assert.equal(command[command.indexOf("--max-concurrency")+1],"1");
+    const config=readJson<any>(command[command.indexOf("-c")+1]);
+    assert.equal(config.tests.length,1);
+    assert.ok(config.defaultTest.assert[0].value.endsWith("assertions.ts:getAssert"));
+    assert.ok(config.providers[0].id.endsWith("provider.ts"));
+    assert.equal(env.COA_PROMPTFOO_EXECUTION_ID,"fresh-worker-execution");
+    assert.ok(env.COA_PROMPTFOO_PREPARED);
+    writeFileSync(command[command.indexOf("-o")+1],JSON.stringify({evalId:"real-grader-fixture",results:{results:[{testCase:tests[0]}]}}));
+    return {...completed,returncode:100};
+  };
+  const code=await runLocalBatch({schema_version:1,execution_id:"fresh-worker-execution",tests},output,process.env.COA_RAG_BINARY!,execute);
+  assert.equal(code,100,"source misses remain completed grader outcomes");
+  assert.equal(commands.length,2,"one native batch plus one promptfoo grader, no identity CLI or per-variant process");
+});
+test("benchmark worker preserves a private diagnostic for protocol failures",()=>{
+  const worker=new URL("../../../benchmark/run_local_batch.ts",import.meta.url);
+  const result=spawnSync(process.execPath,[worker.pathname],{encoding:"utf8"});
+  assert.equal(result.status,1);
+  assert.match(result.stderr,/Expected --input, --output-dir and --binary/);
+});
+for(const change of ["missing","duplicate-request","duplicate-execution","wrong-config","wrong-question","wrong-corpus","stale-execution","wrong-embedding","wrong-filters","unknown-filter-field"]){
+  test(`shared benchmark rejects ${change} native evidence`,async(t)=>{
+    const {prepareBenchmarkBatch}=await import("../prepare.ts");
+    const {root}=setup(t),data=readJson<any>(join(ROOT,"evals/shared/datasets/demo-12-20261118/questions.json"));
+    const selected=[3,6].map(top_k=>({vars:{...DEFAULTS,method:"bm25",top_k,dataset:"demo-12-20261118",case_id:"RAG26-01",question:question("demo-12-20261118","RAG26-01")}}));
+    const execute:Executor=async(command)=>{
+      const input=readJson<any>(command[command.indexOf("--input")+1]),batch_id=input.execution_id+"-native-123-0";
+      const rows=input.requests.map((request:any)=>{
+        const original=localRecord().record as any;
+        return {request_id:request.request_id,record:{...original,batch_id,run_id:batch_id+"--"+request.request_id,case_id:input.case_id,question:selected[0].vars.question,
+          dataset:{...original.dataset,corpus_sha256:data.corpus_sha256,as_of:data.as_of},config:request.config,request_filters:{},
+          outcome:{...original.outcome,query:selected[0].vars.question,config:request.config.retrieval,corpus_identity:{...original.outcome.corpus_identity,embedding:null,vectors_sha256:null}}}};
+      });
+      if(change==="missing") rows.pop();
+      if(change==="duplicate-request") rows[1].request_id=rows[0].request_id;
+      if(change==="duplicate-execution") rows[1].record.run_id=rows[0].record.run_id;
+      if(change==="wrong-config") rows[1].record.config=rows[0].record.config;
+      if(change==="wrong-question") rows[1].record.question="Another question";
+      if(change==="wrong-corpus") rows[1].record.dataset.corpus_sha256="0".repeat(64);
+      if(change==="stale-execution") {rows[1].record.batch_id="previous-native-123-0";rows[1].record.run_id=rows[1].record.batch_id+"--"+rows[1].request_id;}
+      if(change==="wrong-embedding") rows[1].record.outcome.corpus_identity.embedding={model:"other-model"};
+      if(change==="wrong-filters") rows[1].record.request_filters={weekdays:["tuesday"],environment:null,time:null};
+      if(change==="unknown-filter-field") rows[1].record.request_filters={weekdays:[],environment:null,time:null,extra:true};
+      writeFileSync(command[command.indexOf("--output")+1],rows.map((row:any)=>canonicalJson(row)).join("\n")+"\n");
+      writeFileSync(command[command.indexOf("--embedding-manifest")+1],JSON.stringify({schema_version:1,execution_id:input.execution_id,models:{}}));
+      return completed;
+    };
+    await assert.rejects(prepareBenchmarkBatch({schema_version:1,execution_id:"fresh-negative-test",tests:selected},join(root,"negative-prepared.json"),execute),/Native benchmark/);
+    assert.ok(!existsSync(join(root,"negative-prepared.json")),"invalid bindings must never become prepared evidence");
+  });
+}
+test("one failed native variant is retained without discarding completed variants",async(t)=>{
+  const {prepareBenchmarkBatch}=await import("../prepare.ts");
+  const {root}=setup(t),data=readJson<any>(join(ROOT,"evals/shared/datasets/demo-12-20261118/questions.json"));
+  const selected=[3,6].map(top_k=>({vars:{...DEFAULTS,method:"bm25",top_k,dataset:"demo-12-20261118",case_id:"RAG26-01",question:question("demo-12-20261118","RAG26-01")}}));
+  const execute:Executor=async(command)=>{
+    const input=readJson<any>(command[command.indexOf("--input")+1]),batch_id=input.execution_id+"-native-123-0";
+    const rows=input.requests.map((request:any,index:number)=>{
+      const original=localRecord().record as any;
+      return {request_id:request.request_id,record:{...original,batch_id,run_id:batch_id+"--"+request.request_id,case_id:input.case_id,question:selected[0].vars.question,
+        dataset:{...original.dataset,corpus_sha256:data.corpus_sha256,as_of:data.as_of},config:request.config,request_filters:{},execution_status:index?"failed":"completed",error:index?"fixture search failed":null,
+        outcome:index?null:{...original.outcome,query:selected[0].vars.question,config:request.config.retrieval,corpus_identity:{...original.outcome.corpus_identity,embedding:null,vectors_sha256:null}}}};
+    });
+    writeFileSync(command[command.indexOf("--output")+1],rows.map((row:any)=>canonicalJson(row)).join("\n")+"\n");
+    writeFileSync(command[command.indexOf("--embedding-manifest")+1],JSON.stringify({schema_version:1,execution_id:input.execution_id,models:{}}));
+    return completed;
+  };
+  const path=join(root,"mixed-prepared.json"),manifest=await prepareBenchmarkBatch({schema_version:1,execution_id:"fresh-mixed-test",tests:selected},path,execute);
+  assert.equal(Object.keys(manifest.records).length,2);
+  process.env.COA_PROMPTFOO_PREPARED=path;
+  process.env.COA_PROMPTFOO_EXECUTION_ID="fresh-mixed-test";
+  const good=await callApi("",{},selected[0],async()=>{throw Error("prepared evidence must not rerun retrieval");});
+  const failed=await callApi("",{},selected[1],async()=>{throw Error("a failed variant must not be retried");});
+  assert.equal(good.error,undefined);
+  assert.match(failed.error??"",/Native execution status: failed/);
+  assert.equal(failed.metadata?.native_run_id,manifest.records[requestKey(selected[1].vars)].run_id,"failed searches retain their real execution identity");
+  assert.equal(readJson<any>(manifest.records[requestKey(selected[1].vars)].path).outcome,null);
+});
+test("benchmark execution IDs match the native batch contract before starting a child",async(t)=>{
+  const {prepareBenchmarkBatch}=await import("../prepare.ts");
+  const {root}=setup(t);
+  const vars={...DEFAULTS,method:"bm25",dataset:"demo-12-20261118",case_id:"RAG26-01",question:question("demo-12-20261118","RAG26-01")};
+  let calls=0;
+  for(const execution_id of ["contains.dot","a".repeat(129)]){
+    await assert.rejects(prepareBenchmarkBatch({schema_version:1,execution_id,tests:[{vars}]},join(root,"invalid-id.json"),async()=>{calls++;return {...completed,returncode:1};}),/Expected a fresh/);
+  }
+  assert.equal(calls,0);
+});
+for(const treatment of ["matching","swapped","missing"]){
+  test(`mixed MiniLM and E5 batch keeps ${treatment} model identities separate`,async(t)=>{
+    const {prepareBenchmarkBatch}=await import("../prepare.ts");
+    const {root}=setup(t),data=readJson<any>(join(ROOT,"evals/shared/datasets/demo-12-20261118/questions.json"));
+    const base={...DEFAULTS,method:"dense",dataset:"demo-12-20261118",case_id:"RAG26-06",question:question("demo-12-20261118","RAG26-06")};
+    const tests=[{vars:base},{vars:{...base,top_k:5,browser_eval_id:"quality-music",embedding_model:"e5-small-multilingual"}}];
+    const specs=readJson<EmbeddingSpec[]>(join(ROOT,"evals/rag/embedding-models.json"));
+    const models=Object.fromEntries(specs.map((spec,index)=>[spec.id,{provider:"local-fastembed",model:spec.repository+"@"+String(index+1).repeat(40),sdk:spec.sdk,dimensions:spec.dimensions,encoding:spec.encoding+"; model_files_sha256="+String(index+1).repeat(64),document_prefix:spec.document_prefix,query_prefix:spec.query_prefix}]));
+    const execute:Executor=async(command)=>{
+      const input=readJson<any>(command[command.indexOf("--input")+1]),batch_id=input.execution_id+"-native-123-0";
+      assert.deepEqual(input.requests.map((request:any)=>request.embedding_model),["minilm-multilingual","e5-small-multilingual"]);
+      const rows=input.requests.map((request:any,index:number)=>{
+        const original=localRecord().record as any;
+        const identity=models[treatment==="swapped"&&index===1?"minilm-multilingual":request.embedding_model];
+        return {request_id:request.request_id,record:{...original,batch_id,run_id:batch_id+"--"+request.request_id,case_id:input.case_id,question:base.question,
+          dataset:{...original.dataset,corpus_sha256:data.corpus_sha256,as_of:data.as_of},config:request.config,request_filters:{},
+          outcome:{...original.outcome,query:base.question,config:request.config.retrieval,corpus_identity:{...original.outcome.corpus_identity,embedding:identity}}}};
+      });
+      writeFileSync(command[command.indexOf("--output")+1],rows.map((row:any)=>canonicalJson(row)).join("\n")+"\n");
+      const pins={...models};if(treatment==="missing")delete pins["e5-small-multilingual"];
+      writeFileSync(command[command.indexOf("--embedding-manifest")+1],JSON.stringify({schema_version:1,execution_id:input.execution_id,models:pins}));
+      return completed;
+    };
+    const prepared=prepareBenchmarkBatch({schema_version:1,execution_id:"fresh-model-fixture",tests},join(root,"mixed-models.json"),execute);
+    if(treatment!=="matching") await assert.rejects(prepared);
+    else{
+      const manifest=await prepared;
+      assert.equal(Object.keys(manifest.records).length,2);
+      const identities=readJson<any>(manifest.embedding_manifest!.path).models;
+      assert.equal(identities["minilm-multilingual"].query_prefix,"");
+      assert.equal(identities["e5-small-multilingual"].query_prefix,"query: ");
+      assert.equal(identities["e5-small-multilingual"].document_prefix,"passage: ");
+    }
+  });
+}
 test("exact selected cases share preparation without native assessment", async (t) => {
   const { root, rows } = setup(t),
     seen: string[][] = [];

@@ -93,6 +93,29 @@ pub(crate) struct SearchAttempt {
     pub timings: RetrievalTimings,
 }
 
+pub(crate) struct PreparedQuery {
+    request: RetrievalRequest,
+    vector: Option<Vec<f32>>,
+    timings: RetrievalTimings,
+    started: Instant,
+}
+
+impl PreparedQuery {
+    pub fn finish_with(
+        mut self,
+        search: impl FnOnce(&RetrievalRequest, Option<&[f32]>) -> Result<RetrievalOutcome, String>,
+    ) -> SearchAttempt {
+        let started = Instant::now();
+        let outcome = search(&self.request, self.vector.as_deref());
+        self.timings.retrieval_ms = Some(elapsed_ms(started));
+        self.timings.query_total_ms = Some(elapsed_ms(self.started));
+        SearchAttempt {
+            outcome,
+            timings: self.timings,
+        }
+    }
+}
+
 pub(crate) struct PreparationSession {
     sections: Vec<Section>,
     #[cfg(feature = "sqlite")]
@@ -103,6 +126,9 @@ pub(crate) struct PreparationSession {
 }
 
 impl PreparationSession {
+    pub(crate) fn embedding_identity(&mut self) -> Result<EmbeddingIdentity, String> {
+        self.embeddings.identity()
+    }
     pub fn for_corpus(
         options: &PreparationOptions,
         corpus: crate::corpus::CorpusId,
@@ -218,14 +244,28 @@ impl PreparationSession {
         request: &RetrievalRequest,
         config: &RunConfig,
     ) -> SearchAttempt {
+        match self.query(prepared, request, config) {
+            Ok(query) => query.finish_with(|request, vector| {
+                crate::retrieval::retrieve(&prepared.corpus, request, &config.retrieval, vector)
+            }),
+            Err(attempt) => *attempt,
+        }
+    }
+
+    pub(crate) fn query(
+        &mut self,
+        prepared: &mut PreparedSearch,
+        request: &RetrievalRequest,
+        config: &RunConfig,
+    ) -> Result<PreparedQuery, Box<SearchAttempt>> {
         let mut timings = RetrievalTimings::default();
         let query = match crate::validate_query(&request.query) {
             Ok(query) => query,
             Err(error) => {
-                return SearchAttempt {
+                return Err(Box::new(SearchAttempt {
                     outcome: Err(error),
                     timings,
-                };
+                }));
             }
         };
         let request = RetrievalRequest {
@@ -234,10 +274,10 @@ impl PreparationSession {
         };
         let validation = crate::retrieval::validate_config(&config.retrieval, &request.filters);
         if let Err(error) = validation {
-            return SearchAttempt {
+            return Err(Box::new(SearchAttempt {
                 outcome: Err(error),
                 timings,
-            };
+            }));
         }
         let query_started = Instant::now();
         let vector = if config.retrieval.method != SearchMethod::Bm25 {
@@ -277,25 +317,21 @@ impl PreparationSession {
                 }
                 Err(error) => {
                     timings.query_total_ms = Some(elapsed_ms(query_started));
-                    return SearchAttempt {
+                    return Err(Box::new(SearchAttempt {
                         outcome: Err(error),
                         timings,
-                    };
+                    }));
                 }
             }
         } else {
             None
         };
-        let started = Instant::now();
-        let outcome = crate::retrieval::retrieve(
-            &prepared.corpus,
-            &request,
-            &config.retrieval,
-            vector.as_deref(),
-        );
-        timings.retrieval_ms = Some(elapsed_ms(started));
-        timings.query_total_ms = Some(elapsed_ms(query_started));
-        SearchAttempt { outcome, timings }
+        Ok(PreparedQuery {
+            request,
+            vector,
+            timings,
+            started: query_started,
+        })
     }
 }
 
@@ -494,6 +530,112 @@ mod tests {
         retrieval::{RetrievalConfig, SearchMethod},
         storage::StorageProfile,
     };
+    #[test]
+    fn split_query_execution_preserves_fixed_vector_results_for_every_search_method() {
+        let sections: Vec<_> = crate::source::parse_sources(crate::DOCUMENTS)
+            .unwrap()
+            .into_iter()
+            .flat_map(|source| source.sections)
+            .take(4)
+            .collect();
+        let identity = EmbeddingIdentity {
+            provider: "fixture".into(),
+            model: "fixed-vector@revision".into(),
+            sdk: "fixture-v1".into(),
+            dimensions: 2,
+            document_prefix: "passage: ".into(),
+            query_prefix: "query: ".into(),
+            encoding: "fixture".into(),
+        };
+        let corpus = PreparedCorpus::new(
+            sections,
+            Some(vec![
+                vec![1.0, 0.0],
+                vec![0.8, 0.2],
+                vec![0.0, 1.0],
+                vec![-1.0, 0.0],
+            ]),
+            Some(identity.clone()),
+        )
+        .unwrap();
+        let missing = Path::new("/missing-fixed-vector-test-model");
+        let mut embeddings = LocalEmbeddings::new(missing, Default::default());
+        embeddings.identity = Some(identity.clone());
+        let mut memory = EmbeddingCache::default();
+        let encoded = format!("{}tuinieren dinsdag", identity.query_prefix);
+        let key = CacheKey::new(
+            &serde_json::json!({"identity":identity,"purpose":"raw-query-v1"}),
+            &encoded,
+            2,
+        )
+        .unwrap();
+        memory.put(&key, &[1.0, 0.0]).unwrap();
+        let mut session = PreparationSession {
+            sections: corpus.sections.clone(),
+            #[cfg(feature = "sqlite")]
+            sqlite_dir: PathBuf::from("/missing-fixed-vector-test-sqlite"),
+            embeddings,
+            memory_cache: memory,
+            source_parse_ms: 0.0,
+        };
+        let mut prepared = PreparedSearch {
+            store: Box::new(DocumentsStore::new(
+                crate::storage::StorageStructure::Sections,
+            )),
+            corpus: corpus.clone(),
+            record: PreparationRecord::default(),
+        };
+        for method in [
+            SearchMethod::Dense,
+            SearchMethod::Bm25,
+            SearchMethod::HybridRrf,
+            SearchMethod::HybridWeighted,
+        ] {
+            for selection in [
+                crate::retrieval::SelectionMode::Sections,
+                crate::retrieval::SelectionMode::ActivityExpansion,
+            ] {
+                let config = RetrievalConfig {
+                    method,
+                    selection,
+                    top_k: 1,
+                    ..Default::default()
+                };
+                let request = RetrievalRequest {
+                    query: "tuinieren dinsdag".into(),
+                    filters: Default::default(),
+                };
+                let vector = (method != SearchMethod::Bm25).then_some(vec![1.0, 0.0]);
+                let direct =
+                    crate::retrieval::retrieve(&corpus, &request, &config, vector.as_deref())
+                        .unwrap();
+                let run_config = RunConfig {
+                    profile: StorageProfile::DocumentsSections,
+                    retrieval: config.clone(),
+                };
+                let query = session
+                    .query(&mut prepared, &request, &run_config)
+                    .unwrap_or_else(|_| panic!("The fixed-vector cache must avoid any inference"));
+                let split = query.finish_with(|request, vector| {
+                    crate::retrieval::retrieve(&corpus, request, &config, vector)
+                });
+                assert_eq!(
+                    serde_json::to_value(split.outcome.unwrap()).unwrap(),
+                    serde_json::to_value(direct).unwrap()
+                );
+                assert!(
+                    split.timings.query_total_ms.unwrap() >= split.timings.retrieval_ms.unwrap()
+                );
+                assert_eq!(
+                    split.timings.query_embedding_cache_hit,
+                    (method != SearchMethod::Bm25).then_some(true)
+                );
+            }
+        }
+        assert!(session.embeddings.model.is_none());
+        assert_eq!(session.embeddings.query_count, 0);
+        assert!(!missing.exists());
+    }
     #[test]
     fn keyword_only_selection_never_needs_an_embedding_model_cache() {
         let config = RunConfig {

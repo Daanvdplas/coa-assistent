@@ -270,6 +270,7 @@ async function fixture({
   repeats = 2,
   partial = false,
   timed = false,
+  nativeCapture = false,
 } = {}) {
   const page = await browser.newPage({
     viewport: mobile
@@ -291,6 +292,13 @@ async function fixture({
     firstLost = uncertain,
     cancelled = false;
   if (current && running) current.status = "running";
+  if (current && nativeCapture) {
+    current.status = "running";
+    current.progress.completed = 0;
+    current.groups[0].status = "running";
+    current.groups[0].completed = 0;
+    current.result.rows = [];
+  }
   if (current && timed) {
     current.result.rows[0].rag_timing = {
       scope: "prepared_index_query",
@@ -451,6 +459,29 @@ test("direct benchmark selects one question by title, defaults to two repetition
   } finally {
     await page.close();
   }
+});
+test("polling reveals ungraded native captures and their final result without a refresh or duplicate",async()=>{
+  const flow=await fixture({saved:true,running:true,nativeCapture:true,repeats:1,pagePath:"/benchmark/?run=run-one"});
+  const {page}=flow;
+  try{
+    await page.locator(".benchmark-coverage").waitFor();
+    const original=runFor({dataset,case_id:"P01",mode:"rag",repeats:1}).result.rows[0];
+    const partial={...original,status:"retrieved_ungraded",native_run_id:"native-capture-one",source_complete:null,
+      actual_retrieval:{activities:0,sections:0,applicable:true},
+      required_source_coverage:{...original.required_source_coverage,found:0},
+      metrics:{covered_goals:null,target_goals:null,source_quality_applicable:null},
+      goals:original.goals.map(goal=>({...goal,covered:null})),calls:[],assertions:[]};
+    flow.current.result.rows.push(partial);
+    await page.waitForFunction(()=>document.querySelector('tr[data-metric="execution"] td')?.textContent==="Nog niet beoordeeld");
+    assert.equal(await page.locator('tr[data-metric="sources"] td').first().textContent(),"0/8");
+    assert.equal(await page.locator('tr[data-metric="activities"] td').first().textContent(),"0");
+    assert.equal(flow.current.progress.completed,0,"captured source evidence is not a completed grading count");
+    flow.current.result.rows[0]={...original,status:"passed",native_run_id:"native-capture-one",source_complete:true,required_source_coverage:{...original.required_source_coverage,found:8}};
+    await page.waitForFunction(()=>document.querySelector('tr[data-metric="execution"] td')?.textContent==="Afgerond");
+    assert.equal(await page.locator('tr[data-metric="sources"] td').first().textContent(),"8/8");
+    assert.equal(flow.current.result.rows.length,1);
+    assert.equal(flow.starts.length,0);
+  }finally{await page.close();}
 });
 test("each Evals question deliberately starts its exact benchmark once before navigating", async () => {
   const flow = await fixture({ pagePath: "/resultaten/" });

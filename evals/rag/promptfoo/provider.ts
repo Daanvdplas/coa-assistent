@@ -381,6 +381,7 @@ export function responseFor(
         dataset: variables.dataset,
         mode: settings.mode,
         status,
+        native_run_id: "run_id" in record ? record.run_id : undefined,
       },
     };
   const envelope: Envelope = {

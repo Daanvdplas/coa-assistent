@@ -50,6 +50,10 @@ The provider removes OpenAI API-key settings from child environments, loads no k
 
 Each execution gets a new ignored `evals/rag/results/local/` directory with real promptfoo JSON, summaries and private native artifacts. Retrieval preparation shares model/index construction only for exactly selected request groups. The provider reads byte-bound records from the same new execution ID, not old benchmark output or promptfoo cache.
 
+The benchmark page's current single-question quality/embedding selection uses a selected native batch instead of starting one native process per configuration. `prepareBenchmarkBatch()` binds every request to its exact configuration, question, corpus, encoder identity and fresh execution ID. Rust shares compatible preparation only within that batch and records one real search per variant. `evals/benchmark/run_local_batch.ts` then invokes the existing provider and assertions in one promptfoo CLI process, with response caching and retries disabled. Existing repetitions start independent batch directories; no prepared corpus, derived vector cache or loaded model instance is shared across repetitions or benchmark runs. The existing downloaded model-file cache remains available. Other CLI suites and the individual browser evaluation retain their existing protocols.
+
+Durable native captures may be displayed before grading as ungraded source evidence. This display does not manufacture promptfoo results or fact scores. Final promptfoo results replace matching captures. Protected source plans remain in the post-capture inspection and grading paths, never in the native batch input.
+
 `gradingResult.componentResults[].metadata.source_metrics` records complete evidence sets, partial coverage, supported ranking metrics, missed goals, section/activity capacity bounds and N/A where positive goals are absent. Only source quality is assessed; free-form answer quality stays `not_assessed`.
 
 Missing required sources remain a real assertion failure. Unknown/clarification cases without positive targets get integrity checks without perfect/zero source-quality scores. Provider errors, invalid traces and unsupported profiles remain execution problems. Exit code 100 can therefore be a preserved evidence miss; inspect result categories rather than assuming installation failure.
@@ -60,6 +64,7 @@ The exporter updates `/resultaten/` using permitted observable fields, excluding
 
 - [provider.ts](provider.ts): execution and bounded Codex ledgers.
 - [prepare.ts](prepare.ts): exact fresh local request groups without assessment.
+- [Benchmark worker](../../benchmark/run_local_batch.ts): one current question's shared native preparation and existing promptfoo grading pass.
 - [assertions.ts](assertions.ts): canonical source/trace checks and derived metrics.
 - [data-pins.json](data-pins.json): hashes of preserved input bytes, not new labels.
 

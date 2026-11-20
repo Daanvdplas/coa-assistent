@@ -1,4 +1,5 @@
 mod benchmark_attempts;
+mod benchmark_capture;
 mod benchmark_report;
 mod benchmark_rig;
 mod benchmark_sources;

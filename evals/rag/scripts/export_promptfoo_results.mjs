@@ -58,7 +58,7 @@ export function project(input) {
     const configuration = fields(vars,['mode','model','method','profile','top_k','candidate_k','context_token_limit','selection','apply_filters','mmr','payload_mode']);
     if (!['codex','compact-live'].includes(vars.mode)) delete configuration.model;
     return {
-      id:text(result.id) || `${input.evalId}-${index+1}`, native_run_id:text(record.run_id || live.run_id || run?.id),
+      id:text(result.id) || `${input.evalId}-${index+1}`, native_run_id:text(record.run_id || live.run_id || run?.id || result.response?.metadata?.native_run_id),
       dataset:text(vars.dataset || vars.dataset_id || envelope?.dataset_id), case_id:text(vars.case_id || envelope?.case_id),
       question:text(vars.question || envelope?.question), suite:text(vars.suite || result.testCase?.metadata?.suite || input.config?.description || 'rag'),
       provider:publicReason(result.provider?.label) || [text(vars.model),text(vars.method),text(vars.profile)].filter(Boolean).join(' · ') || 'Lokale uitvoering',

@@ -324,6 +324,8 @@ impl Benchmarks {
             .stdin(Stdio::null())
             .kill_on_drop(true)
             .process_group(0);
+        command.env("TOKENIZERS_PARALLELISM", "false");
+        command.env("RAYON_NUM_THREADS", "2");
         for (key, _) in std::env::vars_os() {
             if key.to_string_lossy().starts_with("COA_PROMPTFOO_") {
                 command.env_remove(key);
@@ -627,6 +629,7 @@ pub(super) async fn cancel(
 }
 
 fn merge_progress(snapshot: &mut Value, path: &FilePath) {
+    let previous = snapshot["result"].clone();
     let Ok(progress) = read_json(path) else {
         return;
     };
@@ -650,6 +653,9 @@ fn merge_progress(snapshot: &mut Value, path: &FilePath) {
                 }
             }
         }
+    }
+    if let Some(directory) = path.parent() {
+        super::benchmark_capture::merge(snapshot, directory, &previous);
     }
 }
 // Protected reference IDs are resolved only for inspection after execution.
@@ -718,6 +724,13 @@ fn enrich_expected_sources(snapshot: &mut Value) {
     }
 }
 fn finish_snapshot(snapshot: &mut Value, status: &str, error: Option<&str>) {
+    let captured_groups: BTreeSet<_> = snapshot["result"]["rows"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|row| row["native_capture"] == true)
+        .filter_map(|row| row["group_id"].as_str().map(str::to_owned))
+        .collect();
     let incomplete = status == "completed"
         && snapshot["groups"].as_array().is_none_or(|groups| {
             groups
@@ -742,7 +755,11 @@ fn finish_snapshot(snapshot: &mut Value, status: &str, error: Option<&str>) {
                 group["status"].as_str(),
                 Some("queued" | "running" | "preparing")
             ) {
-                group["status"] = json!(if group["completed"].as_u64().unwrap_or(0) > 0 {
+                group["status"] = json!(if group["completed"].as_u64().unwrap_or(0) > 0
+                    || group["id"]
+                        .as_str()
+                        .is_some_and(|id| captured_groups.contains(id))
+                {
                     status
                 } else {
                     "not_run"
@@ -1005,16 +1022,13 @@ async fn execute_rig_groups(
     Ok("completed")
 }
 async fn worker(jobs: Arc<Benchmarks>, id: String, mut cancel: watch::Receiver<bool>) {
-    let Ok(snapshot) = jobs.get(&id) else {
+    if jobs.get(&id).is_err() {
         return;
-    };
-    let model = snapshot["plan"]["groups"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .any(|group| group["kind"] == "model" && group["block_reason"].is_null());
-    let slots = if model { LOCAL_CONCURRENCY } else { 1 };
-    if jobs.update(&id,|value|value["scheduling"]=json!({"local_concurrency_limit":LOCAL_CONCURRENCY,"reserved_slots":slots,"timing_context":"shared_cpu_possible_not_isolated","started_at":null,"finished_at":null,"observed_running_ids":[]})).is_err() {
+    }
+    // A local batch uses both search slots internally; admitting another batch
+    // here would multiply the global limit. Model jobs keep exclusive ownership.
+    let slots = LOCAL_CONCURRENCY;
+    if jobs.update(&id,|value|value["scheduling"]=json!({"local_concurrency_limit":LOCAL_CONCURRENCY,"local_batch_concurrency_limit":1,"reserved_slots":slots,"timing_context":"shared_cpu_possible_not_isolated","started_at":null,"finished_at":null,"observed_running_ids":[]})).is_err() {
         return;
     }
     let _permit = tokio::select! {
@@ -1270,6 +1284,209 @@ pub(super) async fn discussion(
 mod tests {
     use super::*;
 
+    fn partial_capture_fixture() -> (PathBuf, Value, PathBuf) {
+        let root = directory();
+        let part = root.join("batch-1");
+        std::fs::create_dir(&part).unwrap();
+        let corpus_id = meedoen_retrieval::corpus::CorpusId::DemoTwelve;
+        let dataset = meedoen_retrieval::retrieval_lab::dataset::load("demo-12-20261118").unwrap();
+        let case = dataset
+            .catalog
+            .cases
+            .iter()
+            .find(|case| case.id == "RAG26-01")
+            .unwrap();
+        let corpus = meedoen_retrieval::retrieval::PreparedCorpus::new(
+            corpus_id
+                .sources()
+                .unwrap()
+                .into_iter()
+                .flat_map(|source| source.sections)
+                .collect(),
+            None,
+            None,
+        )
+        .unwrap();
+        use meedoen_retrieval::storage::CorpusStore;
+        let mut store = meedoen_retrieval::storage::DocumentsStore::new(
+            meedoen_retrieval::storage::StorageStructure::Sections,
+        );
+        store.sync(&corpus).unwrap();
+        let layout = store.layout_stats().unwrap();
+        let retrieval = meedoen_retrieval::retrieval::RetrievalConfig {
+            method: meedoen_retrieval::retrieval::SearchMethod::Bm25,
+            ..Default::default()
+        };
+        let query = meedoen_retrieval::retrieval::RetrievalRequest {
+            query: case.question.clone(),
+            filters: Default::default(),
+        };
+        let outcome =
+            meedoen_retrieval::retrieval::retrieve(&corpus, &query, &retrieval, None).unwrap();
+        let config = meedoen_retrieval::retrieval_lab::types::RunConfig {
+            profile: meedoen_retrieval::storage::StorageProfile::DocumentsSections,
+            retrieval: retrieval.clone(),
+        };
+        let mut vars = serde_json::to_value(&retrieval).unwrap();
+        vars["mode"] = json!("local");
+        vars["profile"] = json!("documents_sections");
+        vars["dataset"] = json!("demo-12-20261118");
+        vars["case_id"] = json!(case.id);
+        vars["question"] = json!(case.question);
+        let configuration: Value = vars
+            .as_object()
+            .unwrap()
+            .iter()
+            .filter(|(key, _)| !["dataset", "case_id", "question"].contains(&key.as_str()))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        let request = "a".repeat(64);
+        let record = json!({"schema_version":1,"batch_id":"capture-unit-native-1-0","run_id":format!("capture-unit-native-1-0--{request}"),"created_at_unix_ms":1,"case_id":case.id,"question":case.question,"family":case.family,"split":case.split,"kind":case.kind,"config_id":meedoen_retrieval::retrieval_lab::catalog::config_id(&config).unwrap(),"config":config,"request_filters":{},"query_inputs_sha256":dataset.query_inputs_sha256,"execution_kind":"local_measured","execution_status":"completed","dataset":dataset.catalog.identity,"preparation":{"preparation_id":"prepared-1","actual_profile":"documents_sections","corpus_identity":outcome.corpus_identity,"layout":layout,"sync":null,"document_cache_hits":0,"document_cache_misses":0,"model_load_ms":null,"document_embedding_ms":null,"storage_sync_ms":null,"storage_load_ms":null,"profile_preparation_ms":0.1},"shared_preparation":null,"outcome":outcome,"timings":{"query_total_ms":1.0,"query_embedding_ms":null,"query_embedding_cache_hit":null,"retrieval_ms":0.5},"error":null});
+        std::fs::write(
+            part.join("native.jsonl"),
+            format!("{}\n", json!({"request_id":request,"record":record})),
+        )
+        .unwrap();
+        write_new(
+            &part.join("embedding.json"),
+            &json!({"schema_version":1,"execution_id":"capture-unit","models":{}}),
+        )
+        .unwrap();
+        let goals = json!([{"id":"required","covered":null,"alternatives":[[{"source_id":"ACT-TUIN-001","section_id":"S2","found":null},{"source_id":"ACT-TUIN-001","section_id":"S3","found":null}]]}]);
+        write_new(&root.join("active-native-capture.json"), &json!({"schema_version":1,"execution_id":"capture-unit","dataset":"demo-12-20261118","case_id":case.id,"question":case.question,"corpus_sha256":corpus_id.sha256(),"as_of":corpus_id.as_of(),"native_path":"batch-1/native.jsonl","embedding_manifest":"batch-1/embedding.json","requests":[{"request_id":request,"group_id":"quality:demo","configuration_id":"configuration-1","comparison_key":"quality:demo:RAG26-01:configuration-1:1","repeat":1,"vars":vars,"goals":goals}]})).unwrap();
+        let mut snapshot = json!({"status":"running","plan":{"selection":{"repeats":2},"groups":[{"id":"quality:demo","kind":"local","dataset":"demo-12-20261118","case_ids":["RAG26-01"],"identity":{"corpus_sha256":corpus_id.sha256()},"configurations":[{"id":"configuration-1","configuration":configuration}]}]},"groups":[{"id":"quality:demo","status":"running","completed":0}],"result":{"rows":[],"sources":{}},"progress":{"completed":0,"total":2}});
+        snapshot["id"] = json!("a".repeat(32));
+        let progress = root.join("progress.json");
+        write_new(&progress, &json!({"groups":[],"result":{"rows":[],"sources":{}},"progress":{"completed":0,"total":2}})).unwrap();
+        (root, snapshot, progress)
+    }
+
+    #[test]
+    fn native_partial_is_visible_without_claiming_a_promptfoo_grade_and_survives_cancel() {
+        let (root, mut snapshot, progress) = partial_capture_fixture();
+        merge_progress(&mut snapshot, &progress);
+        super::super::benchmark_sources::enrich(&mut snapshot);
+        assert_eq!(
+            snapshot["result"]["rows"].as_array().unwrap().len(),
+            1,
+            "Completed native evidence must be visible before grading finishes"
+        );
+        let row = &snapshot["result"]["rows"][0];
+        assert_eq!(row["status"], "retrieved_ungraded");
+        assert!(row["metrics"]["covered_goals"].is_null());
+        assert!(row["source_complete"].is_null());
+        assert_eq!(row["required_source_coverage"]["found"], 2);
+        assert_eq!(row["required_source_coverage"]["total"], 2);
+        assert!(row["actual_retrieval"]["sections"].as_u64().unwrap() > 0);
+        finish_snapshot(&mut snapshot, "cancelled", None);
+        assert_eq!(
+            snapshot["groups"][0]["status"], "cancelled",
+            "A captured native search must not be labelled as never run"
+        );
+        merge_progress(&mut snapshot, &progress);
+        assert_eq!(snapshot["result"]["rows"].as_array().unwrap().len(), 1);
+        let mut final_progress = read_json(&progress).unwrap();
+        let mut final_row = snapshot["result"]["rows"][0].clone();
+        final_row["status"] = json!("passed");
+        final_row["native_capture"] = json!(false);
+        final_progress["result"]["rows"] = json!([final_row]);
+        checkpoint(&progress, &final_progress).unwrap();
+        merge_progress(&mut snapshot, &progress);
+        assert_eq!(snapshot["result"]["rows"].as_array().unwrap().len(), 1);
+        assert_eq!(snapshot["result"]["rows"][0]["status"], "passed");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn native_partial_rejects_stale_foreign_or_misconfigured_records() {
+        for invalid in [
+            "stale",
+            "foreign",
+            "config",
+            "corpus",
+            "model",
+            "escape",
+            "unfinished",
+        ] {
+            let (root, mut snapshot, progress) = partial_capture_fixture();
+            let native = root.join("batch-1/native.jsonl");
+            let mut captured: Value =
+                serde_json::from_str(std::fs::read_to_string(&native).unwrap().trim()).unwrap();
+            match invalid {
+                "stale" => captured["record"]["batch_id"] = json!("other-execution-native-1-0"),
+                "foreign" => captured["record"]["case_id"] = json!("RAG26-02"),
+                "config" => captured["record"]["config"]["retrieval"]["top_k"] = json!(6),
+                "corpus" => captured["record"]["dataset"]["corpus_sha256"] = json!("wrong-corpus"),
+                "model" | "escape" => {
+                    let path = root.join("active-native-capture.json");
+                    let mut descriptor = read_json(&path).unwrap();
+                    if invalid == "model" {
+                        descriptor["requests"][0]["embedding_model"] =
+                            json!("e5-small-multilingual");
+                    } else {
+                        descriptor["native_path"] = json!("../native.jsonl");
+                    }
+                    checkpoint(&path, &descriptor).unwrap();
+                }
+                "unfinished" => {}
+                _ => unreachable!(),
+            }
+            std::fs::write(
+                &native,
+                format!(
+                    "{captured}{}",
+                    if invalid == "unfinished" { "" } else { "\n" }
+                ),
+            )
+            .unwrap();
+            merge_progress(&mut snapshot, &progress);
+            assert!(
+                snapshot["result"]["rows"].as_array().unwrap().is_empty(),
+                "Rejected capture leaked into the dashboard: {invalid}"
+            );
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+    #[test]
+    fn failed_native_capture_stays_visible_when_cancelled_without_publishing_private_errors() {
+        let (root, mut snapshot, progress) = partial_capture_fixture();
+        let native = root.join("batch-1/native.jsonl");
+        let mut captured: Value =
+            serde_json::from_str(std::fs::read_to_string(&native).unwrap().trim()).unwrap();
+        captured["record"]["execution_status"] = json!("failed");
+        captured["record"]["error"] = json!("PRIVATE /Users/private/model-cache/runtime-error");
+        captured["record"]["outcome"] = Value::Null;
+        captured["record"]["timings"] = json!({"query_total_ms":null,"query_embedding_ms":null,"query_embedding_cache_hit":null,"retrieval_ms":null});
+        std::fs::write(native, format!("{captured}\n")).unwrap();
+        merge_progress(&mut snapshot, &progress);
+        assert_eq!(
+            snapshot["result"]["rows"].as_array().unwrap().len(),
+            1,
+            "An attempted native failure must not disappear until grading completes"
+        );
+        let row = &snapshot["result"]["rows"][0];
+        assert_eq!(row["status"], "error");
+        assert!(row["source_complete"].is_null());
+        assert!(row["metrics"]["covered_goals"].is_null());
+        assert!(!row.to_string().contains("PRIVATE"));
+        finish_snapshot(&mut snapshot, "cancelled", None);
+        assert_eq!(snapshot["groups"][0]["status"], "cancelled");
+        assert_eq!(snapshot["result"]["rows"].as_array().unwrap().len(), 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn native_capture_changes_polling_progress_without_claiming_graded_completion() {
+        let (root, mut snapshot, progress) = partial_capture_fixture();
+        let before = snapshot["progress"].clone();
+        merge_progress(&mut snapshot, &progress);
+        assert_eq!(
+            snapshot["progress"]["native_captured"], 1,
+            "The browser's progress fingerprint must change when a completed native capture arrives"
+        );
+        assert_ne!(snapshot["progress"], before);
+        assert_eq!(snapshot["progress"]["completed"], 0);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     fn scheduling_fixture() -> (PathBuf, Arc<Benchmarks>) {
         let root = directory();
         let script = root.join("evals/benchmark/adapter.ts");
@@ -1310,7 +1527,7 @@ mod tests {
         marker.exists()
     }
     #[tokio::test]
-    async fn two_local_processes_overlap_but_a_third_waits_and_cancel_releases_capacity() {
+    async fn a_local_batch_reserves_both_search_slots_until_cancelled() {
         let (root, jobs) = scheduling_fixture();
         let a = "10000000000000000000000000000000";
         let b = "20000000000000000000000000000000";
@@ -1318,31 +1535,51 @@ mod tests {
         let (sa, ha) = scheduled_worker(&jobs, a, false);
         assert!(started(&root, a).await);
         let (sb, hb) = scheduled_worker(&jobs, b, false);
-        let overlap = started(&root, b).await;
         let (sc, hc) = scheduled_worker(&jobs, c, false);
         tokio::time::sleep(Duration::from_millis(150)).await;
-        let bounded = !root.join("results").join(c).join("started").exists();
+        let bounded = !root.join("results").join(b).join("started").exists()
+            && !root.join("results").join(c).join("started").exists();
         sa.send(true).unwrap();
         ha.await.unwrap();
-        let released = started(&root, c).await;
+        let released = started(&root, b).await;
+        let still_bounded = !root.join("results").join(c).join("started").exists();
         sb.send(true).unwrap();
-        sc.send(true).unwrap();
         hb.await.unwrap();
+        let third_released = started(&root, c).await;
+        sc.send(true).unwrap();
         hc.await.unwrap();
         let recorded = jobs.get(b).unwrap()["scheduling"].clone();
         drop(jobs);
         std::fs::remove_dir_all(root).unwrap();
         assert!(
-            overlap && bounded && released,
-            "Two actual local workers must overlap, a third must wait, cancellation must release capacity"
+            bounded && released && still_bounded && third_released,
+            "One local batch owns both search slots; other batches wait until its actual process is reaped"
         );
         assert_eq!(recorded["local_concurrency_limit"], 2);
+        assert_eq!(recorded["reserved_slots"], 2);
         assert!(recorded["started_at"].is_u64() && recorded["finished_at"].is_u64());
         assert!(
             recorded["observed_running_ids"]
                 .as_array()
-                .is_some_and(|ids| ids.contains(&json!(a)))
+                .is_some_and(Vec::is_empty)
         );
+    }
+    #[test]
+    fn benchmark_children_have_a_bounded_tokenizer_pool() {
+        let (root, jobs) = scheduling_fixture();
+        let command = jobs.command();
+        let selected = |name: &str| {
+            command
+                .as_std()
+                .get_envs()
+                .find(|(key, _)| *key == name)
+                .and_then(|(_, value)| value)
+                .map(|value| value.to_string_lossy().into_owned())
+        };
+        assert_eq!(selected("TOKENIZERS_PARALLELISM").as_deref(), Some("false"));
+        assert_eq!(selected("RAYON_NUM_THREADS").as_deref(), Some("2"));
+        drop(jobs);
+        std::fs::remove_dir_all(root).unwrap();
     }
     #[tokio::test]
     async fn model_worker_excludes_both_local_slots_without_making_any_model_call() {

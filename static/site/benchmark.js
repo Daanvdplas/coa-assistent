@@ -288,6 +288,11 @@ const fingerprint = (run) =>
       group.completed,
       group.error,
     ]),
+    run?.result?.rows?.map((row) => [
+      row.comparison_key || row.id,
+      row.native_run_id,
+      row.status,
+    ]),
   ]);
 function pollRun() {
   clearTimeout(state.poll);

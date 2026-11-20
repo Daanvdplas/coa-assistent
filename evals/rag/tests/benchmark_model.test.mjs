@@ -29,6 +29,17 @@ test("failed runs are execution errors rather than source-quality misses", () =>
   assert.equal(executionStatus("failed"), "Uitvoeringsfout");
   assert.equal(executionStatus("cancelling"), "Stoppen…");
 });
+test("captured sources remain inspectable before grading without a quality or speed verdict",()=>{
+  const partial=row("a","retrieved_ungraded",2,{
+    source_complete:null,metrics:{covered_goals:null,target_goals:null},
+    required_source_coverage:{found:0,total:8,unit:"sections"},
+  });
+  assert.equal(outcome(partial),"retrieved_ungraded");
+  assert.equal(executionStatus(partial.status),"Nog niet beoordeeld");
+  assert.equal(metricText(partial),"Nog niet beoordeeld");
+  assert.equal(model.sourceCoverageText(partial),"0/8");
+  assert.equal(model.eligibleMean([{...partial,retrieval_ms:3}],"retrieval_ms",1),null);
+});
 
 test("execution errors, missing results and non-applicable checks never become a source pass", () => {
   assert.equal(outcome(row("a", "error", 2)), "error");
