@@ -47,9 +47,9 @@ test('filters select real existing tests instead of inventing a dataset or case'
 });
 test('quality configuration signatures equal the retained native preregistration', { skip: !process.env.COA_RAG_BINARY }, () => {
   const { spawnSync } = require('node:child_process');
-  const config = build('quality');
   const signature = (profile, c) => JSON.stringify([profile, c.method, c.selection, c.top_k, c.candidate_k, c.context_token_limit, c.apply_filters, c.mmr, c.rrf_k, c.vector_weight, c.mmr_lambda]);
-  for (const dataset of ['legacy', 'independent-20261103']) {
+  for (const dataset of ['legacy', 'independent-20261103', 'demo-12-20261118']) {
+    const config = build('quality', {COA_PROMPTFOO_DATASET:dataset});
     const native = spawnSync(process.env.COA_RAG_BINARY, ['lab', 'plan', '--dataset', dataset, '--protocol', 'quality-v1'], { encoding: 'utf8' });
     assert.equal(native.status, 0, native.stderr);
     const expected = new Set(JSON.parse(native.stdout).configurations.map(row => signature(row.config.profile, row.config.retrieval)));
@@ -95,7 +95,7 @@ test('browser test selection reuses exactly one existing question with the chose
     const config=build('browser',{COA_PROMPTFOO_EVAL_ID:id,COA_PROMPTFOO_METHODS:'hybrid_rrf',COA_PROMPTFOO_EMBEDDING_MODEL:'e5-small-multilingual'});
     assert.equal(config.tests.length,1);
     const vars=config.tests[0].vars;
-    assert.equal(vars.dataset,'legacy');assert.equal(vars.case_id,caseId);
+    assert.equal(vars.dataset,'demo-12-20261118');assert.equal(vars.case_id,caseId);
     assert.equal(vars.method,'hybrid_rrf');assert.equal(vars.embedding_model,'e5-small-multilingual');
     assert.equal(vars.profile,'documents_sections');assert.equal(vars.top_k,5);assert.equal(vars.context_token_limit,1200);
     assert.equal(config.tests[0].options.repeat,1);

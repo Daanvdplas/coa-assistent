@@ -28,6 +28,8 @@ import type {
   PreparedManifest,
   Settings,
   Variables,
+  NativeConfig,
+  EmbeddingSpec,
 } from "./types.ts";
 export interface PrepareRequest {
   schema_version: number;
@@ -40,6 +42,39 @@ interface Group {
   embedding_model?: string;
   filters: Filters;
   tests: Variables[];
+}
+export const PREPARATION_FAILURES = {
+  onnx_model_compile_io:
+    "Het ONNX-model kon niet worden gecompileerd (I/O-fout).",
+  local_preparation_failed:
+    "De lokale voorbereiding is mislukt; de bronzoekactie is niet afgerond.",
+} as const;
+function preparationFailed(
+  base: string,
+  privateReason: string,
+  nativeRunId?: string,
+): never {
+  // Native errors can contain private cache paths. Publish the known cause,
+  // while leaving the complete original record in its private native.jsonl.
+  const code =
+    /ONNX/i.test(privateReason) &&
+    /compil/i.test(privateReason) &&
+    /I\/O/i.test(privateReason)
+      ? "onnx_model_compile_io"
+      : "local_preparation_failed";
+  const message = PREPARATION_FAILURES[code];
+  writeNew(join(base, "preparation-error.json"), {
+    schema_version: 1,
+    code,
+    message,
+    stage: "local_preparation",
+    native_run_id:
+      typeof nativeRunId === "string" &&
+      /^[a-zA-Z0-9_.-]{1,240}$/.test(nativeRunId)
+        ? nativeRunId
+        : null,
+  });
+  throw new Error(message);
 }
 export async function prepare(
   request: PrepareRequest,
@@ -129,9 +164,7 @@ export async function prepare(
         ROOT,
       );
       if (result.returncode !== 0)
-        throw new Error(
-          "Local embedding preparation failed; private process output not exported",
-        );
+        preparationFailed(base, result.stderr.toString());
       const resolved = parseJson<{
         model_id: string;
         embedding_identity: Embedding;
@@ -185,9 +218,7 @@ export async function prepare(
       command.push("--query-filters", JSON.stringify(group.filters));
     const result = await execute(command, childEnvironment(), 3600, ROOT);
     if (result.returncode !== 0)
-      throw new Error(
-        "Fresh local preparation failed; private process output not exported",
-      );
+      preparationFailed(base, result.stderr.toString());
     const rows = readFileSync(native, "utf8")
       .split("\n")
       .filter(Boolean)
@@ -205,13 +236,18 @@ export async function prepare(
       const row = byCase.get(variables.case_id)!;
       if (row.question !== variables.question)
         throw new Error("Prepared case query differs");
+      if (row.execution_status !== "completed" || !row.outcome) {
+        const reason =
+          "error" in row && typeof row.error === "string" ? row.error : "";
+        preparationFailed(base, reason, row.run_id);
+      }
       if (group.embedding_model) {
         const actual = row.outcome?.corpus_identity?.embedding,
           expected =
             group.settings.method === "bm25"
               ? null
               : embeddingModels[group.embedding_model];
-        if (!same(actual, expected))
+        if (actual === undefined || !same(actual, expected))
           throw new Error(
             "Retrieved evidence differs from independently prepared embedding model",
           );
@@ -229,6 +265,78 @@ export async function prepare(
   }
   mkdirSync(dirname(output), { recursive: true });
   writeNew(output, manifest);
+  return manifest;
+}
+
+/** One question/execution; no model, corpus or vector state survives this batch. */
+export async function prepareBenchmarkBatch(
+  request: PrepareRequest,
+  output: string,
+  execute: Executor = runCancellable,
+): Promise<PreparedManifest> {
+  if (request.schema_version !== 1 || !/^[a-zA-Z0-9_-]{1,128}$/.test(request.execution_id) || !request.tests.length)
+    throw new Error("Expected a fresh single-question benchmark batch");
+  if (existsSync(output)) throw new Error("Choose a new prepared manifest");
+  const first = request.tests[0].vars;
+  if (!["demo-12-20261118", "regression-12-20261118"].includes(first.dataset))
+    throw new Error("Benchmark batch requires a current twelve-document question");
+  const base = resolve(process.env.COA_PROMPTFOO_ARTIFACT_DIR!);
+  mkdirSync(base, {recursive:true,mode:0o700});
+  const selected = new Map<string, {vars:Variables;config:NativeConfig;model?:string}>();
+  for (const {vars} of request.tests) {
+    if (vars.dataset !== first.dataset || vars.case_id !== first.case_id || vars.mode !== "local" ||
+        vars.question !== question(first.dataset, first.case_id) || Object.keys(vars.filters ?? {}).length || vars.apply_filters)
+      throw new Error("Benchmark batch must contain only one unchanged local question");
+    const key = requestKey(vars);
+    if (selected.has(key)) throw new Error("Duplicate benchmark request identity");
+    const retrieval = Object.fromEntries(Object.keys(DEFAULTS).filter(key=>!["mode","profile","model"].includes(key)).map(key=>[key,vars[key as keyof Variables] ?? DEFAULTS[key as keyof Settings]])) as unknown as NativeConfig["retrieval"];
+    const model = vars.method === "bm25" ? undefined : browserEmbeddingModel(vars) ?? "minilm-multilingual";
+    selected.set(key,{vars,config:{profile:vars.profile,retrieval},...(model?{model}:{})});
+  }
+  const binary = realpathSync(process.env.COA_RAG_BINARY!);
+  const input = join(base,"benchmark-native-input.json"), native = join(base,"native.jsonl"), modelsPath=join(base,"benchmark-embeddings.json");
+  writeNew(input,{schema_version:1,execution_id:request.execution_id,dataset:first.dataset,case_id:first.case_id,
+    requests:[...selected].map(([request_id,row])=>({request_id,...(row.model?{embedding_model:row.model}:{}),config:row.config}))});
+  const result = await execute([binary,"lab","benchmark-batch","--input",input,"--output",native,"--embedding-manifest",modelsPath,
+    "--model-cache",resolve(process.env.COA_RAG_MODEL_CACHE ?? join(ROOT,".model-cache")),"--sqlite-dir",join(base,"retrieval-cache")],
+    {...childEnvironment(),TOKENIZERS_PARALLELISM:"false",RAYON_NUM_THREADS:"2"},3600,ROOT);
+  if (result.returncode !== 0) preparationFailed(base,result.stderr.toString());
+  const models = parseJson<{schema_version:number;execution_id:string;models:Record<string,Embedding>}>(readFileSync(modelsPath,"utf8"));
+  if (models.schema_version !== 1 || models.execution_id !== request.execution_id)
+    throw new Error("Prepared model identities belong to another benchmark execution");
+  const specs = parseJson<EmbeddingSpec[]>(readFileSync(join(ROOT,"evals/rag/embedding-models.json"),"utf8"));
+  const expectedModels = new Set([...selected.values()].flatMap(row=>row.model?[row.model]:[]));
+  for (const [model,identity] of Object.entries(models.models)) {
+    const spec=specs.find(row=>row.id===model);
+    if (!expectedModels.has(model) || !spec || identity.provider!=="local-fastembed" || !identity.model.startsWith(spec.repository+"@") ||
+        !/^[a-f0-9]{40}$/i.test(identity.model.slice(spec.repository.length+1)) || identity.sdk!==spec.sdk || identity.dimensions!==spec.dimensions ||
+        (identity.document_prefix??"")!==spec.document_prefix || (identity.query_prefix??"")!==spec.query_prefix ||
+        !identity.encoding.startsWith(spec.encoding+"; model_files_sha256=") || !/[a-f0-9]{64}$/.test(identity.encoding))
+      throw new Error("Prepared embedding identity differs from the selected model");
+  }
+  const frozen = parseJson<{corpus_sha256:string;as_of:string}>(readFileSync(join(ROOT,"evals/shared/datasets",first.dataset,"questions.json"),"utf8"));
+  const rows = readFileSync(native,"utf8").split("\n").filter(Boolean).map(line=>parseJson<{request_id:string;record:NativeRecord & {batch_id:string}}>(line));
+  if (rows.length!==selected.size || new Set(rows.map(row=>row.request_id)).size!==selected.size || new Set(rows.map(row=>row.record.run_id)).size!==selected.size)
+    throw new Error("Native benchmark returned missing or duplicate executions");
+  const manifest:PreparedManifest={schema_version:1,execution_id:request.execution_id,created_at:Date.now()/1000,execution_mode:"fresh_batch_retrieval",records:{},groups:1,
+    runtime_binary_sha256:sha256(readFileSync(binary)),embedding_manifest:{path:modelsPath,sha256:sha256(readFileSync(modelsPath))}};
+  for (const {request_id,record} of rows) {
+    const expected=selected.get(request_id);
+    const noFilters=same(record.request_filters,{}) || same(record.request_filters,{weekdays:[],environment:null,time:null});
+    if (!expected || !record.batch_id.startsWith(request.execution_id+"-native-") || record.run_id!==record.batch_id+"--"+request_id ||
+        record.case_id!==first.case_id || record.question!==first.question || record.dataset.corpus_sha256!==frozen.corpus_sha256 || record.dataset.as_of!==frozen.as_of ||
+        !same(record.config,expected.config) || !noFilters)
+      throw new Error("Native benchmark execution differs from its selected request");
+    if (record.execution_status==="completed") {
+      if (!record.outcome || record.outcome.query!==first.question || !same(record.outcome.config,expected.config.retrieval) ||
+          !same(record.outcome.corpus_identity.embedding,expected.model?models.models[expected.model]:null))
+        throw new Error("Native benchmark corpus or embedding binding differs");
+    }
+    const path=join(base,request_id+".json");
+    writeNew(path,record);
+    manifest.records[request_id]={path,sha256:sha256(readFileSync(path)),run_id:record.run_id,case_id:record.case_id};
+  }
+  writeNew(output,manifest);
   return manifest;
 }
 async function main(): Promise<void> {

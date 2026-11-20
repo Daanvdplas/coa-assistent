@@ -2515,21 +2515,19 @@ mod tests {
             Duration::from_millis(200)
         };
         let task = tokio::spawn(async move { execute(shell, b"", run_timeout).await });
+        let mut child_pid = None;
         for _ in 0..100 {
-            if std::fs::read_to_string(&pid_path)
+            if let Some(pid) = std::fs::read_to_string(&pid_path)
                 .ok()
                 .and_then(|s| s.trim().parse::<i32>().ok())
-                .is_some()
+                .filter(|pid| *pid > 0)
             {
+                child_pid = Some(pid);
                 break;
             }
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
-        let pid: i32 = std::fs::read_to_string(&pid_path)
-            .unwrap()
-            .trim()
-            .parse()
-            .unwrap();
+        let pid = child_pid.expect("Fixture did not publish a valid child PID within 500 ms");
         if cancel {
             assert!(!task.is_finished(), "Fixture ended before cancellation");
             task.abort();

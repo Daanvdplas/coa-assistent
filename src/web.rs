@@ -1,3 +1,9 @@
+mod benchmark_attempts;
+mod benchmark_capture;
+mod benchmark_report;
+mod benchmark_rig;
+mod benchmark_sources;
+mod benchmarks;
 mod eval_jobs;
 use axum::{
     Json, Router,
@@ -477,11 +483,27 @@ fn validate_rag_results(bytes: &[u8]) -> Result<Value, ApiError> {
     Ok(value)
 }
 
+#[cfg(test)]
 fn router(app: App) -> Router {
+    router_with_benchmarks(app, Arc::new(benchmarks::Benchmarks::new()))
+}
+fn router_with_benchmarks(app: App, benchmarks: Arc<benchmarks::Benchmarks>) -> Router {
     Router::new().route("/",get(||async{Html(include_str!("../static/index.html"))}))
  .route("/demo",get(||async{Redirect::permanent("/")}))
  .route("/demo/",get(||async{Redirect::permanent("/")}))
  .route("/resultaten/",get(||async{Html(include_str!("../evals/rag/site/results.html"))}))
+ .route("/benchmark/",get(||async{Html(include_str!("../static/site/benchmark.html"))}))
+ .route("/assets/benchmark.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/benchmark.js"))}))
+ .route("/assets/benchmark-model.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../static/site/benchmark-model.js"))}))
+ .route("/assets/benchmark.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../static/site/benchmark.css"))}))
+ .route("/api/benchmarks/catalog",get(benchmarks::catalog))
+ .route("/api/benchmarks/plan",post(benchmarks::plan))
+ .route("/api/benchmarks/questions/plan",post(benchmarks::question_plan))
+ .route("/api/benchmarks/questions/start",post(benchmarks::question_start))
+ .route("/api/benchmarks/runs",get(benchmarks::list).post(benchmarks::start))
+ .route("/api/benchmarks/runs/{id}",get(benchmarks::get).delete(benchmarks::cancel))
+ .route("/api/benchmarks/runs/{id}/discussion",get(benchmarks::discussion))
+ .route("/api/benchmarks/compare",get(benchmarks::compare))
  .route("/techniek/",get(||async{Html(include_str!("../static/site/technical.html"))}))
  .route("/assets/site.css",get(||async{([(header::CONTENT_TYPE,"text/css; charset=utf-8")],include_str!("../static/site/site.css"))}))
  .route("/assets/coa-symbol.svg",get(||async{([(header::CONTENT_TYPE,"image/svg+xml")],include_str!("../static/site/coa-symbol.svg"))}))
@@ -503,6 +525,7 @@ fn router(app: App) -> Router {
  .route("/api/runs/{id}/judgement",post(judge)).route("/api/runs/{id}/criteria",post(reveal))
  .route("/api/runs/{id}/diagnosis",post(diagnose)).route("/api/report",get(report))
  .layer(DefaultBodyLimit::max(8192))
+ .layer(axum::Extension(benchmarks))
  .layer(axum::middleware::from_fn(response_policy)).layer(axum::Extension(Arc::new(eval_jobs::EvalJobs::new()))).with_state(app)
 }
 pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
@@ -563,17 +586,114 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
             "Antwoordservice niet ingesteld: zet OPENAI_API_KEY in .env of gebruik een externe sleutel; stel ook het gebruiksbudget in."
         );
     }
+    let benchmarks = Arc::new(benchmarks::Benchmarks::with_runner(app.runner.clone()));
     axum::serve(
         listener,
-        router(app).into_make_service_with_connect_info::<SocketAddr>(),
+        router_with_benchmarks(app, benchmarks.clone())
+            .into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal(benchmarks))
     .await?;
     Ok(())
+}
+async fn shutdown_signal(benchmarks: Arc<benchmarks::Benchmarks>) {
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("register local server termination signal");
+    tokio::select! {
+        _=tokio::signal::ctrl_c()=>{},
+        _=terminate.recv()=>{},
+    }
+    benchmarks.shutdown().await;
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use meedoen_retrieval::AS_OF;
+
+    #[tokio::test]
+    async fn benchmark_api_rejects_remote_peers_and_proxy_headers() {
+        use tower::ServiceExt;
+        for (peer, proxy) in [("203.0.113.5:43000", false), ("127.0.0.1:43000", true)] {
+            let app = Arc::new(test_state(
+                meedoen_retrieval::corpus::CorpusId::BaselineFive,
+            ));
+            let mut request = axum::http::Request::builder()
+                .uri("/api/benchmarks/runs")
+                .extension(ConnectInfo(peer.parse::<SocketAddr>().unwrap()));
+            if proxy {
+                request = request.header("x-forwarded-for", "127.0.0.1");
+            }
+            let response = router(app)
+                .oneshot(request.body(axum::body::Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::FORBIDDEN,
+                "benchmark history must remain local"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn benchmark_mutations_require_the_local_page_origin() {
+        use tower::ServiceExt;
+        let app = Arc::new(test_state(
+            meedoen_retrieval::corpus::CorpusId::BaselineFive,
+        ));
+        let request = axum::http::Request::builder()
+            .method("POST")
+            .uri("/api/benchmarks/plan")
+            .extension(ConnectInfo(
+                "127.0.0.1:43000".parse::<SocketAddr>().unwrap(),
+            ))
+            .header("content-type", "application/json")
+            .header("host", "127.0.0.1:8766")
+            .header("origin", "https://other.example")
+            .body(axum::body::Body::from("{}"))
+            .unwrap();
+        let response = router(app).oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    #[tokio::test]
+    async fn discussion_export_uses_local_benchmark_identity() {
+        use tower::ServiceExt;
+        let directory = std::env::temp_dir().join(format!(
+            "coa-discussion-http-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let benchmarks = Arc::new(benchmarks::Benchmarks::open(
+            directory.clone(),
+            directory.clone(),
+            directory.clone(),
+        ));
+        let app = Arc::new(test_state(
+            meedoen_retrieval::corpus::CorpusId::BaselineFive,
+        ));
+        let response = router_with_benchmarks(app, benchmarks.clone())
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/benchmarks/runs/0123456789abcdef0123456789abcdef/discussion")
+                    .header("host", "127.0.0.1:8766")
+                    .extension(ConnectInfo(
+                        "127.0.0.1:43000".parse::<SocketAddr>().unwrap(),
+                    ))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        assert!(String::from_utf8_lossy(&bytes).contains("benchmark_not_found"));
+        drop(benchmarks);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     fn test_state(corpus: meedoen_retrieval::corpus::CorpusId) -> WebState {
         WebState {
@@ -1030,7 +1150,27 @@ mod tests {
                 .unwrap();
             let catalog: Value = serde_json::from_slice(&bytes).unwrap();
             assert_eq!(catalog["can_run"], expected);
-            assert_eq!(catalog["evals"].as_array().unwrap().len(), 3);
+            let evaluations = catalog["evals"].as_array().unwrap();
+            assert_eq!(evaluations.len(), 12);
+            let questions: std::collections::BTreeSet<_> = evaluations
+                .iter()
+                .map(|row| row["question"].as_str().unwrap())
+                .collect();
+            assert_eq!(
+                questions.len(),
+                12,
+                "Canonical cards must not duplicate legacy question text"
+            );
+            assert!(evaluations.iter().any(|row| row["case_id"] == "RAG26-01"));
+            assert!(
+                evaluations.iter().any(|row| row["case_id"] == "IND26-01"
+                    && row["dataset"] == "regression-12-20261118")
+            );
+            assert!(
+                !evaluations
+                    .iter()
+                    .any(|row| row["case_id"] == "P01" || row["case_id"] == "T02")
+            );
             assert_eq!(catalog["embedding_models"][0]["available"], true);
         }
     }
@@ -1043,12 +1183,16 @@ mod tests {
         for path in [
             "/",
             "/resultaten/",
+            "/benchmark/",
             "/techniek/",
             "/assets/site.css",
             "/assets/coa-symbol.svg",
             "/assets/results.js",
             "/assets/language.js",
             "/assets/demo.js",
+            "/assets/benchmark.js",
+            "/assets/benchmark-model.js",
+            "/assets/benchmark.css",
             "/assets/results.json",
         ] {
             let response = router(app.clone())
@@ -1074,14 +1218,25 @@ mod tests {
             let text = String::from_utf8(bytes.to_vec()).unwrap();
             if path.ends_with('/') {
                 let navigation = text.split("</nav>").next().unwrap();
-                assert!(
-                    navigation.contains("href=\"/\"") && navigation.contains("/techniek/"),
-                    "missing shared navigation in {path}"
-                );
-                assert!(
-                    !navigation.contains("/resultaten/"),
-                    "removed results link in navigation for {path}"
-                );
+                if matches!(path, "/resultaten/" | "/benchmark/") {
+                    assert!(
+                        navigation.contains("/resultaten/") && navigation.contains("/benchmark/"),
+                        "evaluation pages share their own navigation"
+                    );
+                    assert!(
+                        !navigation.contains("/techniek/") && !navigation.contains("href=\"/\""),
+                        "demo and explanation stay outside the evaluation presentation"
+                    );
+                } else {
+                    assert!(
+                        navigation.contains("href=\"/\"") && navigation.contains("/techniek/"),
+                        "missing shared navigation in {path}"
+                    );
+                    assert!(
+                        !navigation.contains("/resultaten/") && !navigation.contains("/benchmark/"),
+                        "evaluation navigation must not change the demo presentation in {path}"
+                    );
+                }
             }
             if path == "/" {
                 assert!(

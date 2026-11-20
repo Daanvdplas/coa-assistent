@@ -46,7 +46,9 @@ pub fn run(plan: &ExperimentPlan, options: &RunOptions) -> Result<RunSummary, St
         );
     }
     let dataset_ids: &[&str] =
-        if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::ExpandedTen.sha256() {
+        if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::DemoTwelve.sha256() {
+            &[super::dataset::DEMO_ID, super::dataset::REGRESSION_ID]
+        } else if plan.dataset.corpus_sha256 == crate::corpus::CorpusId::ExpandedTen.sha256() {
             &[super::dataset::EXPANDED_ID, super::dataset::STRENGTHENED_ID]
         } else {
             &[
@@ -218,7 +220,7 @@ pub fn run(plan: &ExperimentPlan, options: &RunOptions) -> Result<RunSummary, St
     };
     Ok(RunSummary {schema_version: 1, batch_id, planned_rows: plan.planned_rows, completed: count(ExecutionStatus::Completed), failed: count(ExecutionStatus::Failed), unsupported: count(ExecutionStatus::Unsupported), codex_calls: 0, ai_judge_calls: 0,
         output_sha256: crate::manifest::hash(&std::fs::read(&options.output).map_err(|error| error.to_string())?),
-        timing_note: "retrieval_ms measures local ranking/selection only. Corpus preparation is shared by profile and query embeddings/caches are reused across configurations; do not sum repeated preparation fields or call this Codex answer latency.".into()})
+        timing_note: "query_total_ms directly measures one prepared-index query, from query-vector lookup/inference through ranking, expansion and context construction. retrieval_ms measures ranking/selection only. Corpus/model/index preparation is separate and shared by profile; query embeddings/caches may be reused across configurations. Do not sum overlapping or repeated preparation fields or call this answer latency.".into()})
 }
 
 #[cfg(test)]

@@ -1,0 +1,238 @@
+{
+  "schema_version": 1,
+  "dataset_id": "regression-12-20261118",
+  "reference_date": "2026-11-13",
+  "provenance": "Reused existing development question; new twelve-source case-specific source/answer contract, independently AI-reviewed before measurement; human labels remain empty.",
+  "cases": [
+    {
+      "case_id": "IND26-01",
+      "origin": "agent_authored_not_human",
+      "expected_action": "answer_all_matches",
+      "supported_candidate_activity_ids": [
+        "ACT-FIETS-002",
+        "ACT-TAAL-003"
+      ],
+      "user_provided_hard_conditions": [
+        "binnen",
+        "start 14.00 uur",
+        "gratis",
+        "activiteitsmateriaal aanwezig"
+      ],
+      "user_provided_soft_preferences": [],
+      "retrieval_metrics_applicable": true,
+      "fact_roles": {
+        "bike-work": "support",
+        "bike-time": "support",
+        "bike-indoor": "support",
+        "bike-free": "support",
+        "bike-materials": "support",
+        "language-work": "support",
+        "language-time": "support",
+        "language-indoor": "support",
+        "language-free": "support",
+        "language-materials": "support"
+      },
+      "evidence": [
+        {
+          "fact_id": "bike-work",
+          "role": "support",
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben."
+        },
+        {
+          "fact_id": "bike-time",
+          "role": "support",
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+        },
+        {
+          "fact_id": "bike-indoor",
+          "role": "support",
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen."
+        },
+        {
+          "fact_id": "bike-free",
+          "role": "support",
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden."
+        },
+        {
+          "fact_id": "bike-materials",
+          "role": "support",
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden."
+        },
+        {
+          "fact_id": "language-work",
+          "role": "support",
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt."
+        },
+        {
+          "fact_id": "language-time",
+          "role": "support",
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+        },
+        {
+          "fact_id": "language-indoor",
+          "role": "support",
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel."
+        },
+        {
+          "fact_id": "language-free",
+          "role": "support",
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen."
+        },
+        {
+          "fact_id": "language-materials",
+          "role": "support",
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen."
+        }
+      ],
+      "author_note": "The same IND26-01 visitor question, now exhaustively checked against twelve activities. Only bicycle repair and language cafe qualify. Eight unique support sections are mandatory. The ten excluded start-time quotes establish the reviewed answer set and are not additional positive retrieval goals.",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "excluded_activities": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "source_title": "Tuinieren",
+          "source_date": "2026-10-20",
+          "section_id": "S2",
+          "quote": "Iedere dinsdag van 10.00 tot 12.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "source_title": "Samen koken",
+          "source_date": "2026-10-17",
+          "section_id": "S2",
+          "quote": "Iedere vrijdag van 11.00 tot 13.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "source_title": "Wandelen",
+          "source_date": "2026-10-20",
+          "section_id": "S2",
+          "quote": "Iedere donderdag van 9.30 tot 10.30 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "source_title": "Creatief atelier",
+          "source_date": "2026-11-05",
+          "section_id": "S2",
+          "quote": "Iedere dinsdag van 13.00 tot 15.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "source_title": "Parkonderhoud",
+          "source_date": "2026-11-05",
+          "section_id": "S2",
+          "quote": "Iedere vrijdag van 10.00 tot 12.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "source_title": "Buurtbibliotheek",
+          "source_date": "2026-11-05",
+          "section_id": "S2",
+          "quote": "Iedere woensdag van 10.00 tot 12.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "source_title": "Muziekgroep",
+          "source_date": "2026-11-05",
+          "section_id": "S2",
+          "quote": "Iedere zaterdag van 10.00 tot 11.30 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "source_title": "Digitale hulp",
+          "source_date": "2026-11-05",
+          "section_id": "S2",
+          "quote": "Iedere maandag van 15.00 tot 16.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "source_title": "Schaken",
+          "source_date": "2026-11-13",
+          "section_id": "S2",
+          "quote": "Iedere woensdag van 16.00 tot 17.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "source_title": "Naaicafé",
+          "source_date": "2026-11-13",
+          "section_id": "S2",
+          "quote": "Iedere donderdag van 13.00 tot 15.00 uur.",
+          "reason": "The documented start time is not 14.00."
+        }
+      ]
+    }
+  ]
+}

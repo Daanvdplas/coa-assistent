@@ -51,7 +51,7 @@ const catalog = {
 };
 function completed(body, status = 'failed') {
   return { run_id: 'run-one', eval_id: body.eval_id, status: 'completed', method: body.method, embedding_model: body.embedding_model, embedding_identity: {model: 'fixture/'+body.embedding_model+'@'+'a'.repeat(40), dimensions: 384}, result: {
-    sources, rows: [{ id: 'result-one', case_id: body.eval_id, question: `Vaste vraag ${body.eval_id}?`, status, source_complete: status === 'passed', goals: goals.map((goal, index) => ({...goal, covered: index === 0 || status === 'passed', alternatives: goal.alternatives.map(option => option.map(ref => ({source_id: ref.source_id, section_id: ref.section_id, found: index === 0 || status === 'passed'})))})), configuration: { method: body.method, embedding_model: body.embedding_model, top_k: 3 }, metrics: { covered_goals: status === 'passed' ? 2 : 1, target_goals: 2, source_quality_applicable: true }, calls: [{ index: 1, query: `Vaste vraag ${body.eval_id}?`, hits: status === 'passed' ? ['time', 'location'] : ['time'] }], reason: 'Bronkwaliteit op vaste bronverwachtingen.' }],
+    sources, rows: [{ id: 'result-one', case_id: body.eval_id, question: `Vaste vraag ${body.eval_id}?`, status, source_complete: status === 'passed', required_source_coverage:{found:status==='passed'?2:1,total:2,unit:'sections',applicable:true}, goals: goals.map((goal, index) => ({...goal, covered: index === 0 || status === 'passed', alternatives: goal.alternatives.map(option => option.map(ref => ({source_id: ref.source_id, section_id: ref.section_id, found: index === 0 || status === 'passed'})))})), configuration: { method: body.method, embedding_model: body.embedding_model, top_k: 3 }, metrics: { covered_goals: status === 'passed' ? 2 : 1, target_goals: 2, source_quality_applicable: true }, calls: [{ index: 1, query: `Vaste vraag ${body.eval_id}?`, hits: status === 'passed' ? ['time', 'location'] : ['time'] }], reason: 'Bronkwaliteit op vaste bronverwachtingen.' }],
   } };
 }
 async function fixture(options = {}) {
@@ -136,23 +136,63 @@ test('three collapsed tests only run on click and retain results after reopening
     assert.equal(await card.locator('.eval-expectations blockquote').first().textContent(),sources.time.text);
     await card.getByLabel('Embeddingmodel').selectOption('model-b');
     await card.getByRole('button', { name: 'Start test', exact: true }).click();
-    await card.locator('.eval-score').getByText('1/2 verwachtingen compleet',{exact:true}).waitFor();
+    await card.locator('.eval-score').getByText('1/2 bronsecties gevonden',{exact:true}).waitFor();
     assert.ok(flow.headers.length>=2);assert.ok(flow.headers.every(header=>header==='test-session'));
     assert.deepEqual(starts, [{ eval_id: 'garden-time-location', method: 'dense', embedding_model: 'model-b' }]);
     assert.equal(await card.locator('.eval-goal-state,.eval-card-state').count(),0);
-    assert.equal(await card.locator('.eval-hits .eval-expected-hit').count(),1);
+    assert.equal(await card.locator('.eval-expectations .eval-source-found').count(),1);
     assert.equal(await card.locator('.eval-results>:last-child').getAttribute('class'),'eval-score');
     assert.equal(await card.locator('.eval-goals').count(),1);
     assert.equal(await card.getByText('Wanneer de activiteit plaatsvindt',{exact:true}).count(),0);
     assert.equal(await card.locator('.eval-expectations').getByText(sources.time.text,{exact:true}).count(),1);
     assert.equal(await card.locator('.eval-goal-results,.eval-used-configuration,.eval-provenance,.source-date').count(),0);
-    assert.equal(await card.locator('.eval-hits details:not([open])').count(),1);
+    assert.equal(await card.locator('.eval-hits details:not([open])').count(),0);
     assert.equal(await card.locator('.eval-status').textContent(),'');
     await card.locator('summary').first().click(); await card.locator('summary').first().click();
     assert.equal(starts.length, 1);
-    assert.equal(await card.locator('.eval-score').textContent(),'1/2 verwachtingen compleet');
+    assert.equal(await card.locator('.eval-score').textContent(),'1/2 bronsecties gevonden');
     assert.equal(await page.evaluate(() => window.sourceInjected === true), false);
   } finally { await page.close(); }
+});
+test('quality catalog renders eleven canonical quality questions and T05 without duplicate cards or starting work', async () => {
+  const quality = Array.from({length:11},(_,index)=>({...catalog.evals[0],id:'quality-'+index,question:'Kwaliteitsvraag '+(index+1)+'?',case_id:index===10?'IND26-01':'RAG26-'+String(index+1).padStart(2,'0'),dataset:index===10?'regression-12-20261118':'demo-12-20261118'}));
+  const visible=[...quality,catalog.evals[2]];
+  const flow = await fixture({catalog:{...catalog,evals:visible}});
+  try {
+    await flow.page.waitForFunction(()=>document.querySelectorAll('.search-eval-card').length===12);
+    assert.deepEqual(await flow.page.locator('.eval-card-title').allTextContents(),visible.map(item=>item.question));
+    assert.equal(await flow.page.locator('.search-eval-card[open]').count(),0);
+    assert.equal(await flow.page.locator('.eval-benchmark').count(),12);
+    assert.equal(await flow.page.getByRole('region',{name:'Zoektests',exact:true}).count(),1);
+    assert.deepEqual(flow.mutations,[]);
+    const card=flow.page.locator('#eval-quality-10');await card.locator('summary').first().click();
+    assert.deepEqual(await card.locator('.eval-expectations blockquote').allTextContents(),[sources.time.text,sources.location.text]);
+  } finally {await flow.page.close();}
+});
+test('AND evidence shows each exact source once and results distinguish source coverage from bundled goal coverage',async()=>{
+  const combined={id:'time-and-location',description:'Tijd en locatie samen.',alternatives:[[expectedSource(sources.time),expectedSource(sources.location)]]};
+  const payload={...catalog,evals:catalog.evals.map((item,index)=>index?item:{...item,expected_goals:[combined]})};
+  const flow=await fixture({catalog:payload,result(body){const run=completed(body);const row=run.result.rows[0];row.goals=[{...combined,covered:false,alternatives:[[{...expectedSource(sources.time),found:true},{...expectedSource(sources.location),found:false}]]}];row.required_source_coverage={found:1,total:2,unit:'sections',applicable:true};row.metrics.covered_goals=0;row.metrics.target_goals=1;return run;}});
+  try {
+    const card=flow.page.locator('#eval-garden-time-location');await card.waitFor();await card.locator('summary').first().click();
+    assert.deepEqual(await card.locator('.eval-expectations blockquote').allTextContents(),[sources.time.text,sources.location.text]);
+    await card.locator('.eval-start').click();await card.locator('.eval-score').getByText('1/2 bronsecties gevonden',{exact:true}).waitFor();
+    assert.equal(await card.locator('.eval-goal-score').textContent(),'0/1 bewijsdoelen compleet');
+    assert.equal(await card.getByText(sources.time.text,{exact:true}).count(),1);
+    assert.deepEqual(await card.locator('.eval-source-state').allTextContents(),['Gevonden','Ontbreekt']);
+  } finally {await flow.page.close();}
+});
+test('multiple evidence goals sharing one source quote display that source once without dropping scoring goals',async()=>{
+  const shared={...goals[0],id:'same-source-second-fact'};
+  const payload={...catalog,evals:catalog.evals.map((item,index)=>index?item:{...item,expected_goals:[...goals,shared]})};
+  const flow=await fixture({catalog:payload,result(body){const run=completed(body);run.result.rows[0].goals.push({...shared,covered:false,alternatives:[[{source_id:sources.time.source_id,section_id:sources.time.id,found:false}]]});run.result.rows[0].metrics.target_goals=3;return run;}});
+  try {
+    const card=flow.page.locator('#eval-garden-time-location');await card.waitFor();await card.locator('summary').first().click();
+    assert.equal(await card.locator('.eval-expectations').getByText(sources.time.text,{exact:true}).count(),1);
+    assert.equal(await card.locator('.eval-expectations blockquote').count(),2);
+    await card.locator('.eval-start').click();await card.locator('.eval-score').getByText('1/2 bronsecties gevonden',{exact:true}).waitFor();
+    assert.equal(await card.locator('.eval-goal-score').textContent(),'1/3 bewijsdoelen compleet');
+  } finally {await flow.page.close();}
 });
 test('word search marks the disabled embedding label; mobile retains every control', async () => {
   const { page, starts } = await fixture({ mobile: true });
@@ -172,15 +212,15 @@ test('targetless results remain unscored and execution errors never become sourc
     const { page } = await fixture({ result(body) {
       if (executionError) return { run_id: 'run-one', eval_id: body.eval_id, status: 'failed', error: 'De lokale zoektest kon niet worden uitgevoerd.' };
       const result = completed(body); const row = result.result.rows[0];
-      row.source_complete = null; row.metrics = { covered_goals: 0, target_goals: 0, source_quality_applicable: false }; row.goals = [];
+      row.source_complete = null; row.required_source_coverage={found:null,total:null,unit:'sections',applicable:false}; row.metrics = { covered_goals: 0, target_goals: 0, source_quality_applicable: false }; row.goals = [];
       return result;
     } });
     try {
       await page.waitForSelector('#eval-garden-time-location'); const card = page.locator('#eval-garden-time-location'); await card.locator('summary').first().click();
       await card.getByRole('button', { name: 'Start test', exact: true }).click();
-      await card.locator(executionError?'.eval-status':'.eval-score').getByText(executionError?/Uitvoeringsfout/:'N/A',{exact:!executionError}).waitFor();
+      await card.locator(executionError?'.eval-status':'.eval-score').getByText(executionError?/Uitvoeringsfout/:'N.v.t.',{exact:!executionError}).waitFor();
       const text = await card.innerText();
-      assert.match(text, executionError ? /Uitvoeringsfout/i : /N\/A/i);
+      assert.match(text, executionError ? /Uitvoeringsfout/i : /N\.v\.t\./i);
       assert.ok((await card.locator('.eval-goal-state').allTextContents()).every(value=>value===''));
       assert.doesNotMatch(await card.locator('.eval-results').innerText(), /Bronset compleet/);
     } finally { await page.close(); }
@@ -226,9 +266,9 @@ test('only a real method or model change clears the old score without starting a
  const flow=await fixture({result:body=>completed(body,'passed')});
  try {
   const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
-  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-score').getByText('2/2 verwachtingen compleet',{exact:true}).waitFor();
+  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-score').getByText('2/2 bronsecties gevonden',{exact:true}).waitFor();
   await card.getByLabel('Embeddingmodel',{exact:true}).selectOption('model-a');
-  assert.equal(await card.locator('.eval-score').textContent(),'2/2 verwachtingen compleet');
+  assert.equal(await card.locator('.eval-score').textContent(),'2/2 bronsecties gevonden');
   await card.getByLabel('Embeddingmodel',{exact:true}).selectOption('model-b');
   assert.equal(await card.locator('.eval-status').textContent(),'');
   assert.equal(await card.locator('.eval-score').count(),0);
@@ -242,10 +282,10 @@ test('whole-goal coverage comes from the existing assessment, without mixing par
  const flow=await fixture({result(body){const run=completed(body);const row=run.result.rows[0];row.goals[0].covered=false;row.goals[0].alternatives=[[{source_id:'ACT-TUIN-001',section_id:'S2',found:true},{source_id:'ACT-TUIN-001',section_id:'S3',found:false}],[{source_id:'ACT-TUIN-001',section_id:'S4',found:false},{source_id:'ACT-TUIN-001',section_id:'S5',found:true}]];row.metrics.covered_goals=0;return run;}});
  try {
   const {page}=flow;await page.waitForSelector('#eval-garden-time-location');const card=page.locator('#eval-garden-time-location');await card.locator('summary').first().click();
-  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-score').getByText('0/2 verwachtingen compleet',{exact:true}).waitFor();
+  await card.getByRole('button',{name:'Start test',exact:true}).click();await card.locator('.eval-goal-score').getByText('0/2 bewijsdoelen compleet',{exact:true}).waitFor();
   assert.equal(await card.locator('.eval-goal-state').count(),0);
-  assert.equal(await card.locator('.eval-hits .eval-expected-hit').count(),1);
-  assert.equal(await card.locator('.eval-hits li').count(),1);
+  assert.equal(await card.locator('.eval-expectations .eval-source-found').count(),1);
+  assert.equal(await card.locator('.eval-hits li').count(),0);
  } finally {await flow.page.close();}
 });
 
@@ -257,9 +297,10 @@ test('combined and alternative evidence keeps one semantic expectation without p
  const flow=await fixture({catalog:expected});
  try {
   const card=flow.page.locator('#eval-indoor-tuesday');await card.waitFor();await card.locator('summary').first().click();
-  assert.deepEqual(await card.locator('.eval-goal-source').allTextContents(),['Tuinieren · Tijd + Tuinieren · Locatie','Tuinieren · Tijd of Tuinieren · Locatie']);
-  assert.deepEqual(await card.locator('.eval-goal-fragment').allTextContents(),['Synthetische verwachting met tijd en plaats.','Synthetische verwachting met een alternatief.']);
-  assert.equal(await card.locator('.eval-expectations blockquote').count(),0);
+  assert.deepEqual(await card.locator('.eval-goal-source').allTextContents(),['Tuinieren · Tijd','Tuinieren · Locatie','Tuinieren · Tijd','Tuinieren · Locatie']);
+  assert.deepEqual(await card.locator('.eval-goal-fragment').allTextContents(),[sources.time.text,sources.location.text]);
+  assert.equal(await card.locator('.eval-source-or').textContent(),'of');
+  assert.equal(await card.locator('.eval-expectations blockquote').count(),2);
   assert.equal(flow.starts.length,0);
  } finally {await flow.page.close();}
 });
@@ -268,10 +309,10 @@ test('green marks require a found assessment reference and the exact expected so
  const flow=await fixture({result(body){const run=completed(body);run.result.sources.other={...sources.time,source_id:'ACT-OTHER'};run.result.rows[0].calls[0].hits=['time','other','location'];return run;}});
  try {
   const card=flow.page.locator('#eval-garden-time-location');await card.waitFor();await card.locator('summary').first().click();await card.getByRole('button',{name:'Start test',exact:true}).click();
-  await card.locator('.eval-score').getByText('1/2 verwachtingen compleet',{exact:true}).waitFor();
-  assert.equal(await card.locator('.eval-hits>li').count(),3);
-  assert.deepEqual(await card.locator('.eval-expected-hit').evaluateAll(items=>items.map(item=>[item.dataset.sourceId,item.dataset.sectionId])),[['ACT-TUIN-001','S2']]);
-  assert.equal(await card.locator('.eval-results>:last-child').textContent(),'1/2 verwachtingen compleet');
+  await card.locator('.eval-score').getByText('1/2 bronsecties gevonden',{exact:true}).waitFor();
+  assert.equal(await card.locator('.eval-hits>li').count(),2);
+  assert.deepEqual(await card.locator('.eval-source-found .eval-goal-source').allTextContents(),['Tuinieren · TijdGevonden']);
+  assert.equal(await card.locator('.eval-results>:last-child').textContent(),'1/2 bronsecties gevonden');
   assert.equal(await card.locator('.eval-expectations .eval-goal-state').count(),0);
  }finally{await flow.page.close();}
 });

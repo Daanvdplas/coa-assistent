@@ -1,0 +1,3022 @@
+{
+  "evalId": "redacted-four-bm25-fixture",
+  "results": {
+    "results": [
+      {
+        "testCase": {
+          "vars": {
+            "mode": "local",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "top_k": 3,
+            "candidate_k": 30,
+            "context_token_limit": 1200,
+            "selection": "sections",
+            "apply_filters": false,
+            "mmr": false,
+            "rrf_k": 60,
+            "vector_weight": 0.7,
+            "mmr_lambda": 0.7,
+            "model": "gpt-6.1-sol",
+            "filters": {},
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?"
+          },
+          "metadata": {
+            "suite": "quality",
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "configuration": "bm25:documents_sections:sections:k3:unfiltered",
+            "reference_scope": "[REDACTED]",
+            "answer_quality": "not_assessed",
+            "benchmark_group_id": "quality:demo-12-20261118",
+            "benchmark_request_id": "[REDACTED]"
+          }
+        },
+        "response": {
+          "output": {
+            "schema_version": 1,
+            "operation": "retrieve",
+            "dataset_id": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?",
+            "status": "completed",
+            "record": {
+              "schema_version": 1,
+              "batch_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0",
+              "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--a1366e09bfaff0fd2d4dc08b565bfab4188926ff0e49cf0c6d626276231d8b46",
+              "created_at_unix_ms": 1795192259202,
+              "case_id": "RAG26-01",
+              "family": "rag26-01",
+              "split": "development",
+              "kind": "multiple_facts",
+              "question": "Waar en wanneer kan ik tuinieren?",
+              "config_id": "documents_sections__bm25__bae63d28f048",
+              "config": {
+                "profile": "documents_sections",
+                "retrieval": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 3,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                }
+              },
+              "request_filters": {
+                "weekdays": [],
+                "environment": null,
+                "time": null
+              },
+              "execution_kind": "local_measured",
+              "execution_status": "completed",
+              "dataset": {
+                "questions_sha256": "03fa456b71a3a4d10313603ea4846317d625cd48d3464424792542f93917bb02",
+                "corpus_sha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+                "as_of": "2026-11-13",
+                "dataset_versions": [
+                  "demo-12-20261118-v1"
+                ],
+                "limitation": "Seventeen adapted AI-authored source-reviewed development questions on twelve fictional documents; not a blind holdout, human calibration or answer-quality judgment"
+              },
+              "preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-2e62f087a18f1421",
+                "actual_profile": "documents_sections",
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "layout": {
+                  "canonical_sections": 72,
+                  "activity_records": 0,
+                  "activity_section_links": 0
+                },
+                "sync": {
+                  "sections_total": 72,
+                  "sections_inserted": 72,
+                  "sections_updated": 0,
+                  "sections_removed": 0,
+                  "sections_unchanged": 0
+                },
+                "document_cache_hits": 0,
+                "document_cache_misses": 0,
+                "model_load_ms": null,
+                "document_embedding_ms": null,
+                "storage_sync_ms": 2.046875,
+                "storage_load_ms": 1.916458,
+                "profile_preparation_ms": 6.099832999999999
+              },
+              "shared_preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-shared-embeddings",
+                "source_parse_ms": 0.2415,
+                "model_identity_ms": null,
+                "model_load_ms": null,
+                "document_inference_ms": null,
+                "query_inference_ms": null,
+                "document_inputs_encoded": 0,
+                "query_inputs_encoded": 0,
+                "scoring_path": "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking",
+                "interpretation": "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. This is the immutable preparation snapshot before variant queries; query inference and cache hits are measured separately in each row."
+              },
+              "outcome": {
+                "version": "retrieval-v1",
+                "query": "Waar en wanneer kan ik tuinieren?",
+                "config": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 3,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                },
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "filters": {
+                  "requested": false,
+                  "applied": false,
+                  "ignored_reason": null,
+                  "matched_activity_ids": [],
+                  "excluded_activity_ids": [],
+                  "unknown_activities": []
+                },
+                "candidates": [
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S1"
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S4"
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S6"
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 7
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 8
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 9
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 11
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 12
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 13
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 14
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 15
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 16
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 17
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 18
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 19
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 20
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.9867212772369385,
+                      "dense_similarity": null,
+                      "bm25_score": 1.9867213,
+                      "dense_rank": null,
+                      "keyword_rank": 21
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 22
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 23
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 24
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8176963329315186,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8176963,
+                      "dense_rank": null,
+                      "keyword_rank": 25
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 26
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 27
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7294158935546875,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7294159,
+                      "dense_rank": null,
+                      "keyword_rank": 28
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.1259013414382935,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1259013,
+                      "dense_rank": null,
+                      "keyword_rank": 29
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.115920066833496,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1159201,
+                      "dense_rank": null,
+                      "keyword_rank": 30
+                    }
+                  }
+                ],
+                "seeds": [
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S2"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S3"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S1"
+                  }
+                ],
+                "hits": [
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S2",
+                      "heading": "Wanneer?",
+                      "text": "Iedere dinsdag van 10.00 tot 12.00 uur."
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S3",
+                      "heading": "Waar?",
+                      "text": "Buurttuin De Linde, achter het fictieve buurthuis aan de Lindenlaan 12 in het fictieve Lindedorp."
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S1",
+                      "heading": "Wat doen we?",
+                      "text": "We verzorgen samen groenten en bloemen in de buurttuin. Je werkt buiten met je handen. Ervaring met tuinieren is niet nodig."
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    },
+                    "inclusion": "seed"
+                  }
+                ],
+                "omitted": [],
+                "estimated_context_tokens": 159,
+                "token_estimator": "unicode-scalar-ceil-div4-json-section-v1",
+                "work": {
+                  "dense_vectors_scored": 0,
+                  "lexical_sections_scored": 72,
+                  "eligible_sections": 72,
+                  "union_candidates": 30
+                }
+              },
+              "timings": {
+                "query_total_ms": 3.809208,
+                "query_embedding_ms": null,
+                "query_embedding_cache_hit": null,
+                "retrieval_ms": 3.781375
+              },
+              "error": null
+            }
+          },
+          "metadata": {
+            "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--a1366e09bfaff0fd2d4dc08b565bfab4188926ff0e49cf0c6d626276231d8b46",
+            "case_id": "RAG26-01",
+            "dataset": "demo-12-20261118",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "mode": "local",
+            "model": null,
+            "answer_quality": "not_assessed",
+            "execution_mode": "fresh_batch_retrieval"
+          }
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "execution_integrity": 1,
+            "goal_coverage": 1,
+            "source_complete": 1,
+            "first_goal_support_reciprocal_rank": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "1/1 source-evidence goals complete",
+              "namedScores": {
+                "execution_integrity": 1,
+                "goal_coverage": 1,
+                "source_complete": 1,
+                "first_goal_support_reciprocal_rank": 1
+              },
+              "metadata": {
+                "source_metrics": {
+                  "target_goals": 1,
+                  "covered_goals": 1,
+                  "source_complete": true,
+                  "goal_coverage": 1,
+                  "minimum_required_sections": 2,
+                  "goals": [
+                    {
+                      "id": "rag26-01-sources",
+                      "description": "Tijd en locatie uit twee stukjes samenbrengen.",
+                      "covered": true,
+                      "alternatives": [
+                        [
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S2",
+                            "found": true
+                          },
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S3",
+                            "found": true
+                          }
+                        ]
+                      ]
+                    }
+                  ],
+                  "execution_integrity": true,
+                  "reference_sha256": "2d76d635c0ae8c5fa15063b54836b7dea3f8f799b28557e6d668934d95ca7b66",
+                  "question_sha256": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
+                  "offered_sections": 3,
+                  "source_quality_applicable": true,
+                  "answer_quality": "not_assessed",
+                  "unknown_obligations": 0,
+                  "first_goal_support_reciprocal_rank": 1,
+                  "section_capacity_limit": 3,
+                  "goal_set_exceeds_capacity": false
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "testCase": {
+          "vars": {
+            "mode": "local",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "top_k": 3,
+            "candidate_k": 30,
+            "context_token_limit": 1200,
+            "selection": "activity_expansion",
+            "apply_filters": false,
+            "mmr": false,
+            "rrf_k": 60,
+            "vector_weight": 0.7,
+            "mmr_lambda": 0.7,
+            "model": "gpt-6.1-sol",
+            "filters": {},
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?"
+          },
+          "metadata": {
+            "suite": "quality",
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "configuration": "bm25:documents_sections:activity_expansion:k3:unfiltered",
+            "reference_scope": "[REDACTED]",
+            "answer_quality": "not_assessed",
+            "benchmark_group_id": "quality:demo-12-20261118",
+            "benchmark_request_id": "[REDACTED]"
+          }
+        },
+        "response": {
+          "output": {
+            "schema_version": 1,
+            "operation": "retrieve",
+            "dataset_id": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?",
+            "status": "completed",
+            "record": {
+              "schema_version": 1,
+              "batch_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0",
+              "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--2bbc89085925134b3195f76b2970df3e94f5101820224706ce91017e8be60002",
+              "created_at_unix_ms": 1795192259202,
+              "case_id": "RAG26-01",
+              "family": "rag26-01",
+              "split": "development",
+              "kind": "multiple_facts",
+              "question": "Waar en wanneer kan ik tuinieren?",
+              "config_id": "documents_sections__bm25__86c83c606579",
+              "config": {
+                "profile": "documents_sections",
+                "retrieval": {
+                  "method": "bm25",
+                  "selection": "activity_expansion",
+                  "top_k": 3,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                }
+              },
+              "request_filters": {
+                "weekdays": [],
+                "environment": null,
+                "time": null
+              },
+              "execution_kind": "local_measured",
+              "execution_status": "completed",
+              "dataset": {
+                "questions_sha256": "03fa456b71a3a4d10313603ea4846317d625cd48d3464424792542f93917bb02",
+                "corpus_sha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+                "as_of": "2026-11-13",
+                "dataset_versions": [
+                  "demo-12-20261118-v1"
+                ],
+                "limitation": "Seventeen adapted AI-authored source-reviewed development questions on twelve fictional documents; not a blind holdout, human calibration or answer-quality judgment"
+              },
+              "preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-2e62f087a18f1421",
+                "actual_profile": "documents_sections",
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "layout": {
+                  "canonical_sections": 72,
+                  "activity_records": 0,
+                  "activity_section_links": 0
+                },
+                "sync": {
+                  "sections_total": 72,
+                  "sections_inserted": 72,
+                  "sections_updated": 0,
+                  "sections_removed": 0,
+                  "sections_unchanged": 0
+                },
+                "document_cache_hits": 0,
+                "document_cache_misses": 0,
+                "model_load_ms": null,
+                "document_embedding_ms": null,
+                "storage_sync_ms": 2.046875,
+                "storage_load_ms": 1.916458,
+                "profile_preparation_ms": 6.099832999999999
+              },
+              "shared_preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-shared-embeddings",
+                "source_parse_ms": 0.2415,
+                "model_identity_ms": null,
+                "model_load_ms": null,
+                "document_inference_ms": null,
+                "query_inference_ms": null,
+                "document_inputs_encoded": 0,
+                "query_inputs_encoded": 0,
+                "scoring_path": "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking",
+                "interpretation": "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. This is the immutable preparation snapshot before variant queries; query inference and cache hits are measured separately in each row."
+              },
+              "outcome": {
+                "version": "retrieval-v1",
+                "query": "Waar en wanneer kan ik tuinieren?",
+                "config": {
+                  "method": "bm25",
+                  "selection": "activity_expansion",
+                  "top_k": 3,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                },
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "filters": {
+                  "requested": false,
+                  "applied": false,
+                  "ignored_reason": null,
+                  "matched_activity_ids": [],
+                  "excluded_activity_ids": [],
+                  "unknown_activities": []
+                },
+                "candidates": [
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S1"
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S4"
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S6"
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 7
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 8
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 9
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 11
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 12
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 13
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 14
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 15
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 16
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 17
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 18
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 19
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 20
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.9867212772369385,
+                      "dense_similarity": null,
+                      "bm25_score": 1.9867213,
+                      "dense_rank": null,
+                      "keyword_rank": 21
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 22
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 23
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 24
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8176963329315186,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8176963,
+                      "dense_rank": null,
+                      "keyword_rank": 25
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 26
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 27
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7294158935546875,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7294159,
+                      "dense_rank": null,
+                      "keyword_rank": 28
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.1259013414382935,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1259013,
+                      "dense_rank": null,
+                      "keyword_rank": 29
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.115920066833496,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1159201,
+                      "dense_rank": null,
+                      "keyword_rank": 30
+                    }
+                  }
+                ],
+                "seeds": [
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S2"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S3"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S1"
+                  }
+                ],
+                "hits": [
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S2",
+                      "heading": "Wanneer?",
+                      "text": "Iedere dinsdag van 10.00 tot 12.00 uur."
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S3",
+                      "heading": "Waar?",
+                      "text": "Buurttuin De Linde, achter het fictieve buurthuis aan de Lindenlaan 12 in het fictieve Lindedorp."
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S1",
+                      "heading": "Wat doen we?",
+                      "text": "We verzorgen samen groenten en bloemen in de buurttuin. Je werkt buiten met je handen. Ervaring met tuinieren is niet nodig."
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S4",
+                      "heading": "Taal en hulp",
+                      "text": "De begeleider spreekt eenvoudig Nederlands en doet het werk eerst voor. Je hoeft niet goed Nederlands te spreken. De begeleider is tijdens de activiteit aanwezig."
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    },
+                    "inclusion": "activity_expansion"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S5",
+                      "heading": "Wat neem je mee?",
+                      "text": "Trek stevige schoenen aan. Handschoenen en tuingereedschap zijn aanwezig. Deelname kost niets en is vrijwillig."
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    },
+                    "inclusion": "activity_expansion"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S6",
+                      "heading": "Beschikbaarheid",
+                      "text": "Op 2026-09-01 waren er twee vrije plekken. Sindsdien is het aantal plekken niet opnieuw gecontroleerd."
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    },
+                    "inclusion": "activity_expansion"
+                  }
+                ],
+                "omitted": [],
+                "estimated_context_tokens": 351,
+                "token_estimator": "unicode-scalar-ceil-div4-json-section-v1",
+                "work": {
+                  "dense_vectors_scored": 0,
+                  "lexical_sections_scored": 72,
+                  "eligible_sections": 72,
+                  "union_candidates": 30
+                }
+              },
+              "timings": {
+                "query_total_ms": 3.81875,
+                "query_embedding_ms": null,
+                "query_embedding_cache_hit": null,
+                "retrieval_ms": 3.792
+              },
+              "error": null
+            }
+          },
+          "metadata": {
+            "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--2bbc89085925134b3195f76b2970df3e94f5101820224706ce91017e8be60002",
+            "case_id": "RAG26-01",
+            "dataset": "demo-12-20261118",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "mode": "local",
+            "model": null,
+            "answer_quality": "not_assessed",
+            "execution_mode": "fresh_batch_retrieval"
+          }
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "execution_integrity": 1,
+            "goal_coverage": 1,
+            "source_complete": 1,
+            "first_goal_support_reciprocal_rank": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "1/1 source-evidence goals complete",
+              "namedScores": {
+                "execution_integrity": 1,
+                "goal_coverage": 1,
+                "source_complete": 1,
+                "first_goal_support_reciprocal_rank": 1
+              },
+              "metadata": {
+                "source_metrics": {
+                  "target_goals": 1,
+                  "covered_goals": 1,
+                  "source_complete": true,
+                  "goal_coverage": 1,
+                  "minimum_required_sections": 2,
+                  "goals": [
+                    {
+                      "id": "rag26-01-sources",
+                      "description": "Tijd en locatie uit twee stukjes samenbrengen.",
+                      "covered": true,
+                      "alternatives": [
+                        [
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S2",
+                            "found": true
+                          },
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S3",
+                            "found": true
+                          }
+                        ]
+                      ]
+                    }
+                  ],
+                  "execution_integrity": true,
+                  "reference_sha256": "2d76d635c0ae8c5fa15063b54836b7dea3f8f799b28557e6d668934d95ca7b66",
+                  "question_sha256": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
+                  "offered_sections": 6,
+                  "source_quality_applicable": true,
+                  "answer_quality": "not_assessed",
+                  "unknown_obligations": 0,
+                  "first_goal_support_reciprocal_rank": 1,
+                  "minimum_required_activities": 1,
+                  "seed_activity_capacity_limit": 3,
+                  "goal_set_exceeds_capacity": null
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "testCase": {
+          "vars": {
+            "mode": "local",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "top_k": 6,
+            "candidate_k": 30,
+            "context_token_limit": 1200,
+            "selection": "sections",
+            "apply_filters": false,
+            "mmr": false,
+            "rrf_k": 60,
+            "vector_weight": 0.7,
+            "mmr_lambda": 0.7,
+            "model": "gpt-6.1-sol",
+            "filters": {},
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?"
+          },
+          "metadata": {
+            "suite": "quality",
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "configuration": "bm25:documents_sections:sections:k6:unfiltered",
+            "reference_scope": "[REDACTED]",
+            "answer_quality": "not_assessed",
+            "benchmark_group_id": "quality:demo-12-20261118",
+            "benchmark_request_id": "[REDACTED]"
+          }
+        },
+        "response": {
+          "output": {
+            "schema_version": 1,
+            "operation": "retrieve",
+            "dataset_id": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?",
+            "status": "completed",
+            "record": {
+              "schema_version": 1,
+              "batch_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0",
+              "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--36dd7141798b4d10624004f6dfd30c4ef22a7086057e420a954cb21c94c17057",
+              "created_at_unix_ms": 1795192259202,
+              "case_id": "RAG26-01",
+              "family": "rag26-01",
+              "split": "development",
+              "kind": "multiple_facts",
+              "question": "Waar en wanneer kan ik tuinieren?",
+              "config_id": "documents_sections__bm25__8a228da59d55",
+              "config": {
+                "profile": "documents_sections",
+                "retrieval": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 6,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                }
+              },
+              "request_filters": {
+                "weekdays": [],
+                "environment": null,
+                "time": null
+              },
+              "execution_kind": "local_measured",
+              "execution_status": "completed",
+              "dataset": {
+                "questions_sha256": "03fa456b71a3a4d10313603ea4846317d625cd48d3464424792542f93917bb02",
+                "corpus_sha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+                "as_of": "2026-11-13",
+                "dataset_versions": [
+                  "demo-12-20261118-v1"
+                ],
+                "limitation": "Seventeen adapted AI-authored source-reviewed development questions on twelve fictional documents; not a blind holdout, human calibration or answer-quality judgment"
+              },
+              "preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-2e62f087a18f1421",
+                "actual_profile": "documents_sections",
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "layout": {
+                  "canonical_sections": 72,
+                  "activity_records": 0,
+                  "activity_section_links": 0
+                },
+                "sync": {
+                  "sections_total": 72,
+                  "sections_inserted": 72,
+                  "sections_updated": 0,
+                  "sections_removed": 0,
+                  "sections_unchanged": 0
+                },
+                "document_cache_hits": 0,
+                "document_cache_misses": 0,
+                "model_load_ms": null,
+                "document_embedding_ms": null,
+                "storage_sync_ms": 2.046875,
+                "storage_load_ms": 1.916458,
+                "profile_preparation_ms": 6.099832999999999
+              },
+              "shared_preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-shared-embeddings",
+                "source_parse_ms": 0.2415,
+                "model_identity_ms": null,
+                "model_load_ms": null,
+                "document_inference_ms": null,
+                "query_inference_ms": null,
+                "document_inputs_encoded": 0,
+                "query_inputs_encoded": 0,
+                "scoring_path": "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking",
+                "interpretation": "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. This is the immutable preparation snapshot before variant queries; query inference and cache hits are measured separately in each row."
+              },
+              "outcome": {
+                "version": "retrieval-v1",
+                "query": "Waar en wanneer kan ik tuinieren?",
+                "config": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 6,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                },
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "filters": {
+                  "requested": false,
+                  "applied": false,
+                  "ignored_reason": null,
+                  "matched_activity_ids": [],
+                  "excluded_activity_ids": [],
+                  "unknown_activities": []
+                },
+                "candidates": [
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S1"
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S4"
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S6"
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 7
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 8
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 9
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 11
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 12
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 13
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 14
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 15
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 16
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 17
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 18
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 19
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 20
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.9867212772369385,
+                      "dense_similarity": null,
+                      "bm25_score": 1.9867213,
+                      "dense_rank": null,
+                      "keyword_rank": 21
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 22
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 23
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 24
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8176963329315186,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8176963,
+                      "dense_rank": null,
+                      "keyword_rank": 25
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 26
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 27
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7294158935546875,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7294159,
+                      "dense_rank": null,
+                      "keyword_rank": 28
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.1259013414382935,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1259013,
+                      "dense_rank": null,
+                      "keyword_rank": 29
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.115920066833496,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1159201,
+                      "dense_rank": null,
+                      "keyword_rank": 30
+                    }
+                  }
+                ],
+                "seeds": [
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S2"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S3"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S1"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S5"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S4"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S6"
+                  }
+                ],
+                "hits": [
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S2",
+                      "heading": "Wanneer?",
+                      "text": "Iedere dinsdag van 10.00 tot 12.00 uur."
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S3",
+                      "heading": "Waar?",
+                      "text": "Buurttuin De Linde, achter het fictieve buurthuis aan de Lindenlaan 12 in het fictieve Lindedorp."
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S1",
+                      "heading": "Wat doen we?",
+                      "text": "We verzorgen samen groenten en bloemen in de buurttuin. Je werkt buiten met je handen. Ervaring met tuinieren is niet nodig."
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S5",
+                      "heading": "Wat neem je mee?",
+                      "text": "Trek stevige schoenen aan. Handschoenen en tuingereedschap zijn aanwezig. Deelname kost niets en is vrijwillig."
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S4",
+                      "heading": "Taal en hulp",
+                      "text": "De begeleider spreekt eenvoudig Nederlands en doet het werk eerst voor. Je hoeft niet goed Nederlands te spreken. De begeleider is tijdens de activiteit aanwezig."
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S6",
+                      "heading": "Beschikbaarheid",
+                      "text": "Op 2026-09-01 waren er twee vrije plekken. Sindsdien is het aantal plekken niet opnieuw gecontroleerd."
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    },
+                    "inclusion": "seed"
+                  }
+                ],
+                "omitted": [],
+                "estimated_context_tokens": 351,
+                "token_estimator": "unicode-scalar-ceil-div4-json-section-v1",
+                "work": {
+                  "dense_vectors_scored": 0,
+                  "lexical_sections_scored": 72,
+                  "eligible_sections": 72,
+                  "union_candidates": 30
+                }
+              },
+              "timings": {
+                "query_total_ms": 3.702,
+                "query_embedding_ms": null,
+                "query_embedding_cache_hit": null,
+                "retrieval_ms": 3.677041
+              },
+              "error": null
+            }
+          },
+          "metadata": {
+            "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--36dd7141798b4d10624004f6dfd30c4ef22a7086057e420a954cb21c94c17057",
+            "case_id": "RAG26-01",
+            "dataset": "demo-12-20261118",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "mode": "local",
+            "model": null,
+            "answer_quality": "not_assessed",
+            "execution_mode": "fresh_batch_retrieval"
+          }
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "execution_integrity": 1,
+            "goal_coverage": 1,
+            "source_complete": 1,
+            "first_goal_support_reciprocal_rank": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "1/1 source-evidence goals complete",
+              "namedScores": {
+                "execution_integrity": 1,
+                "goal_coverage": 1,
+                "source_complete": 1,
+                "first_goal_support_reciprocal_rank": 1
+              },
+              "metadata": {
+                "source_metrics": {
+                  "target_goals": 1,
+                  "covered_goals": 1,
+                  "source_complete": true,
+                  "goal_coverage": 1,
+                  "minimum_required_sections": 2,
+                  "goals": [
+                    {
+                      "id": "rag26-01-sources",
+                      "description": "Tijd en locatie uit twee stukjes samenbrengen.",
+                      "covered": true,
+                      "alternatives": [
+                        [
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S2",
+                            "found": true
+                          },
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S3",
+                            "found": true
+                          }
+                        ]
+                      ]
+                    }
+                  ],
+                  "execution_integrity": true,
+                  "reference_sha256": "2d76d635c0ae8c5fa15063b54836b7dea3f8f799b28557e6d668934d95ca7b66",
+                  "question_sha256": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
+                  "offered_sections": 6,
+                  "source_quality_applicable": true,
+                  "answer_quality": "not_assessed",
+                  "unknown_obligations": 0,
+                  "first_goal_support_reciprocal_rank": 1,
+                  "section_capacity_limit": 6,
+                  "goal_set_exceeds_capacity": false
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "testCase": {
+          "vars": {
+            "mode": "local",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "top_k": 5,
+            "candidate_k": 30,
+            "context_token_limit": 1200,
+            "selection": "sections",
+            "apply_filters": false,
+            "mmr": false,
+            "rrf_k": 60,
+            "vector_weight": 0.7,
+            "mmr_lambda": 0.7,
+            "model": "gpt-6.1-sol",
+            "filters": {},
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?",
+            "corpus_sha256": "[REDACTED]",
+            "browser_eval_id": "case:demo-12-20261118:RAG26-01",
+            "embedding_model": "minilm-multilingual"
+          },
+          "metadata": {
+            "suite": "browser",
+            "dataset": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "configuration": "bm25:documents_sections:sections:k5:unfiltered",
+            "reference_scope": "[REDACTED]",
+            "answer_quality": "not_assessed",
+            "benchmark_group_id": "browser:demo-12-20261118",
+            "benchmark_request_id": "[REDACTED]"
+          }
+        },
+        "response": {
+          "output": {
+            "schema_version": 1,
+            "operation": "retrieve",
+            "dataset_id": "demo-12-20261118",
+            "case_id": "RAG26-01",
+            "question": "Waar en wanneer kan ik tuinieren?",
+            "status": "completed",
+            "record": {
+              "schema_version": 1,
+              "batch_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0",
+              "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--0e5313722cbc71e6fd02112b7521fc0a252b7e96af6d163be2fbe6f40ae017f6",
+              "created_at_unix_ms": 1795192259202,
+              "case_id": "RAG26-01",
+              "family": "rag26-01",
+              "split": "development",
+              "kind": "multiple_facts",
+              "question": "Waar en wanneer kan ik tuinieren?",
+              "config_id": "documents_sections__bm25__2883ec7386d9",
+              "config": {
+                "profile": "documents_sections",
+                "retrieval": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 5,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                }
+              },
+              "request_filters": {
+                "weekdays": [],
+                "environment": null,
+                "time": null
+              },
+              "execution_kind": "local_measured",
+              "execution_status": "completed",
+              "dataset": {
+                "questions_sha256": "03fa456b71a3a4d10313603ea4846317d625cd48d3464424792542f93917bb02",
+                "corpus_sha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+                "as_of": "2026-11-13",
+                "dataset_versions": [
+                  "demo-12-20261118-v1"
+                ],
+                "limitation": "Seventeen adapted AI-authored source-reviewed development questions on twelve fictional documents; not a blind holdout, human calibration or answer-quality judgment"
+              },
+              "preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-2e62f087a18f1421",
+                "actual_profile": "documents_sections",
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "layout": {
+                  "canonical_sections": 72,
+                  "activity_records": 0,
+                  "activity_section_links": 0
+                },
+                "sync": {
+                  "sections_total": 72,
+                  "sections_inserted": 72,
+                  "sections_updated": 0,
+                  "sections_removed": 0,
+                  "sections_unchanged": 0
+                },
+                "document_cache_hits": 0,
+                "document_cache_misses": 0,
+                "model_load_ms": null,
+                "document_embedding_ms": null,
+                "storage_sync_ms": 2.046875,
+                "storage_load_ms": 1.916458,
+                "profile_preparation_ms": 6.099832999999999
+              },
+              "shared_preparation": {
+                "preparation_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0-bm25-shared-embeddings",
+                "source_parse_ms": 0.2415,
+                "model_identity_ms": null,
+                "model_load_ms": null,
+                "document_inference_ms": null,
+                "query_inference_ms": null,
+                "document_inputs_encoded": 0,
+                "query_inputs_encoded": 0,
+                "scoring_path": "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking",
+                "interpretation": "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. This is the immutable preparation snapshot before variant queries; query inference and cache hits are measured separately in each row."
+              },
+              "outcome": {
+                "version": "retrieval-v1",
+                "query": "Waar en wanneer kan ik tuinieren?",
+                "config": {
+                  "method": "bm25",
+                  "selection": "sections",
+                  "top_k": 5,
+                  "candidate_k": 30,
+                  "context_token_limit": 1200,
+                  "apply_filters": false,
+                  "mmr": false,
+                  "rrf_k": 60,
+                  "vector_weight": 0.7,
+                  "mmr_lambda": 0.7
+                },
+                "corpus_identity": {
+                  "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                  "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                  "vectors_sha256": null,
+                  "embedding": null
+                },
+                "filters": {
+                  "requested": false,
+                  "applied": false,
+                  "ignored_reason": null,
+                  "matched_activity_ids": [],
+                  "excluded_activity_ids": [],
+                  "unknown_activities": []
+                },
+                "candidates": [
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S1"
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S4"
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TUIN-001",
+                      "section_id": "S6"
+                    },
+                    "scores": {
+                      "rank_score": 2.673191785812378,
+                      "dense_similarity": null,
+                      "bm25_score": 2.6731918,
+                      "dense_rank": null,
+                      "keyword_rank": 6
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 7
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 8
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 9
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 10
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 11
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 12
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2840707302093506,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2840707,
+                      "dense_rank": null,
+                      "keyword_rank": 13
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 14
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 15
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 16
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S2"
+                    },
+                    "scores": {
+                      "rank_score": 2.2362568378448486,
+                      "dense_similarity": null,
+                      "bm25_score": 2.2362568,
+                      "dense_rank": null,
+                      "keyword_rank": 17
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-BIEB-008",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 18
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MUZIEK-009",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 19
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-NAAI-012",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 2.024369955062866,
+                      "dense_similarity": null,
+                      "bm25_score": 2.02437,
+                      "dense_rank": null,
+                      "keyword_rank": 20
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-MAAK-006",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.9867212772369385,
+                      "dense_similarity": null,
+                      "bm25_score": 1.9867213,
+                      "dense_rank": null,
+                      "keyword_rank": 21
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 22
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 23
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-TAAL-003",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8817335367202759,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8817335,
+                      "dense_rank": null,
+                      "keyword_rank": 24
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-DIGI-010",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.8176963329315186,
+                      "dense_similarity": null,
+                      "bm25_score": 1.8176963,
+                      "dense_rank": null,
+                      "keyword_rank": 25
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-PARK-007",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 26
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-SCHAAK-011",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7872848510742188,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7872849,
+                      "dense_rank": null,
+                      "keyword_rank": 27
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-WANDEL-005",
+                      "section_id": "S3"
+                    },
+                    "scores": {
+                      "rank_score": 1.7294158935546875,
+                      "dense_similarity": null,
+                      "bm25_score": 1.7294159,
+                      "dense_rank": null,
+                      "keyword_rank": 28
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-KOKEN-004",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.1259013414382935,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1259013,
+                      "dense_rank": null,
+                      "keyword_rank": 29
+                    }
+                  },
+                  {
+                    "key": {
+                      "source_id": "ACT-FIETS-002",
+                      "section_id": "S5"
+                    },
+                    "scores": {
+                      "rank_score": 1.115920066833496,
+                      "dense_similarity": null,
+                      "bm25_score": 1.1159201,
+                      "dense_rank": null,
+                      "keyword_rank": 30
+                    }
+                  }
+                ],
+                "seeds": [
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S2"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S3"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S1"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S5"
+                  },
+                  {
+                    "source_id": "ACT-TUIN-001",
+                    "section_id": "S4"
+                  }
+                ],
+                "hits": [
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S2",
+                      "heading": "Wanneer?",
+                      "text": "Iedere dinsdag van 10.00 tot 12.00 uur."
+                    },
+                    "scores": {
+                      "rank_score": 5.414510726928711,
+                      "dense_similarity": null,
+                      "bm25_score": 5.4145107,
+                      "dense_rank": null,
+                      "keyword_rank": 1
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S3",
+                      "heading": "Waar?",
+                      "text": "Buurttuin De Linde, achter het fictieve buurthuis aan de Lindenlaan 12 in het fictieve Lindedorp."
+                    },
+                    "scores": {
+                      "rank_score": 4.7988762855529785,
+                      "dense_similarity": null,
+                      "bm25_score": 4.7988763,
+                      "dense_rank": null,
+                      "keyword_rank": 2
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S1",
+                      "heading": "Wat doen we?",
+                      "text": "We verzorgen samen groenten en bloemen in de buurttuin. Je werkt buiten met je handen. Ervaring met tuinieren is niet nodig."
+                    },
+                    "scores": {
+                      "rank_score": 4.007213592529297,
+                      "dense_similarity": null,
+                      "bm25_score": 4.0072136,
+                      "dense_rank": null,
+                      "keyword_rank": 3
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S5",
+                      "heading": "Wat neem je mee?",
+                      "text": "Trek stevige schoenen aan. Handschoenen en tuingereedschap zijn aanwezig. Deelname kost niets en is vrijwillig."
+                    },
+                    "scores": {
+                      "rank_score": 3.63285231590271,
+                      "dense_similarity": null,
+                      "bm25_score": 3.6328523,
+                      "dense_rank": null,
+                      "keyword_rank": 4
+                    },
+                    "inclusion": "seed"
+                  },
+                  {
+                    "section": {
+                      "source_id": "ACT-TUIN-001",
+                      "source_date": "2026-10-20",
+                      "source_title": "Tuinieren",
+                      "id": "S4",
+                      "heading": "Taal en hulp",
+                      "text": "De begeleider spreekt eenvoudig Nederlands en doet het werk eerst voor. Je hoeft niet goed Nederlands te spreken. De begeleider is tijdens de activiteit aanwezig."
+                    },
+                    "scores": {
+                      "rank_score": 3.1698005199432373,
+                      "dense_similarity": null,
+                      "bm25_score": 3.1698005,
+                      "dense_rank": null,
+                      "keyword_rank": 5
+                    },
+                    "inclusion": "seed"
+                  }
+                ],
+                "omitted": [],
+                "estimated_context_tokens": 293,
+                "token_estimator": "unicode-scalar-ceil-div4-json-section-v1",
+                "work": {
+                  "dense_vectors_scored": 0,
+                  "lexical_sections_scored": 72,
+                  "eligible_sections": 72,
+                  "union_candidates": 30
+                }
+              },
+              "timings": {
+                "query_total_ms": 3.6786250000000003,
+                "query_embedding_ms": null,
+                "query_embedding_cache_hit": null,
+                "retrieval_ms": 3.655625
+              },
+              "error": null
+            }
+          },
+          "metadata": {
+            "run_id": "51e9df13-96e5-43d2-9317-a07242fbd125-native-54752-0--0e5313722cbc71e6fd02112b7521fc0a252b7e96af6d163be2fbe6f40ae017f6",
+            "case_id": "RAG26-01",
+            "dataset": "demo-12-20261118",
+            "method": "bm25",
+            "profile": "documents_sections",
+            "mode": "local",
+            "model": null,
+            "answer_quality": "not_assessed",
+            "execution_mode": "fresh_batch_retrieval"
+          }
+        },
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "execution_integrity": 1,
+            "goal_coverage": 1,
+            "source_complete": 1,
+            "first_goal_support_reciprocal_rank": 1
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "1/1 source-evidence goals complete",
+              "namedScores": {
+                "execution_integrity": 1,
+                "goal_coverage": 1,
+                "source_complete": 1,
+                "first_goal_support_reciprocal_rank": 1
+              },
+              "metadata": {
+                "source_metrics": {
+                  "target_goals": 1,
+                  "covered_goals": 1,
+                  "source_complete": true,
+                  "goal_coverage": 1,
+                  "minimum_required_sections": 2,
+                  "goals": [
+                    {
+                      "id": "rag26-01-sources",
+                      "description": "Tijd en locatie uit twee stukjes samenbrengen.",
+                      "covered": true,
+                      "alternatives": [
+                        [
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S2",
+                            "found": true
+                          },
+                          {
+                            "source_id": "ACT-TUIN-001",
+                            "section_id": "S3",
+                            "found": true
+                          }
+                        ]
+                      ]
+                    }
+                  ],
+                  "embedding_identity": null,
+                  "corpus_identity": {
+                    "source_sha256": "be58098a9cf757adc486706277f6d35246135d82777d17c5b2e2e2264117a50a",
+                    "embedding_inputs_sha256": "ad7574ea8c878b7db5f9e1465f411f3f2cfd7be40b3b8eb4470faa3f475f1581",
+                    "vectors_sha256": null,
+                    "embedding": null
+                  },
+                  "execution_integrity": true,
+                  "reference_sha256": "2d76d635c0ae8c5fa15063b54836b7dea3f8f799b28557e6d668934d95ca7b66",
+                  "question_sha256": "e824d047afef23dc0c03221535d161e5667b237611f480efc913fe0badd2fea3",
+                  "offered_sections": 5,
+                  "source_quality_applicable": true,
+                  "answer_quality": "not_assessed",
+                  "unknown_obligations": 0,
+                  "first_goal_support_reciprocal_rank": 1,
+                  "section_capacity_limit": 5,
+                  "goal_set_exceeds_capacity": false
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

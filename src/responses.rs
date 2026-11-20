@@ -703,6 +703,24 @@ mod tests {
         );
         let state: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(state["attempts"], 1);
+        let cloned_runner = runner.clone();
+        assert!(
+            run(&cloned_runner)
+                .await
+                .unwrap_err()
+                .starts_with("budget:")
+        );
+        assert_eq!(
+            seen.lock().unwrap().len(),
+            1,
+            "Cloning the web Runner for benchmark execution must not create a fresh spending allowance"
+        );
+        let state: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            state["attempts"], 1,
+            "The original durable ledger remains authoritative across cloned Runner executions"
+        );
+        drop(cloned_runner);
         drop(runner);
         std::fs::remove_dir_all(directory).unwrap();
         task.abort();

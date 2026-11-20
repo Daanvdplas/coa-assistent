@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "id": "rag-quality-12-20261120-v1",
+  "corpus_id": "demo-twelve",
+  "corpus_sha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+  "reference_date": "2026-11-13",
+  "cases": [
+    {
+      "id": "quality-garden",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-01",
+      "title": "Tuinieren: tijd en plek",
+      "focus": "Find both time and location with the canonical bundled source goal."
+    },
+    {
+      "id": "quality-tuesday",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-02",
+      "title": "Alle activiteiten op dinsdag",
+      "focus": "Find every Tuesday activity and its time, including the creative workshop."
+    },
+    {
+      "id": "quality-indoor",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-03",
+      "title": "Binnen op dinsdag",
+      "focus": "Find one coherent supported indoor Tuesday option: bicycle repair OR the creative workshop."
+    },
+    {
+      "id": "quality-outdoor",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-04",
+      "title": "Buiten op donderdag of vrijdag",
+      "focus": "Find both outdoor options and keep their different meeting addresses attached to the right activity."
+    },
+    {
+      "id": "quality-language",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-05",
+      "title": "Nederlands oefenen zonder B1",
+      "focus": "Compare beginner support with the reading-aloud B1 requirement without extending it to all library tasks."
+    },
+    {
+      "id": "quality-music",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-06",
+      "title": "Muziek: ervaring, materiaal en hulp",
+      "focus": "Retrieve four Dutch source sections for an unchanged English question about experience, time, guidance and instruments."
+    },
+    {
+      "id": "quality-digital",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-07",
+      "title": "Digitale hulp zonder eigen apparaat",
+      "focus": "Combine equipment, reading and account conditions with the correct room at a shared street address."
+    },
+    {
+      "id": "quality-sunday",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-08",
+      "title": "Muziek of digitale hulp op zondag",
+      "focus": "Find both named schedules to support the bounded negative answer; do not infer a corpus-wide Sunday exclusion."
+    },
+    {
+      "id": "quality-cooking",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-09",
+      "title": "Koken: allergenen en materiaal",
+      "focus": "Find explicit missing-allergen information alongside available cooking materials; missing information is not an empty retrieval target."
+    },
+    {
+      "id": "quality-capacity",
+      "dataset_id": "demo-12-20261118",
+      "case_id": "RAG26-10",
+      "title": "Oude aantallen vrije plekken",
+      "focus": "Retrieve both historical counts and their dates; neither count confirms availability on the reference date."
+    },
+    {
+      "id": "quality-complete-options",
+      "dataset_id": "regression-12-20261118",
+      "case_id": "IND26-01",
+      "title": "Alle passende opties om 14.00 uur",
+      "focus": "Find both and only the complete matching activity options, including day, end time and activity; eight distinct sections support ten goals."
+    }
+  ],
+  "review": {
+    "status": "source_contracts_independently_approved",
+    "human_validated": false,
+    "reviewers": [
+      "/root/rag_eval_quality_audit",
+      "/root/rag_metric_quality_audit"
+    ]
+  }
+}

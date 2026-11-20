@@ -9,6 +9,7 @@ use crate::{
 };
 use std::{
     path::{Path, PathBuf},
+    sync::OnceLock,
     time::Instant,
 };
 
@@ -93,6 +94,29 @@ pub(crate) struct SearchAttempt {
     pub timings: RetrievalTimings,
 }
 
+pub(crate) struct PreparedQuery {
+    request: RetrievalRequest,
+    vector: Option<Vec<f32>>,
+    timings: RetrievalTimings,
+    started: Instant,
+}
+
+impl PreparedQuery {
+    pub fn finish_with(
+        mut self,
+        search: impl FnOnce(&RetrievalRequest, Option<&[f32]>) -> Result<RetrievalOutcome, String>,
+    ) -> SearchAttempt {
+        let started = Instant::now();
+        let outcome = search(&self.request, self.vector.as_deref());
+        self.timings.retrieval_ms = Some(elapsed_ms(started));
+        self.timings.query_total_ms = Some(elapsed_ms(self.started));
+        SearchAttempt {
+            outcome,
+            timings: self.timings,
+        }
+    }
+}
+
 pub(crate) struct PreparationSession {
     sections: Vec<Section>,
     #[cfg(feature = "sqlite")]
@@ -103,6 +127,9 @@ pub(crate) struct PreparationSession {
 }
 
 impl PreparationSession {
+    pub(crate) fn embedding_identity(&mut self) -> Result<EmbeddingIdentity, String> {
+        self.embeddings.identity()
+    }
     pub fn for_corpus(
         options: &PreparationOptions,
         corpus: crate::corpus::CorpusId,
@@ -133,7 +160,7 @@ impl PreparationSession {
             document_inference_ms: self.embeddings.document_ms, query_inference_ms: self.embeddings.query_ms,
             document_inputs_encoded: self.embeddings.document_count, query_inputs_encoded: self.embeddings.query_count,
             scoring_path: "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking".into(),
-            interpretation: "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark.".into()}
+            interpretation: format!("One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. Configured execution policy when embeddings are used: document_embedding_chunk_size={DOCUMENT_EMBEDDING_CHUNK_SIZE}; query_embedding_inputs=1; sequential outer SDK calls, pooled vectors retained between calls.")}
     }
 
     pub fn prepare(
@@ -218,14 +245,28 @@ impl PreparationSession {
         request: &RetrievalRequest,
         config: &RunConfig,
     ) -> SearchAttempt {
+        match self.query(prepared, request, config) {
+            Ok(query) => query.finish_with(|request, vector| {
+                crate::retrieval::retrieve(&prepared.corpus, request, &config.retrieval, vector)
+            }),
+            Err(attempt) => *attempt,
+        }
+    }
+
+    pub(crate) fn query(
+        &mut self,
+        prepared: &mut PreparedSearch,
+        request: &RetrievalRequest,
+        config: &RunConfig,
+    ) -> Result<PreparedQuery, Box<SearchAttempt>> {
         let mut timings = RetrievalTimings::default();
         let query = match crate::validate_query(&request.query) {
             Ok(query) => query,
             Err(error) => {
-                return SearchAttempt {
+                return Err(Box::new(SearchAttempt {
                     outcome: Err(error),
                     timings,
-                };
+                }));
             }
         };
         let request = RetrievalRequest {
@@ -234,11 +275,12 @@ impl PreparationSession {
         };
         let validation = crate::retrieval::validate_config(&config.retrieval, &request.filters);
         if let Err(error) = validation {
-            return SearchAttempt {
+            return Err(Box::new(SearchAttempt {
                 outcome: Err(error),
                 timings,
-            };
+            }));
         }
+        let query_started = Instant::now();
         let vector = if config.retrieval.method != SearchMethod::Bm25 {
             let started = Instant::now();
             let result = (|| {
@@ -275,24 +317,22 @@ impl PreparationSession {
                     Some(vector)
                 }
                 Err(error) => {
-                    return SearchAttempt {
+                    timings.query_total_ms = Some(elapsed_ms(query_started));
+                    return Err(Box::new(SearchAttempt {
                         outcome: Err(error),
                         timings,
-                    };
+                    }));
                 }
             }
         } else {
             None
         };
-        let started = Instant::now();
-        let outcome = crate::retrieval::retrieve(
-            &prepared.corpus,
-            &request,
-            &config.retrieval,
-            vector.as_deref(),
-        );
-        timings.retrieval_ms = Some(elapsed_ms(started));
-        SearchAttempt { outcome, timings }
+        Ok(PreparedQuery {
+            request,
+            vector,
+            timings,
+            started: query_started,
+        })
     }
 }
 
@@ -373,9 +413,33 @@ struct LocalEmbeddings {
     query_count: usize,
 }
 
+#[derive(Clone, Copy)]
 enum EncodingPurpose {
     Document,
     Query,
+}
+
+pub(crate) const DOCUMENT_EMBEDDING_CHUNK_SIZE: usize = 8;
+
+fn encode_inputs(
+    texts: &[String],
+    purpose: EncodingPurpose,
+    mut encode: impl FnMut(&[String]) -> Result<Vec<Vec<f32>>, String>,
+) -> Result<Vec<Vec<f32>>, String> {
+    if matches!(purpose, EncodingPurpose::Query) {
+        return encode(texts);
+    }
+    let mut vectors = Vec::with_capacity(texts.len());
+    for chunk in texts.chunks(DOCUMENT_EMBEDDING_CHUNK_SIZE) {
+        // Each SDK call pools its outputs before returning. Keep only its small
+        // vectors here so raw token tensors are dropped before the next call.
+        let encoded = encode(chunk)?;
+        if encoded.len() != chunk.len() {
+            return Err("Document encoder returned an unexpected vector count".into());
+        }
+        vectors.extend(encoded);
+    }
+    Ok(vectors)
 }
 
 impl LocalEmbeddings {
@@ -398,19 +462,28 @@ impl LocalEmbeddings {
         if self.model.is_none() {
             let started = Instant::now();
             self.model = Some(
-                fastembed::TextEmbedding::try_new(
-                    fastembed::TextInitOptions::new(self.choice.sdk_model())
-                        .with_cache_dir(self.cache.clone())
-                        .with_show_download_progress(false)
-                        .with_max_length(self.choice.spec().max_tokens)
-                        .with_intra_threads(2),
-                )
-                .map_err(|error| error.to_string())?,
+                fastembed::TextEmbedding::try_new(self.init_options()?)
+                    .map_err(|error| error.to_string())?,
             );
             self.last_load_ms = Some(elapsed_ms(started));
             self.load_ms = self.last_load_ms;
         }
         Ok(())
+    }
+    fn init_options(&self) -> Result<fastembed::TextInitOptions, String> {
+        // ORT permits one environment per process. Keep its handle alive across
+        // local model sessions; model weights and vector caches remain session-owned.
+        static ENVIRONMENT: OnceLock<Result<ort::environment::Environment, String>> =
+            OnceLock::new();
+        let environment = ENVIRONMENT
+            .get_or_init(|| ort::init().build().map_err(|error| error.to_string()))
+            .clone()?;
+        Ok(fastembed::TextInitOptions::new(self.choice.sdk_model())
+            .with_environment(environment)
+            .with_cache_dir(self.cache.clone())
+            .with_show_download_progress(false)
+            .with_max_length(self.choice.spec().max_tokens)
+            .with_intra_threads(2))
     }
     fn identity(&mut self) -> Result<EmbeddingIdentity, String> {
         if let Some(identity) = &self.identity {
@@ -464,12 +537,13 @@ impl LocalEmbeddings {
     ) -> Result<Vec<Vec<f32>>, String> {
         self.load()?;
         let started = Instant::now();
-        let result = self
-            .model
-            .as_mut()
-            .unwrap()
-            .embed(texts, None)
-            .map_err(|error| error.to_string())?;
+        let result = encode_inputs(texts, purpose, |chunk| {
+            self.model
+                .as_mut()
+                .unwrap()
+                .embed(chunk, None)
+                .map_err(|error| error.to_string())
+        })?;
         let (duration, count) = match purpose {
             EncodingPurpose::Document => (&mut self.document_ms, &mut self.document_count),
             EncodingPurpose::Query => (&mut self.query_ms, &mut self.query_count),
@@ -491,6 +565,210 @@ mod tests {
         retrieval::{RetrievalConfig, SearchMethod},
         storage::StorageProfile,
     };
+    #[test]
+    fn embedding_documents_bound_each_sdk_call_and_release_temporary_outputs_in_order() {
+        use std::cell::Cell;
+        struct RawOutput<'a>(&'a Cell<usize>);
+        impl Drop for RawOutput<'_> {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() - 1);
+            }
+        }
+        for count in [19, 72] {
+            let texts: Vec<_> = (0..count).map(|i| i.to_string()).collect();
+            let active_raw = Cell::new(0);
+            let mut calls = Vec::new();
+            let vectors = encode_inputs(&texts, EncodingPurpose::Document, |chunk| {
+                assert!(chunk.len() <= 8, "Each SDK call must bound its retained raw outputs");
+                assert_eq!(active_raw.get(), 0, "The previous SDK call must finish pooling and release its temporary outputs first");
+                active_raw.set(active_raw.get() + 1);
+                let _temporary_outputs = RawOutput(&active_raw);
+                calls.push(chunk.len());
+                Ok(chunk.iter().map(|text| vec![text.parse::<f32>().unwrap()]).collect())
+            }).unwrap();
+            assert_eq!(
+                vectors,
+                (0..count).map(|i| vec![i as f32]).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                calls,
+                texts.chunks(8).map(<[String]>::len).collect::<Vec<_>>()
+            );
+            assert_eq!(active_raw.get(), 0);
+        }
+    }
+
+    #[test]
+    fn embedding_documents_stop_before_later_chunks_on_error_or_missing_vectors() {
+        let texts: Vec<_> = (0..24).map(|i| i.to_string()).collect();
+        for fail_with_error in [true, false] {
+            let mut calls = 0;
+            let result = encode_inputs(&texts, EncodingPurpose::Document, |chunk| {
+                calls += 1;
+                if calls == 2 {
+                    return if fail_with_error {
+                        Err("fixture encoder failed".into())
+                    } else {
+                        Ok(Vec::new())
+                    };
+                }
+                Ok(chunk.iter().map(|_| vec![1.0]).collect())
+            });
+            assert!(result.is_err());
+            assert_eq!(calls, 2, "A failed chunk must not start a later model call");
+        }
+    }
+
+    #[test]
+    fn embedding_query_keeps_its_single_sdk_call_and_input() {
+        let texts = vec!["query: Welke activiteiten zijn binnen?".to_owned()];
+        let mut calls = 0;
+        let vectors = encode_inputs(&texts, EncodingPurpose::Query, |chunk| {
+            calls += 1;
+            assert_eq!(chunk, texts);
+            Ok(vec![vec![0.25, 0.75]])
+        })
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(vectors, vec![vec![0.25, 0.75]]);
+    }
+    #[test]
+    fn both_local_models_share_an_environment_without_loading_model_files() {
+        // This factory stops at the pinned SDK's environment/session-builder boundary.
+        // It never opens model files, creates a model session, or performs inference.
+        let initialize = |options: fastembed::TextInitOptions| {
+            let environment = match options.environment {
+                Some(environment) => environment,
+                None => ort::init().build().map_err(|error| error.to_string())?,
+            };
+            let builder =
+                ort::session::Session::builder(&environment).map_err(|error| error.to_string())?;
+            Ok::<_, String>((environment, builder))
+        };
+        let choices = super::super::embedding_models::ModelChoice::all();
+        let models: Vec<_> = choices
+            .into_iter()
+            .map(|choice| {
+                LocalEmbeddings::new(Path::new("/missing-model-contract-fixture"), choice)
+            })
+            .collect();
+        let initialized: Vec<_> = models
+            .iter()
+            .map(|model| initialize(model.init_options().unwrap()))
+            .collect();
+        let errors: Vec<_> = initialized
+            .iter()
+            .filter_map(|result| result.as_ref().err())
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
+        assert!(models.iter().all(|model| model.model.is_none()));
+    }
+    #[test]
+    fn split_query_execution_preserves_fixed_vector_results_for_every_search_method() {
+        let sections: Vec<_> = crate::source::parse_sources(crate::DOCUMENTS)
+            .unwrap()
+            .into_iter()
+            .flat_map(|source| source.sections)
+            .take(4)
+            .collect();
+        let identity = EmbeddingIdentity {
+            provider: "fixture".into(),
+            model: "fixed-vector@revision".into(),
+            sdk: "fixture-v1".into(),
+            dimensions: 2,
+            document_prefix: "passage: ".into(),
+            query_prefix: "query: ".into(),
+            encoding: "fixture".into(),
+        };
+        let corpus = PreparedCorpus::new(
+            sections,
+            Some(vec![
+                vec![1.0, 0.0],
+                vec![0.8, 0.2],
+                vec![0.0, 1.0],
+                vec![-1.0, 0.0],
+            ]),
+            Some(identity.clone()),
+        )
+        .unwrap();
+        let missing = Path::new("/missing-fixed-vector-test-model");
+        let mut embeddings = LocalEmbeddings::new(missing, Default::default());
+        embeddings.identity = Some(identity.clone());
+        let mut memory = EmbeddingCache::default();
+        let encoded = format!("{}tuinieren dinsdag", identity.query_prefix);
+        let key = CacheKey::new(
+            &serde_json::json!({"identity":identity,"purpose":"raw-query-v1"}),
+            &encoded,
+            2,
+        )
+        .unwrap();
+        memory.put(&key, &[1.0, 0.0]).unwrap();
+        let mut session = PreparationSession {
+            sections: corpus.sections.clone(),
+            #[cfg(feature = "sqlite")]
+            sqlite_dir: PathBuf::from("/missing-fixed-vector-test-sqlite"),
+            embeddings,
+            memory_cache: memory,
+            source_parse_ms: 0.0,
+        };
+        let mut prepared = PreparedSearch {
+            store: Box::new(DocumentsStore::new(
+                crate::storage::StorageStructure::Sections,
+            )),
+            corpus: corpus.clone(),
+            record: PreparationRecord::default(),
+        };
+        for method in [
+            SearchMethod::Dense,
+            SearchMethod::Bm25,
+            SearchMethod::HybridRrf,
+            SearchMethod::HybridWeighted,
+        ] {
+            for selection in [
+                crate::retrieval::SelectionMode::Sections,
+                crate::retrieval::SelectionMode::ActivityExpansion,
+            ] {
+                let config = RetrievalConfig {
+                    method,
+                    selection,
+                    top_k: 1,
+                    ..Default::default()
+                };
+                let request = RetrievalRequest {
+                    query: "tuinieren dinsdag".into(),
+                    filters: Default::default(),
+                };
+                let vector = (method != SearchMethod::Bm25).then_some(vec![1.0, 0.0]);
+                let direct =
+                    crate::retrieval::retrieve(&corpus, &request, &config, vector.as_deref())
+                        .unwrap();
+                let run_config = RunConfig {
+                    profile: StorageProfile::DocumentsSections,
+                    retrieval: config.clone(),
+                };
+                let query = session
+                    .query(&mut prepared, &request, &run_config)
+                    .unwrap_or_else(|_| panic!("The fixed-vector cache must avoid any inference"));
+                let split = query.finish_with(|request, vector| {
+                    crate::retrieval::retrieve(&corpus, request, &config, vector)
+                });
+                assert_eq!(
+                    serde_json::to_value(split.outcome.unwrap()).unwrap(),
+                    serde_json::to_value(direct).unwrap()
+                );
+                assert!(
+                    split.timings.query_total_ms.unwrap() >= split.timings.retrieval_ms.unwrap()
+                );
+                assert_eq!(
+                    split.timings.query_embedding_cache_hit,
+                    (method != SearchMethod::Bm25).then_some(true)
+                );
+            }
+        }
+        assert!(session.embeddings.model.is_none());
+        assert_eq!(session.embeddings.query_count, 0);
+        assert!(!missing.exists());
+    }
     #[test]
     fn keyword_only_selection_never_needs_an_embedding_model_cache() {
         let config = RunConfig {
@@ -525,6 +803,13 @@ mod tests {
         );
         assert!(search.preparation().profile_preparation_ms.is_some());
         assert_eq!(timings.query_embedding_ms, None);
+        let measured = serde_json::to_value(&timings).unwrap();
+        assert!(
+            measured["query_total_ms"].as_f64().is_some_and(|total| {
+                total.is_finite() && total >= timings.retrieval_ms.unwrap()
+            }),
+            "Each prepared-index query must have its own direct elapsed clock"
+        );
         assert!(!missing_cache.exists());
     }
 

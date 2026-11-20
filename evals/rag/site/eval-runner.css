@@ -15,6 +15,7 @@ main.eval-main>h1{font-size:1.875rem;font-weight:600;line-height:1.2;letter-spac
 .eval-goals{font-size:.9375rem;line-height:1.55;list-style:none;padding:0;max-width:72ch;margin:8px 0 16px}
 .eval-goals>li{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
 .eval-goal-content{flex:1;min-width:0}.eval-goal-source{font-size:.9375rem;font-weight:650;line-height:1.4;margin:0 0 4px}.eval-goal-fragment{font-size:.9375rem;font-weight:400;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.eval-source+.eval-source{margin-top:8px}.eval-source-state{font-weight:400;color:var(--muted);margin-left:8px}.eval-source-found .eval-source-state{color:oklch(36% .09 145)}.eval-source-or{margin:8px 0}.eval-goal-score{font-size:.875rem;color:var(--muted);margin:8px 0 0}
 .eval-hits blockquote{margin:0 0 12px 24px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:.9375rem}
 .eval-controls{display:grid;grid-template-columns:1fr;gap:16px;max-width:48rem;margin-top:16px}
 .eval-controls>div{min-width:0;display:flex;flex-direction:column}
@@ -41,3 +42,5 @@ main.eval-main>h1{font-size:1.875rem;font-weight:600;line-height:1.2;letter-spac
 @media(min-width:650px){.eval-controls{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){main.eval-main{padding:28px 16px 32px}main.eval-main>h1{font-size:1.75rem;margin-bottom:16px}}
 @media(max-width:450px){.search-eval-card>summary{padding:12px;gap:6px 12px}.eval-card-body{padding:0 12px 16px}.eval-start{width:100%}.eval-hits{padding-left:20px}}
+.eval-benchmark{flex:none;min-height:44px;font-size:.875rem;padding:8px 12px;background:transparent;border-color:var(--line)}
+.eval-benchmark:disabled{opacity:.55;cursor:default}

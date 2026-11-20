@@ -358,7 +358,7 @@ pub fn report(
     }
     let first = &records[0].record;
     let plan = agent_run::plan_for_dataset(
-        super::dataset::ten_source_dataset_id(&first.dataset_id),
+        super::dataset::source_dataset_id(&first.dataset_id),
         &[],
         &super::catalog::METHODS,
         &first.requested_model,

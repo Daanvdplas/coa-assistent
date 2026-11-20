@@ -30,10 +30,13 @@ The application is Rust. Browser assets remain JavaScript/HTML/CSS; owned evalua
 | `/` | Live demo: fictional sources, a free-text question, answer and actual search actions. |
 | `/demo`, `/demo/` | HTTP 308 redirect to `/`. |
 | `/techniek/` | Human explanation of the architecture. |
-| `/resultaten/` | Three local retrieval tests plus separately opened saved results. |
+| `/resultaten/` | Eleven source-quality questions plus T05 and separately opened saved results. |
+| `/benchmark/` | One evaluation question across all applicable variants, with two repetitions and required-source coverage. |
 | `/api/session`, `/api/runs`, `/api/runs/{id}` | Create a session, submit a question, poll its run. |
 | `/api/evals/rag` | Read the curated saved promptfoo projection. |
 | `/api/evals/rag/catalog`, `/api/evals/rag/runs` | Read the fixed local test catalog; start/read/cancel an owned local evaluation job. |
+| `/api/benchmarks/catalog`, `/api/benchmarks/plan`, `/api/benchmarks/runs`, `/api/benchmarks/compare` | Plan existing evaluation matrices, queue/cancel durable local runs and compare shared cases. |
+| `/api/benchmarks/questions/plan`, `/api/benchmarks/questions/start` | Plan/start one current question; explicit start requests require a durable idempotency ID. |
 
 Hosting adds a separate route allowlist; the local evaluation worker is not a supported public endpoint. See [deployment](public-deployment.md).
 
@@ -108,7 +111,7 @@ The language menu selects Dutch/English UI and the language of **new** answers. 
 
 ## Retrieval tests and saved results
 
-The three local browser tests use P01/T02/T05 on the original five activities, top-k 5, candidate-k 30, context ceiling 1200 and `documents_sections`. Their encoder choice is real MiniLM or multilingual E5 Small, with E5 `query: ` / `passage: ` prefixes; BM25 loads no encoder. The twelve-document demo has no newly invented gold benchmark.
+The twelve visible local browser cards use eleven audited quality questions (RAG26-01–10 plus IND26-01) and T05 on the current twelve activities (72 sections), top-k 5 section seeds, candidate-k 30, context ceiling 1200 estimated tokens and `documents_sections`. P01/T02 compatibility routes retain their original source criteria. Their encoder choice is real MiniLM or multilingual E5 Small, with E5 `query: ` / `passage: ` prefixes; BM25 loads no encoder. The separately reviewed `demo-12-20261118` development/regression set binds these questions to the current corpus; it is not human ground truth.
 
 [`eval_jobs.rs`](../src/web/eval_jobs.rs) runs only the fixed promptfoo browser configuration and source assertions. Start/cancel requires loopback without forwarded headers, valid Host/Origin and an owned session. One heavy job at a time, no queue, 300 seconds, sixty starts/hour and five/minute per address bound local work. Fixed argv and a cleaned child environment prevent request input from choosing commands, paths, model URLs or a model-generation route. PID/start identity protects detached-child cleanup. Raw output stays under ignored `results/local/browser/`.
 
@@ -125,10 +128,39 @@ node --test evals/rag/scripts/export_site_results.test.ts
 
 Exporting/reassessing saved records makes no model calls. New web answers do. Expectations never enter the live prompt, search index or stop decision. Complete-assistant generation/judging remains separately documented under [evals/coa-assistent](../evals/coa-assistent/README.md).
 
+## Benchmark workbench
+
+Local benchmark scheduling admits at most two independent question jobs. Configuration and repetition order inside each job remains serial. A job containing authorized model work reserves both slots exclusively; its existing ledgers and limits are unchanged. Cancelling a queued job releases its wait without starting native work. Scheduling provenance records the configured limit, actual worker start/end and the IDs observed running at start. Parallel timings can include shared CPU/I/O contention and are not isolated model-speed measurements.
+
+[`benchmarks.rs`](../src/web/benchmarks.rs) exposes loopback-only catalog, plan, execution, cancellation and comparison routes. Requests must use the local host and no proxy headers; mutations additionally require its matching Origin. [`adapter.ts`](../evals/benchmark/adapter.ts) obtains the exact existing promptfoo matrices and runs their original CLI adapters, or the native complete-assistant harness. It changes no scoring rules and passes no expectations to retrieval or generation. Numerical settings come from the selected canonical protocol, rather than an unbounded Cartesian product. The typed browser route binds every current question to its dataset/corpus and real MiniLM/E5 document/query encoders. Native matrices retain their pinned MiniLM encoder.
+
+The current page selects one question by title, a RAG/current-assistant mode, and one to three fresh repetitions (default two). An Evals Benchmark click posts its exact dataset/case identity to `questions/start` and then navigates to the returned run. `request_id` and the request payload are persisted atomically before dispatch; the same request returns its existing run even after restart, while reusing an ID for different settings fails. Page loads only read `?run=...`; a bookmark, reload or history visit cannot start work. RAG uses the context-quality matrix, already a superset of ordinary retrieval settings, plus applicable browser variants: thirty-three configurations per current question in a SQLite build. The broader multi-case/historical APIs remain compatible without bulk controls in this flow.
+
+The eleven quality selections are references in [`rag-quality-12-20261120.json`](../evals/shared/selections/rag-quality-12-20261120.json), not rewritten gold. With SQLite each current question has 24 native quality variants and nine browser variants, including two E5 dense k3 configurations with/without expansion: 33 variants and two fresh repetitions. Storage organized by activity is flattened before section ranking; top-k counts section seeds. The directly measured `query_total_ms` starts before query-vector lookup/inference on a prepared index and ends after ranking/expansion/context. Preparation is separate and potentially overlapping; historical totals are not reconstructed.
+
+[`benchmark_sources.rs`](../src/web/benchmark_sources.rs) adds a display-only `required_source_coverage` projection to each recorded row. It follows that row's actual call-hit keys to captured text, verifies canonical source/date/text and corpus binding, and counts unique required sections in a sufficient AND/OR proof plan. Shared payload storage never combines evidence from different repetitions. Expected text added for inspection and citation metadata do not count. Found/missing source sections are separate from fact goals: the regression has eight sections and ten goals. These incomplete relevance labels do not establish universal recall or precision; the existing scorer remains unchanged.
+
+The same projection exposes `actual_retrieval` counts of unique activities and canonical sections in all actual payloads, including unneeded sources. The comparison uses property rows and separate accessible repetition tabs. Technical errors keep unknown metrics. Independent local browser configurations continue after a failed preparation, recording the actual attempt as an error while leaving the group failed. [`benchmark_attempts.rs`](../src/web/benchmark_attempts.rs) can annotate an older missing error from its retained native record and exact planned configuration, without modifying the original results, progress or status. Truly unstarted configurations remain unexecuted.
+
+One benchmark executes at a time, with at most three accepted active/queued runs, at most 5000 planned rows and three repetitions. Results, source references, the immutable selected plan and identity hashes remain private under ignored `evals/benchmark/results/local/` (or `COA_BENCHMARK_DIR`). Snapshot replacement and progress checkpoints are durable; an exclusive lock prevents two servers owning the same directory. Reload reconnects to the same run. Restart marks unfinished work interrupted and never retries a model. Cancellation stops the owned process tree, retaining completed evidence and budget reservations. Historical datasets, raw artifacts and public projections are not rewritten.
+
+Local execution needs the documented Node/promptfoo prerequisites; SQLite profiles require a SQLite-enabled application build. Model suites have no default authorization: explicit positive Codex-session/time limits and the original ledgers/gates remain required. A Codex session can contain multiple provider requests. The fixed model comparison stops after its four pilots; continuing requires the original ledger and an independently approved pilot. The native complete-assistant route remains Codex, with its existing forty-generation ledger ceiling. The separate current-assistant suite uses the same `ResponsesRunner`/Rig chain, search callback and durable attempt-budget instance as the demo. Its explicit physical-attempt limit is separate from Codex session limits. There is no default spending authorization. AI judgments are not started by this page.
+
+Comparison matches shared cases only when corpus, questions, protected criteria, scorer and protocol identities agree. Configurations and runtime revisions may differ; their hashes remain recorded as experimental provenance. Coverage counts make partial overlap visible; N/A, missing results, execution errors and failed source checks remain separate. Retrieval completeness, assistant hard checks and transport bytes have separate groups; timing scopes and unknown costs are not merged into a universal score.
+
+### Current complete-list regression and terminal discussion
+
+The active question catalog contains both the unchanged seventeen-case development set and the independently agent-reviewed single-case `regression-12-20261118` set. Its reused `IND26-01` visitor question asks for every indoor, free activity starting at 14:00 with materials supplied. The exact matches are the bicycle workshop and language café; eight unique source sections establish their requested properties, times and activities. Fixed source expectations include real alternative evidence and do not flow into search, prompts or stop decisions. Retrieval misses remain failures rather than being repaired by relaxed labels.
+
+The current Rig suite executes the selected question using its supported dense/BM25 configurations; the compatibility API also retains multi-case execution. The seventeen development cases receive source/trace/citation checks, with semantic answer quality explicitly unassessed. The regression receives additional conservative, case-specific answer checks: both options, no incorrect extra option, correct day/end time/work, provenance and actually offered support. Controlled local-provider fixtures exercise this actual Rig chain without making a paid request; they are instrumentation checks, not fresh model-quality observations. Raw retrieval/assistant timing remains inspectable per repetition, without presenting an incomplete or incorrect measurement as a speed winner.
+
+`GET /api/benchmarks/runs/{id}/discussion` writes a content-addressed private Markdown and JSON artifact with the entire selected run, optional baseline, plans, evidence and comparison scope. It returns a safely quoted interactive Codex terminal command; the website copies it but starts no chat/model. Questions, source passages and answers inside the report are explicitly data, not instructions. A baseline may be selected with `?baseline={id}`.
+
 ## Recent architectural changes
 
 | Date | Change |
 | --- | --- |
+| 2026-11-18 | Added a durable local benchmark workbench and connected current twelve-document evaluation cases. |
 | 2026-11-17 | Policy 2 binds durable schema-2 reservations to exact input counting and fixed token/model/tier/cache limits. |
 | 2026-11-16 | Three bounded local promptfoo retrieval tests with real MiniLM/E5 selection added to the results page. |
 | 2026-11-13 | RAG orchestration moved to promptfoo; evaluation source/data/evidence grouped under `evals/`. |

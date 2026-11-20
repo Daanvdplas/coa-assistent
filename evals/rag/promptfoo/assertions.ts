@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { canonicalJson, checkedFile, readJson, same, sha256 } from "./json.ts";
 import type {
   AuditRow,
@@ -24,16 +25,25 @@ import type {
   SourceMetrics,
   ToolCall,
   Variables,
+  BrowserCaseBinding,
+  BrowserPreset,
 } from "./types.ts";
 import { classifyResult } from "./model_control.ts";
 export const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const HERE = fileURLToPath(new URL(".", import.meta.url));
+const browserCases = createRequire(import.meta.url)("./browser_cases.cjs") as {
+  resolveBrowserCase(id: string): BrowserCaseBinding;
+  resolveLegacyBrowserCase(id: string): BrowserCaseBinding;
+  browserPreset(id?: BrowserPreset): Partial<Variables>;
+};
 const DATASETS = new Set([
   "legacy",
   "independent-20261103",
   "expanded-10-20261105",
   "strengthened-10-20261106",
   "garden",
+  "demo-12-20261118",
+  "regression-12-20261118",
 ]);
 function requireCondition(
   condition: unknown,
@@ -168,7 +178,7 @@ export function goalMetrics(
     minimum_required_sections: Math.min(...frontier.map((set) => set.size)),
   };
 }
-export function canonicalSources(expanded = false): Map<string, Section> {
+export function canonicalSources(expanded = false, demo = false): Map<string, Section> {
   const names = [
     "document.md",
     "bicycle-workshop.md",
@@ -176,11 +186,14 @@ export function canonicalSources(expanded = false): Map<string, Section> {
     "community-cooking.md",
     "walking.md",
   ];
-  if (expanded)
+  if (expanded || demo)
     for (let i = 6; i <= 10; i++)
       names.push(
         `expanded-10-20261105/activity-${String(i).padStart(3, "0")}.md`,
       );
+  if (demo)
+    for (const number of [11, 12])
+      names.push(`demo-12-20261113/activity-${String(number).padStart(3, "0")}.md`);
   const pins = readJson<{ files: Record<string, string> }>(
       resolve(HERE, "data-pins.json"),
     ).files,
@@ -250,28 +263,33 @@ function validateConfig(
 }
 function browserEmbedding(record: NativeRecord, variables: Variables): string {
   if (variables.browser_eval_id === undefined) return "";
-  const cases: Record<string, string> = {
-    "garden-time-location": "P01",
-    "indoor-tuesday": "T02",
-    "two-activities": "T05",
-  };
+  const selected =
+    variables.dataset === "legacy"
+      ? browserCases.resolveLegacyBrowserCase(variables.browser_eval_id)
+      : browserCases.resolveBrowserCase(variables.browser_eval_id);
   requireCondition(
-    cases[variables.browser_eval_id] === variables.case_id &&
-      variables.dataset === "legacy",
-    "Browser case differs from its existing reference",
+    selected.dataset === variables.dataset &&
+      selected.case_id === variables.case_id &&
+      selected.question === variables.question &&
+      selected.corpus_sha256 === record.dataset.corpus_sha256 &&
+      selected.as_of === record.dataset.as_of &&
+      variables.mode === "local",
+    "Browser case differs from its frozen reference",
   );
-  const fixed = {
-    profile: "documents_sections",
-    top_k: 5,
-    candidate_k: 30,
-    context_token_limit: 1200,
-    selection: "sections",
-    apply_filters: false,
-    mmr: false,
-  };
+  // Promptfoo can redact this redundant vars field in saved JSON. It is never
+  // corpus evidence: the native record and protected frozen corpus were checked
+  // above and in validateLocal, including their reference date and exact bytes.
   requireCondition(
-    Object.entries(fixed).every(([field, value]) =>
-      same(variables[field as keyof Variables], value),
+    variables.corpus_sha256 === undefined ||
+      variables.corpus_sha256 === "[REDACTED]" ||
+      variables.corpus_sha256 === selected.corpus_sha256,
+    "Declared browser corpus differs from its frozen reference",
+  );
+  const fixed = browserCases.browserPreset(variables.browser_preset);
+  requireCondition(
+    Object.entries(fixed).every(
+      ([field, value]) =>
+        field in variables && same(variables[field as keyof Variables], value),
     ),
     "Browser search treatment differs from its fixed protocol",
   );
@@ -921,6 +939,7 @@ export function measure(
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       envelope.dataset_id,
     ),
+    ["demo-12-20261118", "regression-12-20261118"].includes(envelope.dataset_id),
   );
   const [hits, seeds, config, calls] = observations(
     envelope,
@@ -1106,6 +1125,7 @@ function compactAssert(envelope: Envelope, variables: Variables): Grade {
     ["expanded-10-20261105", "strengthened-10-20261106"].includes(
       variables.dataset,
     ),
+    ["demo-12-20261118", "regression-12-20261118"].includes(variables.dataset),
   );
   for (const hit of full.hits)
     requireCondition(

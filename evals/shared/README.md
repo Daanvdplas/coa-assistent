@@ -8,10 +8,13 @@
 | `independent-20261103/` | IND26-01–IND26-12 | Five activities |
 | `expanded-10-20261105/` | Ten selected development questions | Ten activities |
 | `strengthened-10-20261106/` | RAG26-01–RAG26-10 | Ten activities |
+| `demo-12-20261118/` | Seventeen eval cases: ten adapted questions, four chess/sewing questions and three browser cases | Twelve current activities; reference date 13 November 2026 |
 
 Questions, expectations, freezes and independent [AUTHORING notes](datasets/independent-20261103/AUTHORING.md) were moved without changing their bytes. Historical manifest paths identify original inputs. Loaders compare those keys/hashes against current canonical files; provenance was not relabelled. Expectations are loaded only for assessment, never as model instructions or indexed search content. The original candidate status in AUTHORING remains preserved; the additive `FROZEN.json` is authoritative for the later review/freeze.
 
-The current twelve-source demo has no separate fixed quality benchmark. The original five gardening questions belong only to retrieval regression, under `../rag/datasets/garden/`.
+The current twelve-source development/regression set is `demo-12-20261118`. Its source expectations were independently reviewed by another agent before measurement; this is neither a blind test set nor human calibration. T02 accepts a fully supported bicycle or creative-workshop option. Scores do not repeat the older five-/ten-source measurements. The original five gardening questions belong only to retrieval regression, under `../rag/datasets/garden/`.
+
+The versioned [RAG quality selection](selections/README.md) references the eleven approved current-corpus quality questions for the Evals dashboard, including the complete-list `IND26-01` regression. Its manifest selects existing immutable definitions; source coverage remains separate from answer quality and human validation.
 
 Since **16 November 2026**, development question `legacy/P06` uses this visitor question: “Ik zoek een activiteit die helemaal buiten plaatsvindt en vóór 11.00 uur afgelopen is. Wat past daarbij?” Version `activities-evaluation-v2-20261116` expects walking evidence for outdoors and a 10:30 finish, without requiring the visitor to know activity names or compare named alternatives. Frozen `independent-20261103/IND26-10` and saved measurements remain unchanged. New runs bind the new question/expectation identity; old scores do not measure this revision.
 

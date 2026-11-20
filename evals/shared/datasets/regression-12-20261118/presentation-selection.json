@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "selection_id": "regression-12-20261118-one-regression-case-v1",
+  "cases": [
+    {
+      "dataset_id": "regression-12-20261118",
+      "case_id": "IND26-01"
+    }
+  ]
+}

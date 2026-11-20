@@ -196,6 +196,16 @@ pub fn cli(args: &[String]) -> Result<serde_json::Value, String> {
         );
     }
     match args.first().map(String::as_str) {
+        Some("benchmark-batch") => {
+            let values = flags(&args[1..], &["--input", "--output", "--embedding-manifest", "--model-cache", "--sqlite-dir"])?;
+            let input = serde_json::from_slice(&std::fs::read(required(&values, "--input")?).map_err(|error| error.to_string())?).map_err(|error| format!("Invalid benchmark batch input: {error}"))?;
+            super::benchmark_batch::run(input, &super::benchmark_batch::BatchOptions {
+                output: required(&values, "--output")?.into(),
+                embedding_manifest: required(&values, "--embedding-manifest")?.into(),
+                model_cache: required(&values, "--model-cache")?.into(),
+                sqlite_dir: required(&values, "--sqlite-dir")?.into(),
+            })
+        }
         Some("embedding-identity") => {
             let values=flags(&args[1..], &["--embedding-model","--model-cache"])?;
             let model=required(&values,"--embedding-model")?.parse::<super::embedding_models::ModelChoice>()?;
@@ -646,6 +656,95 @@ mod tests {
 
 #[cfg(test)]
 mod quality_protocol_tests {
+    #[test]
+    fn benchmark_batch_shares_preparation_but_keeps_each_requested_search() {
+        let base = std::env::temp_dir().join(format!(
+            "coa-benchmark-batch-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&base).unwrap();
+        let request = base.join("request.json");
+        let output = base.join("records.jsonl");
+        let manifest = base.join("embedding.json");
+        let config = |profile, top_k| super::super::types::RunConfig {
+            profile,
+            retrieval: crate::retrieval::RetrievalConfig {
+                method: crate::retrieval::SearchMethod::Bm25,
+                top_k,
+                ..Default::default()
+            },
+        };
+        std::fs::write(&request, serde_json::to_vec(&serde_json::json!({
+            "schema_version": 1, "execution_id": "unit-batch", "dataset": "demo-12-20261118", "case_id": "RAG26-01",
+            "requests": [
+                {"request_id":"a".repeat(64),"config":config(crate::storage::StorageProfile::DocumentsSections,3)},
+                {"request_id":"b".repeat(64),"config":config(crate::storage::StorageProfile::DocumentsSections,6)},
+                {"request_id":"c".repeat(64),"config":config(crate::storage::StorageProfile::DocumentsActivities,3)}
+            ]
+        })).unwrap()).unwrap();
+        let result = super::cli(&[
+            "benchmark-batch".into(),
+            "--input".into(),
+            request.display().to_string(),
+            "--output".into(),
+            output.display().to_string(),
+            "--embedding-manifest".into(),
+            manifest.display().to_string(),
+            "--model-cache".into(),
+            base.join("NO_MODEL").display().to_string(),
+            "--sqlite-dir".into(),
+            base.join("fresh-store").display().to_string(),
+        ]);
+        assert!(
+            result.is_ok(),
+            "One question must execute selected variants in one native batch: {result:?}"
+        );
+        let mut rows: Vec<serde_json::Value> = std::fs::read_to_string(&output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        rows.sort_by(|left, right| {
+            left["request_id"]
+                .as_str()
+                .cmp(&right["request_id"].as_str())
+        });
+        assert_eq!(rows.len(), 3);
+        assert_eq!(
+            rows.iter()
+                .map(|row| row["record"]["run_id"].as_str().unwrap())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            3
+        );
+        assert_eq!(
+            rows[0]["record"]["preparation"]["preparation_id"],
+            rows[1]["record"]["preparation"]["preparation_id"]
+        );
+        assert_ne!(
+            rows[0]["record"]["preparation"]["preparation_id"],
+            rows[2]["record"]["preparation"]["preparation_id"]
+        );
+        for row in &rows {
+            assert_eq!(row["record"]["execution_status"], "completed");
+            assert!(
+                row["record"]["timings"]["query_total_ms"].as_f64().unwrap()
+                    >= row["record"]["timings"]["retrieval_ms"].as_f64().unwrap()
+            );
+        }
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&std::fs::read(&manifest).unwrap())
+                .unwrap()["models"],
+            serde_json::json!({})
+        );
+        assert!(!base.join("NO_MODEL").exists());
+        std::fs::remove_dir_all(base).unwrap();
+    }
+
     #[test]
     fn frozen_dataset_assess_report_and_import_bind_the_selected_reference() {
         let base = std::env::temp_dir().join(format!(

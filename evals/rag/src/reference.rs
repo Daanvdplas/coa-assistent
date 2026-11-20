@@ -40,6 +40,16 @@ impl ExpectationsContext {
                         include_str!("../../shared/datasets/legacy/heldout-expectations.json"),
                     ],
                 )
+            } else if id == dataset::REGRESSION_ID {
+                (
+                    vec![dataset::REGRESSION_QUESTIONS],
+                    vec![dataset::REGRESSION_EXPECTATIONS],
+                )
+            } else if id == dataset::DEMO_ID {
+                (
+                    vec![dataset::DEMO_QUESTIONS],
+                    vec![dataset::DEMO_EXPECTATIONS],
+                )
             } else if id == dataset::EXPANDED_ID {
                 (
                     vec![dataset::EXPANDED_QUESTIONS],
@@ -68,14 +78,24 @@ impl ExpectationsContext {
         }
         let mut metadata = BTreeMap::new();
         if id != "legacy" && id != dataset::LEGACY_V1_ID {
-            let details = if id == dataset::EXPANDED_ID {
+            let details = if id == dataset::REGRESSION_ID {
+                dataset::REGRESSION_DETAILS
+            } else if id == dataset::DEMO_ID {
+                dataset::DEMO_DETAILS
+            } else if id == dataset::EXPANDED_ID {
                 dataset::EXPANDED_DETAILS
             } else if id == dataset::STRENGTHENED_ID {
                 dataset::STRENGTHENED_DETAILS
             } else {
                 include_str!("../../shared/datasets/independent-20261103/reference-details.json")
             };
-            if dataset::ten_source_dataset_id(id).is_some() {
+            if id == dataset::REGRESSION_ID {
+                dataset::verify_regression_artifact("expectations.json", labels[0])?;
+                dataset::verify_regression_artifact("reference-details.json", details)?;
+            } else if id == dataset::DEMO_ID {
+                dataset::verify_demo_artifact("expectations.json", labels[0])?;
+                dataset::verify_demo_artifact("reference-details.json", details)?;
+            } else if dataset::ten_source_dataset_id(id).is_some() {
                 dataset::verify_ten_source_artifact(id, "expectations.json", labels[0])?;
                 dataset::verify_ten_source_artifact(id, "reference-details.json", details)?;
             } else {

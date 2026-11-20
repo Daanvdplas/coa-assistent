@@ -58,7 +58,7 @@ export function project(input) {
     const configuration = fields(vars,['mode','model','method','profile','top_k','candidate_k','context_token_limit','selection','apply_filters','mmr','payload_mode']);
     if (!['codex','compact-live'].includes(vars.mode)) delete configuration.model;
     return {
-      id:text(result.id) || `${input.evalId}-${index+1}`, native_run_id:text(record.run_id || live.run_id || run?.id),
+      id:text(result.id) || `${input.evalId}-${index+1}`, native_run_id:text(record.run_id || live.run_id || run?.id || result.response?.metadata?.native_run_id),
       dataset:text(vars.dataset || vars.dataset_id || envelope?.dataset_id), case_id:text(vars.case_id || envelope?.case_id),
       question:text(vars.question || envelope?.question), suite:text(vars.suite || result.testCase?.metadata?.suite || input.config?.description || 'rag'),
       provider:publicReason(result.provider?.label) || [text(vars.model),text(vars.method),text(vars.profile)].filter(Boolean).join(' · ') || 'Lokale uitvoering',
@@ -70,6 +70,8 @@ export function project(input) {
       metrics:fields(metrics,['model_failure_class','target_goals','covered_goals','goal_coverage','offered_sections','unknown_obligations','minimum_required_sections','minimum_required_activities','seed_activity_capacity_limit','section_capacity_limit','goal_set_exceeds_capacity','source_quality_applicable','first_complete_call','first_complete_call_index','search_calls','source_precision','source_recall','first_goal_support_reciprocal_rank','first_relevant_reciprocal_rank','full_bytes','compact_bytes','full_payload_bytes','compact_payload_bytes']),
       promptfoo_ms:typeof result.latencyMs === 'number' ? result.latencyMs : null,
       retrieval_ms:typeof record.timings?.retrieval_ms === 'number' ? record.timings.retrieval_ms : null,
+      rag_timing:{query_total_ms:typeof record.timings?.query_total_ms==='number'?record.timings.query_total_ms:null,scope:'prepared_index_query',query_embedding_ms:typeof record.timings?.query_embedding_ms==='number'?record.timings.query_embedding_ms:null,query_embedding_cache_hit:typeof record.timings?.query_embedding_cache_hit==='boolean'?record.timings.query_embedding_cache_hit:null,ranking_ms:typeof record.timings?.retrieval_ms==='number'?record.timings.retrieval_ms:null},
+      rag_preparation:fields(record.preparation,['preparation_id','profile_preparation_ms','document_embedding_ms','model_load_ms','storage_sync_ms','storage_load_ms']),
       native_elapsed_ms:typeof live.elapsed_ms === 'number' ? live.elapsed_ms : null,
       original_evaluation_id:text(result.testCase?.metadata?.original_evaluation_id), original_timestamp:text(result.testCase?.metadata?.original_timestamp),
       execution_origin:text(result.testCase?.metadata?.execution_origin || envelope?.execution_origin || envelope?.execution_mode || result.response?.metadata?.execution_mode || result.response?.metadata?.execution_origin || 'native'),

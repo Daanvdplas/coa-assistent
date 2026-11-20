@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import type {
   ApiProvider,
   CallApiContextParams,
@@ -43,7 +44,14 @@ import type {
   ProviderResponse,
   Settings,
   Variables,
+  BrowserCaseBinding,
+  BrowserPreset,
 } from "./types.ts";
+const browserCases = createRequire(import.meta.url)("./browser_cases.cjs") as {
+  resolveBrowserCase(id: string): BrowserCaseBinding;
+  resolveLegacyBrowserCase(id: string): BrowserCaseBinding;
+  browserPreset(id?: BrowserPreset): Partial<Settings> & { embedding_model?: string };
+};
 export const ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const METHODS = new Set(["dense", "bm25", "hybrid_rrf", "hybrid_weighted"]),
@@ -88,6 +96,8 @@ export function question(dataset: string, caseId: string): string {
       "independent-20261103",
       "expanded-10-20261105",
       "strengthened-10-20261106",
+      "demo-12-20261118",
+      "regression-12-20261118",
     ].includes(dataset)
   )
     paths = ["evals/shared/datasets/" + dataset + "/questions.json"];
@@ -235,27 +245,46 @@ export function browserEmbeddingModel(
 ): string | undefined {
   const evalId = variables.browser_eval_id;
   if (evalId === undefined || evalId === null) {
-    if ("embedding_model" in variables)
+    if ("embedding_model" in variables || "browser_preset" in variables)
       throw new Error("Embedding override requires the browser route");
     return undefined;
   }
-  const cases: Record<string, string> = {
-    "garden-time-location": "P01",
-    "indoor-tuesday": "T02",
-    "two-activities": "T05",
-  };
+  const selected =
+    variables.dataset === "legacy"
+      ? browserCases.resolveLegacyBrowserCase(evalId)
+      : browserCases.resolveBrowserCase(evalId);
   if (
-    cases[evalId] !== variables.case_id ||
-    variables.dataset !== "legacy" ||
-    (variables.mode ?? "local") !== "local"
+    selected.case_id !== variables.case_id ||
+    selected.dataset !== variables.dataset ||
+    (variables.mode ?? "local") !== "local" ||
+    (variables.question !== undefined &&
+      variables.question !== selected.question) ||
+    (variables.corpus_sha256 !== undefined &&
+      variables.corpus_sha256 !== selected.corpus_sha256)
   )
-    throw new Error("Unknown existing browser question");
+    throw new Error(
+      "Browser question, dataset or corpus differs from frozen input",
+    );
+  if (variables.model !== undefined && !MODELS.has(variables.model))
+    throw new Error("Unknown browser execution model");
   if (
     !readJson<EmbeddingSpec[]>(
       join(ROOT, "evals/rag/embedding-models.json"),
     ).some((row) => row.id === variables.embedding_model)
   )
     throw new Error("Unknown browser embedding model");
+  if (variables.method !== undefined && !METHODS.has(variables.method))
+    throw new Error("Unknown browser retrieval method");
+  const preset = browserCases.browserPreset(variables.browser_preset);
+  if (
+    Object.entries(preset).some(
+      ([key, expected]) =>
+        variables[key as keyof Variables] !== undefined &&
+        variables[key as keyof Variables] !== expected,
+    ) ||
+    (variables.filters && Object.keys(variables.filters).length)
+  )
+    throw new Error("Browser settings differ from the fixed preset");
   return variables.embedding_model;
 }
 export function requestKey(variables: Partial<Variables>): string {
@@ -273,6 +302,7 @@ export function requestKey(variables: Partial<Variables>): string {
     Object.assign(selected, {
       browser_eval_id: variables.browser_eval_id,
       embedding_model: embedding,
+      ...(variables.browser_preset ? { browser_preset: variables.browser_preset } : {}),
     });
   // Python's default rrf_k is a float, whereas the frozen JS case matrix sends
   // an integer 60. Preserve that distinction without changing case identities.
@@ -351,6 +381,7 @@ export function responseFor(
         dataset: variables.dataset,
         mode: settings.mode,
         status,
+        native_run_id: "run_id" in record ? record.run_id : undefined,
       },
     };
   const envelope: Envelope = {
@@ -415,7 +446,7 @@ export async function callApi(
       ...overrides,
     } as Settings;
     const { dataset, case_id: caseId, question: input } = variables,
-      embedding = browserEmbeddingModel(variables),
+      embedding = browserEmbeddingModel({ ...settings, ...variables }),
       { mode, method, profile } = settings;
     if (input !== question(dataset, caseId))
       throw new Error("Question differs from frozen input");
@@ -560,7 +591,7 @@ export async function callApi(
           method,
         );
         if (
-          ["expanded-10-20261105", "strengthened-10-20261106"].includes(dataset)
+          ["expanded-10-20261105", "strengthened-10-20261106", "demo-12-20261118"].includes(dataset)
         )
           command.push("--dataset", dataset);
       }

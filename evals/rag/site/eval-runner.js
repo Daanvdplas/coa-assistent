@@ -13,6 +13,7 @@
   let catalog;
   let active = null;
   let sessionId = null;
+  let benchmarkStarting = false;
   const localOnly = 'Zoektests kun je alleen lokaal starten.';
   const canRun = () => catalog?.can_run === true;
   const methodFor = id => catalog.methods.find(item => item.id === id);
@@ -36,6 +37,7 @@
       card.model.disabled = Boolean(active) || !usesEmbeddings;
       card.start.disabled = !canRun() || Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
       card.stop.disabled = !canRun() || card.cancelling === true;
+      card.benchmark.disabled = !canRun() || Boolean(active) || benchmarkStarting || !card.evaluation.dataset || !card.evaluation.case_id;
       card.modelLabel.textContent = usesEmbeddings ? 'Embeddingmodel' : 'Embeddingmodel (niet gebruikt)';
     }
   }
@@ -45,6 +47,9 @@
   const referenceKey=ref=>ref.source_id+':'+(ref.section_id || ref.id);
   function clearPresentation(card) {
     card.results.replaceChildren();
+    for (const view of card.sourceViews.values()) {
+      view.state.textContent='';view.content.classList.remove('eval-source-found');
+    }
     state(card,'');
   }
   function selectionChanged(card) {
@@ -58,14 +63,25 @@
     const section=node('section',null,'eval-expectations');
     section.append(node('h3','Verwachte bronstukken'));
     const goals=node('ul',null,'eval-goals');
+    card.sourceViews=new Map();
     for (const goal of evaluation.expected_goals || []) {
       const item=node('li');item.dataset.goalId=goal.id;
       const content=node('div',null,'eval-goal-content');
       const alternatives=goal.alternatives || [];
-      const label=alternatives.map(option=>option.map(sourceLabel).join(' + ')).join(' of ');
-      const simple=alternatives.length===1 && alternatives[0].length===1;
-      content.append(node('h4',label,'eval-goal-source'),node(simple?'blockquote':'p',simple?alternatives[0][0].text:goal.description,'eval-goal-fragment'));
-      item.append(content);goals.append(item);
+      for (const [index,option] of alternatives.entries()) {
+        if (index) content.append(node('p','of','eval-source-or'));
+        for (const ref of option) {
+          const key=referenceKey(ref);
+          if (card.sourceViews.has(key)) {
+            if (alternatives.length>1) content.append(node('p',sourceLabel(ref),'eval-goal-source'));
+            continue;
+          }
+          const source=node('div',null,'eval-source'),heading=node('h4',sourceLabel(ref),'eval-goal-source'),status=node('span','','eval-source-state');
+          heading.append(status);source.append(heading,node('blockquote',ref.text,'eval-goal-fragment'));content.append(source);
+          card.sourceViews.set(key,{content:source,state:status});
+        }
+      }
+      if(content.children.length){item.append(content);goals.append(item);}
       const references=new Set();
       for (const option of alternatives) for (const ref of option) {
         const key=referenceKey(ref);references.add(key);card.references.set(key,ref);
@@ -97,30 +113,41 @@
         }
       }
     }
-    card.results.append(node('h3','Gevonden bronstukken'));
+    const verified=new Set(),seen=new Set();
     const hits=node('ol',null,'eval-hits');
     for (const call of row.calls || []) {
       for (const key of call.hits || []) {
         const source=run.result.sources[key];
         if (!source) throw new Error('Een gevonden bronstuk ontbreekt in het resultaat.');
+        const identity=referenceKey(source);
+        if (seen.has(identity))continue;
+        seen.add(identity);
         const item=node('li');item.dataset.sourceId=source.source_id;item.dataset.sectionId=source.id;
         const details=node('details');
         const summary=node('summary');summary.append(node('span',sourceLabel(source),'eval-hit-title'));
         const expected=card.references.get(referenceKey(source));
         if (matched.has(referenceKey(source)) && expected && ['source_id','source_title','source_date','heading','text'].every(field=>source[field]===expected[field])) {
-          item.classList.add('eval-expected-hit');summary.setAttribute('aria-label','Verwacht bronstuk: '+sourceLabel(source));
+          verified.add(identity);continue;
         }
         details.append(summary,node('blockquote',source.text,'source-text'));
         item.append(details);hits.append(item);
       }
     }
-    if (hits.children.length) card.results.append(hits);
-    else card.results.append(node('p','Geen bronstukken gevonden.'));
-    const score=node('p',applicable?`${row.metrics.covered_goals}/${row.metrics.target_goals} verwachtingen compleet`:'N/A','eval-score');
+    for(const [key,view] of card.sourceViews){
+      view.state.textContent=applicable?(verified.has(key)?'Gevonden':'Ontbreekt'):'';
+      view.content.classList.toggle('eval-source-found',applicable&&verified.has(key));
+    }
+    if (hits.children.length) card.results.append(node('h3','Andere gevonden bronstukken'),hits);
+    else if (!seen.size) card.results.append(node('p','Geen bronstukken gevonden.'));
+    const coverage=row.required_source_coverage;
+    const known=coverage?.unit==='sections'&&Number.isInteger(coverage.found)&&Number.isInteger(coverage.total)&&coverage.found>=0&&coverage.found<=coverage.total;
+    const score=node('p',coverage?.applicable===false||coverage?.total===0?'N.v.t.':known?`${coverage.found}/${coverage.total} bronsecties gevonden`:'Bronsecties: onbekend','eval-score');
+    if(applicable&&known&&(coverage.found!==row.metrics.covered_goals||coverage.total!==row.metrics.target_goals))card.results.append(node('p',`${row.metrics.covered_goals}/${row.metrics.target_goals} bewijsdoelen compleet`,'eval-goal-score'));
     score.dataset.status=applicable?(row.source_complete?'complete':'incomplete'):'unassessed';
     score.setAttribute('role','status');card.results.append(score);
   }
   function failed(card, message) {
+    clearPresentation(card);
     state(card,'Uitvoeringsfout: '+message,'error');
     card.results.replaceChildren();
   }
@@ -192,11 +219,26 @@
       card.timer=setTimeout(()=>poll(card,card.runId,card.selection),750);
     }
   }
+  async function benchmark(card) {
+    if (!canRun() || active || benchmarkStarting || !card.evaluation.dataset || !card.evaluation.case_id) return;
+    benchmarkStarting=true;controls();byId('eval-catalog-status').textContent='Benchmark starten…';
+    try {
+      const {questionStartRequest}=await import('/assets/benchmark-model.js');
+      const action=questionStartRequest(window.sessionStorage,{dataset:card.evaluation.dataset,case_id:card.evaluation.case_id,mode:'rag',repeats:2});
+      const run=await request('/api/benchmarks/questions/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(action.payload)});
+      if(typeof run.id!=='string'||!run.id)throw new Error('De server gaf geen geldige benchmark terug.');
+      sessionStorage.removeItem(action.key);window.location.assign('/benchmark/?run='+encodeURIComponent(run.id));
+    }catch(error){benchmarkStarting=false;controls();byId('eval-catalog-status').textContent=error.message;}
+  }
   function makeCard(evaluation) {
     const details = node('details', null, 'search-eval-card'); details.id = 'eval-' + evaluation.id;
     const summary = node('summary'); const title = node('span', evaluation.question, 'eval-card-title'); summary.append(title);
     const body = node('div', null, 'eval-card-body');
     const card = { details, evaluation, goalReferences: new Map(), references: new Map() };
+    card.benchmark=node('button','Benchmark','eval-benchmark');card.benchmark.type='button';card.benchmark.disabled=true;
+    card.benchmark.setAttribute('aria-label','Benchmark: '+evaluation.question);
+    card.benchmark.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();benchmark(card);});
+    summary.append(card.benchmark);
     body.append(expected(card, evaluation));
     const form = node('div', null, 'eval-controls');
     const methodId = details.id + '-method'; const modelId = details.id + '-embedding';
@@ -226,7 +268,7 @@
     byId('eval-catalog-status').textContent = 'Zoektests laden…';
     try {
       const loaded = await request('/api/evals/rag/catalog');
-      if (loaded.schema_version !== 1 || !Array.isArray(loaded.evals) || loaded.evals.length !== 3 || !Array.isArray(loaded.methods) || !loaded.methods.length || !Array.isArray(loaded.embedding_models) || !loaded.embedding_models.length) throw new Error('De drie zoektests zijn nu niet beschikbaar.');
+      if (loaded.schema_version !== 1 || !Array.isArray(loaded.evals) || !loaded.evals.length || !Array.isArray(loaded.methods) || !loaded.methods.length || !Array.isArray(loaded.embedding_models) || !loaded.embedding_models.length) throw new Error('De zoektests zijn nu niet beschikbaar.');
       catalog = loaded;
       cards.length = 0; list.replaceChildren(...catalog.evals.map(makeCard)); controls();
       byId('eval-catalog-status').textContent = canRun() ? '' : localOnly;
@@ -241,5 +283,6 @@
     }
   });
   byId('eval-catalog-retry').addEventListener('click', load);
+  window.addEventListener('pageshow',event=>{if(event.persisted&&benchmarkStarting){benchmarkStarting=false;controls();byId('eval-catalog-status').textContent='';}});
   await load();
 })();

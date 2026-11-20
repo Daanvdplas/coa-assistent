@@ -2,6 +2,8 @@
 
 These experiments generate answers using four RAG approaches, enforce source/citation checks and support a separate answer judge and calibration. Generation and AI judgment use Codex CLI. The judge is provisional and has not been calibrated by people.
 
+The four approaches also accept the twelve current documents: select `--questions evals/shared/datasets/demo-12-20261118/questions.json` together with `--expectations evals/shared/datasets/demo-12-20261118/expectations.json`. That dataset binds the corpus, reference date and criteria, including all 72 sections for full context. The default five-source protocol remains unchanged. This evaluates the Codex route, not the separate Rig/Responses demo; fixed source checks do not establish answer quality.
+
 - [Reproduction procedure](docs/reproduce.md): validation, generation, judgment and reporting.
 - [Dataset contract](docs/dataset.md), [six held-out compositions](docs/heldout.md) and [metric definitions](docs/metrics.md).
 - [Report behavior](docs/report.md) and [visual framework explanation](docs/framework.html).

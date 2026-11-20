@@ -111,6 +111,7 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 
 | Setting | Purpose |
 | --- | --- |
+| `COA_BENCHMARK_DIR` | Optional private durable benchmark directory; default `evals/benchmark/results/local/`. Do not share it between simultaneously running servers. |
 | `COA_PORT` | Local port; default `8766`, for example `COA_PORT=8767 cargo run --locked`. |
 | `OPENAI_API_KEY` | Server-side key, inherited or read from working-directory `.env`; never put its value in command arguments. |
 | `COA_OPENAI_API_KEY_FILE` | Alternative explicit external provider-key file; takes precedence over `.env`. |
@@ -119,6 +120,6 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 | `COA_TRACE_DB` | Optional private trace database outside the checkout; unset disables recording. See [local traces](traces.md). |
 | `COA_TRUSTED_PROXY_IP` | Exact trusted proxy peer; unset for direct local use. See [deployment](public-deployment.md). |
 
-The server binds to loopback. `/demo` and `/demo/` redirect to `/`; `/techniek/` serves the explanation and `/resultaten/` serves evaluations. A configured `runtime_ready` flag does not prove provider credit or quota. There is no Codex fallback for web answers.
+The server binds to loopback. `/demo` and `/demo/` redirect to `/`; `/techniek/` serves the explanation and `/resultaten/` serves evaluations. `/benchmark/` plans, runs and compares the existing evaluations locally; it requires Node.js/promptfoo for execution and a SQLite build for SQLite profiles. See the [benchmark procedure](../evals/benchmark/README.md). A configured `runtime_ready` flag does not prove provider credit or quota. There is no Codex fallback for web answers.
 
 For code checks, use [AGENTS.md](../AGENTS.md). For retrieval, saved experiments or Codex login/runtime setup, follow the [evaluation index](../evals/README.md) and [Codex bridge](codex.md). For data flows and deletion limits, read [privacy](privacy.md). For publishing, use the separate [deployment procedure](public-deployment.md); local startup does not authorize publication.

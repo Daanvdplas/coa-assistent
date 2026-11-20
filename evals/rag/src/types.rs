@@ -78,6 +78,10 @@ pub struct PreparationRecord {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetrievalTimings {
+    /// Direct elapsed time on the prepared index, including query-vector lookup/
+    /// inference, ranking, expansion and context selection. Preparation is separate.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_total_ms: Option<f64>,
     pub query_embedding_ms: Option<f64>,
     pub query_embedding_cache_hit: Option<bool>,
     pub retrieval_ms: Option<f64>,

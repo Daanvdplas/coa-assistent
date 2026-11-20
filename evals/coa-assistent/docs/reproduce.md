@@ -2,6 +2,16 @@
 
 This protocol uses five fictional documents, twelve development/pilot questions and six predeclared comparison questions. Inspect evidence coverage, answer quality and efficiency separately. The small set and provisional AI judge support an exploratory comparison, not a general reliability claim.
 
+## Current twelve-document development set
+
+Validate the twelve-source questions without a model call:
+
+```sh
+cargo run --locked -- experiment validate --questions evals/shared/datasets/demo-12-20261118/questions.json --expectations evals/shared/datasets/demo-12-20261118/expectations.json
+```
+
+Use both dataset flags for an explicitly authorized `experiment run --live` or later `experiment grade --live`. The corpus contains 72 sections. Seventeen eval cases across four approaches require 68 generations and exceed the existing 40-generation ceiling: select a bounded subset and preserve its ledger. The historical protocols below retain their own five-source inputs. This evaluates Codex, not the Rig/Responses demo; AI judgment remains provisional.
+
 ## 1. Start without model calls
 
 Run from the repository root. Rust/dependencies are required; Cargo may download dependencies during the first build. No Codex login is needed:

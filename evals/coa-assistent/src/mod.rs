@@ -58,7 +58,7 @@ pub async fn cli(args: &[String]) -> Result<(), String> {
             let (questions, labels) = selected_dataset(&flags)?;
             println!(
                 "{}",
-                json!({"schema_version":1,"cases":questions.cases.len(),"criteria":labels.cases.len(),"questions_sha256":dataset::questions_hash(&questions)?})
+                json!({"schema_version":1,"cases":questions.cases.len(),"criteria":labels.cases.len(),"questions_sha256":dataset::questions_hash(&questions)?,"corpus_id":dataset::corpus_for_questions(&questions)?.id(),"source_count":questions.sources.len(),"as_of":questions.as_of})
             );
             Ok(())
         }

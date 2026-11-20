@@ -449,6 +449,10 @@ pub fn protocol_id(model: &str) -> Result<String, String> {
 fn selection_text(dataset_id: Option<&str>) -> Result<&'static str, String> {
     match dataset_id {
         None => Ok(SELECTION),
+        Some(dataset::DEMO_ID) => {
+            dataset::verify_demo_artifact("presentation-selection.json", dataset::DEMO_SELECTION)?;
+            Ok(dataset::DEMO_SELECTION)
+        }
         Some(dataset::EXPANDED_ID) => {
             dataset::verify_expanded_artifact("presentation-selection.json", dataset::EXPANDED_SELECTION)?;
             Ok(dataset::EXPANDED_SELECTION)
@@ -457,14 +461,14 @@ fn selection_text(dataset_id: Option<&str>) -> Result<&'static str, String> {
             dataset::verify_ten_source_artifact(dataset::STRENGTHENED_ID, "presentation-selection.json", dataset::STRENGTHENED_SELECTION)?;
             Ok(dataset::STRENGTHENED_SELECTION)
         }
-        _ => Err("Select a frozen ten-source agentic dataset or omit --dataset for the historical five-source presentation".into()),
+        _ => Err("Select a frozen ten- or twelve-source agentic dataset or omit --dataset for the historical five-source presentation".into()),
     }
 }
 
 fn plan_dataset(runs: &[PlannedRun]) -> Result<Option<&'static str>, String> {
     if let Some(id) = runs
         .iter()
-        .find_map(|run| dataset::ten_source_dataset_id(&run.dataset_id))
+        .find_map(|run| dataset::source_dataset_id(&run.dataset_id))
     {
         if runs.iter().any(|run| run.dataset_id != id) {
             return Err("Agentic plan mixes source corpus versions".into());
@@ -514,7 +518,12 @@ pub fn plan_for_dataset(
     let selection: Selection = serde_json::from_str(selection_text)
         .map_err(|_| "Invalid input-only presentation selection")?;
     if selection.schema_version != 1
-        || selection.cases.len() != 10
+        || selection.cases.len()
+            != if dataset_id == Some(dataset::DEMO_ID) {
+                17
+            } else {
+                10
+            }
         || methods.is_empty()
         || methods
             .iter()
@@ -712,7 +721,7 @@ pub fn write_jsonl_new<T: Serialize>(path: &Path, values: &[T]) -> Result<(), St
 
 pub fn validate_record_identity(record: &AgentRunRecord) -> Result<(), String> {
     let selected = plan_for_dataset(
-        dataset::ten_source_dataset_id(&record.dataset_id),
+        dataset::source_dataset_id(&record.dataset_id),
         std::slice::from_ref(&record.case_id),
         &[record.live.config.retrieval.method],
         &record.requested_model,

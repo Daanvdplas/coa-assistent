@@ -204,13 +204,18 @@ fn trace_contract(record: &ExperimentRecord) -> Result<(), String> {
         return Err("Offered context contains duplicate section identities".into());
     }
     if record.arm == Arm::FullContext {
+        let corpus_sections: usize = super::runner::record_corpus(record)?
+            .sources()?
+            .iter()
+            .map(|source| source.sections.len())
+            .sum();
         return if record.retrieval_steps.is_empty()
             && record.tool_calls.is_empty()
-            && offered.len() == 30
+            && offered.len() == corpus_sections
         {
             Ok(())
         } else {
-            Err("Full-context arm must offer the thirty source sections without retrieval".into())
+            Err("Full-context arm must offer all pinned source sections without retrieval".into())
         };
     }
     let retrieved = references(
@@ -314,7 +319,8 @@ pub fn evaluate(
     if record.case_id != criteria.case_id {
         return Err("Criteria belong to a different evaluation case".into());
     }
-    let corpus: Vec<_> = crate::source::parse_sources(crate::DOCUMENTS)?
+    let corpus: Vec<_> = super::runner::record_corpus(record)?
+        .sources()?
         .into_iter()
         .flat_map(|s| s.sections)
         .collect();
