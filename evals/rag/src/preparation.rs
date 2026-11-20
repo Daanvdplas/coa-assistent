@@ -160,7 +160,7 @@ impl PreparationSession {
             document_inference_ms: self.embeddings.document_ms, query_inference_ms: self.embeddings.query_ms,
             document_inputs_encoded: self.embeddings.document_count, query_inputs_encoded: self.embeddings.query_count,
             scoring_path: "Canonical store snapshot loaded into the same Rust in-memory scorer; no native SQLite FTS/ANN ranking".into(),
-            interpretation: "One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark.".into()}
+            interpretation: format!("One shared preparation summary per batch, repeated by identity for inspectability. Do not sum copies. Profile preparation reflects this run order/cache state and is not an independent cold-start storage benchmark. Configured execution policy when embeddings are used: document_embedding_chunk_size={DOCUMENT_EMBEDDING_CHUNK_SIZE}; query_embedding_inputs=1; sequential outer SDK calls, pooled vectors retained between calls.")}
     }
 
     pub fn prepare(

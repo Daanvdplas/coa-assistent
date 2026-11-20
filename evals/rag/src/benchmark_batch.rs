@@ -487,6 +487,20 @@ mod tests {
         );
         assert_eq!(result["observed_peak_searches"], 2);
         assert_eq!(result["prepared_profiles"], 1);
+        let first: serde_json::Value = serde_json::from_str(
+            std::fs::read_to_string(&options.output)
+                .unwrap()
+                .lines()
+                .next()
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            first["record"]["shared_preparation"]["interpretation"]
+                .as_str()
+                .unwrap()
+                .contains("document_embedding_chunk_size=8; query_embedding_inputs=1")
+        );
         assert!(!options.model_cache.exists());
         std::fs::remove_dir_all(base).unwrap();
     }
