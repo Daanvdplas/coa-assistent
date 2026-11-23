@@ -196,6 +196,15 @@ pub fn cli(args: &[String]) -> Result<serde_json::Value, String> {
         );
     }
     match args.first().map(String::as_str) {
+        Some("context-selection") => {
+            let values = flags(&args[1..], &["--input", "--output", "--model-cache", "--source-root"])?;
+            super::context_selection::run(
+                Path::new(required(&values, "--input")?),
+                Path::new(required(&values, "--output")?),
+                Path::new(required(&values, "--model-cache")?),
+                Path::new(required(&values, "--source-root")?),
+            )
+        }
         Some("benchmark-batch") => {
             let values = flags(&args[1..], &["--input", "--output", "--embedding-manifest", "--model-cache", "--sqlite-dir"])?;
             let input = serde_json::from_slice(&std::fs::read(required(&values, "--input")?).map_err(|error| error.to_string())?).map_err(|error| format!("Invalid benchmark batch input: {error}"))?;
@@ -455,6 +464,31 @@ mod tests {
     use super::*;
     fn args(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).into()).collect()
+    }
+    #[test]
+    fn context_selection_rejects_protected_input_fields_before_preparing_a_model() {
+        let base = std::env::temp_dir().join(format!("coa-context-input-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        let input = base.join("input.json");
+        std::fs::write(&input, r#"{"schema_version":1,"execution_id":"test","reference_date":"2026-11-13","corpora":{},"cases":[],"expectations":{"correct":"do not read"}}"#).unwrap();
+        let error = cli(&args(&[
+            "context-selection",
+            "--input",
+            input.to_str().unwrap(),
+            "--output",
+            base.join("native.jsonl").to_str().unwrap(),
+            "--model-cache",
+            base.join("no-model").to_str().unwrap(),
+            "--source-root",
+            base.to_str().unwrap(),
+        ]))
+        .unwrap_err();
+        assert!(
+            error.contains("unknown field `expectations`"),
+            "expected source-only schema rejection, got: {error}"
+        );
+        assert!(!base.join("native.jsonl").exists());
+        std::fs::remove_dir_all(base).unwrap();
     }
     #[test]
     fn plan_command_expands_main_axes_without_loading_a_runtime_or_model() {

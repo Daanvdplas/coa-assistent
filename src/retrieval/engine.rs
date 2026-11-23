@@ -215,7 +215,16 @@ pub fn retrieve(
         .iter()
         .map(|section| (SectionKey::from(section), section))
         .collect();
-    let selected = if config.mmr {
+    let selected = if config.selection == SelectionMode::ActivityBalanced {
+        let mut activities = BTreeSet::new();
+        candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| activities.insert(&candidate.key.source_id))
+            .take(config.top_k)
+            .map(|(index, _)| index)
+            .collect()
+    } else if config.mmr {
         mmr_select(&candidates, &by_key, config.top_k, config.mmr_lambda)
     } else {
         (0..candidates.len().min(config.top_k)).collect()
@@ -246,13 +255,22 @@ pub fn retrieve(
         ));
     }
     let mut omitted = Vec::new();
-    if config.selection == SelectionMode::ActivityExpansion {
+    if config.selection != SelectionMode::Sections {
         let activities: BTreeSet<_> = seeds.iter().map(|key| key.source_id.as_str()).collect();
         let seed_keys: BTreeSet<_> = seeds.iter().cloned().collect();
-        for (key, section) in &by_key {
-            if !activities.contains(key.source_id.as_str()) || seed_keys.contains(key) {
-                continue;
-            }
+        let expansion = if config.selection == SelectionMode::ActivityBalanced {
+            balanced_expansion(&candidates, &seeds, &by_key)
+        } else {
+            by_key
+                .keys()
+                .filter(|key| {
+                    activities.contains(key.source_id.as_str()) && !seed_keys.contains(*key)
+                })
+                .cloned()
+                .collect()
+        };
+        for key in expansion {
+            let section = by_key[&key];
             let tokens = estimate_section_tokens(section);
             if estimated_context_tokens + tokens > config.context_token_limit {
                 omitted.push(ContextOmission {
@@ -267,7 +285,7 @@ pub fn retrieve(
                 section: (*section).clone(),
                 scores: candidates
                     .iter()
-                    .find(|candidate| candidate.key == *key)
+                    .find(|candidate| candidate.key == key)
                     .map(|candidate| candidate.scores.clone()),
                 inclusion: Inclusion::ActivityExpansion,
             });
@@ -306,6 +324,12 @@ pub fn retrieve(
 /// Validate selectable parameters before preparing an index or initializing a model.
 pub fn validate_config(config: &RetrievalConfig, filters: &QueryFilters) -> Result<(), String> {
     crate::ranking::validate_top_k(config.top_k)?;
+    if config.selection == SelectionMode::ActivityBalanced && config.mmr {
+        return Err(
+            "Activity-balanced selection cannot also apply MMR; neither policy is silently ignored"
+                .into(),
+        );
+    }
     if !(1..=1000).contains(&config.candidate_k)
         || config.context_token_limit == 0
         || !config.rrf_k.is_finite()
@@ -324,6 +348,41 @@ pub fn validate_config(config: &RetrievalConfig, filters: &QueryFilters) -> Resu
         );
     }
     Ok(())
+}
+
+fn balanced_expansion(
+    candidates: &[RankedCandidate],
+    seeds: &[SectionKey],
+    sections: &BTreeMap<SectionKey, &Section>,
+) -> Vec<SectionKey> {
+    let seed_keys: BTreeSet<_> = seeds.iter().collect();
+    let mut per_activity: Vec<_> = seeds
+        .iter()
+        .map(|seed| {
+            let ranked = candidates.iter().map(|candidate| &candidate.key);
+            let mut seen = BTreeSet::new();
+            ranked
+                .chain(sections.keys())
+                .filter(|key| {
+                    key.source_id == seed.source_id && !seed_keys.contains(key) && seen.insert(*key)
+                })
+                .cloned()
+                .collect::<std::collections::VecDeque<_>>()
+        })
+        .collect();
+    let mut expansion = Vec::new();
+    loop {
+        let mut remaining = false;
+        for activity in &mut per_activity {
+            if let Some(key) = activity.pop_front() {
+                expansion.push(key);
+                remaining = true;
+            }
+        }
+        if !remaining {
+            return expansion;
+        }
+    }
 }
 
 fn filter_activities(

@@ -154,6 +154,27 @@ impl PreparationSession {
         })
     }
 
+    /// The experiment supplies source documents only; assessment references are separate.
+    pub(crate) fn for_documents(
+        options: &PreparationOptions,
+        documents: &[String],
+    ) -> Result<Self, String> {
+        let started = Instant::now();
+        let texts: Vec<_> = documents.iter().map(String::as_str).collect();
+        let sections = crate::source::parse_sources(&texts)?
+            .into_iter()
+            .flat_map(|source| source.sections)
+            .collect();
+        Ok(Self {
+            sections,
+            #[cfg(feature = "sqlite")]
+            sqlite_dir: options.sqlite_dir.clone(),
+            embeddings: LocalEmbeddings::new(&options.model_cache, options.embedding_model),
+            memory_cache: EmbeddingCache::default(),
+            source_parse_ms: elapsed_ms(started),
+        })
+    }
+
     pub fn shared(&self, batch_id: &str) -> SharedPreparation {
         SharedPreparation {preparation_id: format!("{batch_id}-shared-embeddings"), source_parse_ms: self.source_parse_ms,
             model_identity_ms: self.embeddings.identity_ms, model_load_ms: self.embeddings.load_ms,

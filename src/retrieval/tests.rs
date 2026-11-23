@@ -485,6 +485,179 @@ fn optional_mmr_can_spread_seeds_without_rewriting_ranking_scores() {
 }
 
 #[test]
+fn activity_balanced_reserves_six_distinct_activity_seeds_without_changing_candidates() {
+    let sections: Vec<_> = ["A", "A", "B", "C", "D", "E", "F", "G"]
+        .iter()
+        .enumerate()
+        .map(|(index, activity)| section(activity, &format!("S{}", index + 1), "source evidence"))
+        .collect();
+    let vectors = (0..sections.len())
+        .map(|index| vec![1.0, 0.1 * index as f32])
+        .collect();
+    let corpus = PreparedCorpus::new(sections, Some(vectors), Some(identity(2))).unwrap();
+    let baseline = RetrievalConfig {
+        selection: SelectionMode::ActivityExpansion,
+        ..Default::default()
+    };
+    let original = retrieve(
+        &corpus,
+        &request("source evidence"),
+        &baseline,
+        Some(&[1.0, 0.0]),
+    )
+    .unwrap();
+    let mut json = serde_json::to_value(&baseline).unwrap();
+    json["selection"] = serde_json::json!("activity_balanced");
+    json["top_k"] = serde_json::json!(6);
+    let candidate: Result<RetrievalConfig, _> = serde_json::from_value(json);
+    assert!(
+        candidate.is_ok(),
+        "The opt-in balanced policy must be selectable"
+    );
+    let candidate = candidate.unwrap();
+    let balanced = retrieve(
+        &corpus,
+        &request("source evidence"),
+        &candidate,
+        Some(&[1.0, 0.0]),
+    )
+    .unwrap();
+    assert_eq!(balanced.candidates, original.candidates);
+    assert_eq!(balanced.config.top_k, 6);
+    assert_eq!(
+        balanced
+            .seeds
+            .iter()
+            .map(|key| key.source_id.as_str())
+            .collect::<Vec<_>>(),
+        ["A", "B", "C", "D", "E", "F"]
+    );
+    assert!(!balanced.hits.iter().any(|hit| hit.section.source_id == "G"));
+}
+
+#[test]
+fn activity_balanced_packs_sections_in_round_robin_under_the_same_budget() {
+    let sections: Vec<_> = ["A", "B"]
+        .iter()
+        .flat_map(|activity| {
+            (1..=3).map(move |index| {
+                section(activity, &format!("S{index}"), "same canonical evidence")
+            })
+        })
+        .collect();
+    let vectors = (0..sections.len())
+        .map(|index| vec![1.0, 0.1 * index as f32])
+        .collect();
+    let token_limit = sections
+        .iter()
+        .filter(|section| section.id != "S3")
+        .map(estimate_section_tokens)
+        .sum();
+    let corpus = PreparedCorpus::new(sections, Some(vectors), Some(identity(2))).unwrap();
+    let mut json = serde_json::to_value(RetrievalConfig {
+        context_token_limit: token_limit,
+        ..Default::default()
+    })
+    .unwrap();
+    json["selection"] = serde_json::json!("activity_balanced");
+    let config: Result<RetrievalConfig, _> = serde_json::from_value(json);
+    assert!(
+        config.is_ok(),
+        "The opt-in balanced policy must be selectable"
+    );
+    let mut config = config.unwrap();
+    let result = retrieve(&corpus, &request("evidence"), &config, Some(&[1.0, 0.0])).unwrap();
+    assert_eq!(
+        result
+            .hits
+            .iter()
+            .map(|hit| (hit.section.source_id.as_str(), hit.section.id.as_str()))
+            .collect::<Vec<_>>(),
+        [("A", "S1"), ("B", "S1"), ("A", "S2"), ("B", "S2")]
+    );
+    assert_eq!(result.estimated_context_tokens, token_limit);
+    assert_eq!(result.omitted.len(), 2);
+    assert!(
+        result
+            .omitted
+            .iter()
+            .all(|omission| omission.key.section_id == "S3")
+    );
+    config.context_token_limit = result.hits[..2]
+        .iter()
+        .map(|hit| estimate_section_tokens(&hit.section))
+        .sum::<usize>()
+        - 1;
+    assert!(
+        retrieve(&corpus, &request("evidence"), &config, Some(&[1.0, 0.0]))
+            .unwrap_err()
+            .contains("seeds were not silently truncated")
+    );
+}
+
+#[test]
+fn activity_balanced_preserves_whole_seeds_and_expands_unranked_canonical_sections() {
+    let corpus = PreparedCorpus::new(
+        vec![
+            section("A", "S1", "unique seed"),
+            section("A", "S2", "other unranked text"),
+        ],
+        None,
+        None,
+    )
+    .unwrap();
+    let mut json = serde_json::to_value(RetrievalConfig {
+        method: SearchMethod::Bm25,
+        candidate_k: 1,
+        top_k: 1,
+        ..Default::default()
+    })
+    .unwrap();
+    json["selection"] = serde_json::json!("activity_balanced");
+    let config: Result<RetrievalConfig, _> = serde_json::from_value(json);
+    assert!(
+        config.is_ok(),
+        "The opt-in balanced policy must be selectable"
+    );
+    let mut config = config.unwrap();
+    let result = retrieve(&corpus, &request("unique seed"), &config, None).unwrap();
+    assert_eq!(result.candidates.len(), 1);
+    assert_eq!(result.hits.len(), 2);
+    assert_eq!(result.hits[1].section.id, "S2");
+    assert_eq!(result.hits[1].scores, None);
+    config.context_token_limit = estimate_section_tokens(&result.hits[0].section) - 1;
+    assert!(
+        retrieve(&corpus, &request("unique seed"), &config, None)
+            .unwrap_err()
+            .contains("seeds were not silently truncated")
+    );
+}
+
+#[test]
+fn activity_balanced_rejects_mmr_instead_of_ignoring_it() {
+    let mut json = serde_json::to_value(RetrievalConfig {
+        mmr: true,
+        ..Default::default()
+    })
+    .unwrap();
+    json["selection"] = serde_json::json!("activity_balanced");
+    let config: Result<RetrievalConfig, _> = serde_json::from_value(json);
+    assert!(
+        config.is_ok(),
+        "The opt-in balanced policy must be selectable"
+    );
+    assert!(
+        validate_config(&config.unwrap(), &Default::default())
+            .unwrap_err()
+            .contains("MMR")
+    );
+    assert_eq!(
+        RetrievalConfig::default().selection,
+        SelectionMode::Sections
+    );
+}
+
+#[test]
 fn validation_rejects_invalid_queries_budgets_and_nonfinite_weights() {
     let corpus = ranked_corpus();
     let mut config = RetrievalConfig::default();

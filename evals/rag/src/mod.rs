@@ -5,6 +5,7 @@ pub mod assessment;
 pub mod benchmark_batch;
 pub mod catalog;
 pub mod cli;
+mod context_selection;
 pub mod dataset;
 pub mod embedding_models;
 pub mod lab_mcp;
