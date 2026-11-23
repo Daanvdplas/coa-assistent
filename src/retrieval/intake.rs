@@ -98,7 +98,7 @@ fn named_subset(corpus: &PreparedCorpus, text: &str) -> Option<Option<BTreeSet<S
             .split_inclusive(',')
             .flat_map(|part| words(part).chain(part.ends_with(',').then_some(",")))
             .collect();
-        let (mut remaining, fronted_dutch) = match tokens.as_slice() {
+        let (mut remaining, fronted_question) = match tokens.as_slice() {
             ["which", "of", "these" | "those", ..]
             | ["welke", "van", "deze" | "die", ..]
             | [
@@ -115,8 +115,10 @@ fn named_subset(corpus: &PreparedCorpus, text: &str) -> Option<Option<BTreeSet<S
                 "volgende" | "activiteiten" | "opties",
                 ..,
             ] => continue,
-            ["which", "of", names @ ..] | ["welke", "van", names @ ..] => (names, false),
-            ["van", names @ ..] if take_title(corpus, names).is_some() => (names, true),
+            ["which", "of", names @ ..] | ["welke", "van", names @ ..] => (names, None),
+            ["between", names @ ..] => (names, Some("which")),
+            ["tussen", names @ ..] => (names, Some("welke")),
+            ["van", names @ ..] if take_title(corpus, names).is_some() => (names, Some("welke")),
             _ => continue,
         };
 
@@ -142,11 +144,10 @@ fn named_subset(corpus: &PreparedCorpus, text: &str) -> Option<Option<BTreeSet<S
                 question,
                 ["plus" | "including" | "inclusief", ..] | ["as", "well", "as", ..]
             )
-            || (fronted_dutch
-                && !matches!(
-                    question,
-                    ["welke", ..] | ["wil", "ik", "weten", "welke", ..]
-                ))
+            || fronted_question.is_some_and(|word| {
+                !question.starts_with(&[word])
+                    && !(word == "welke" && question.starts_with(&["wil", "ik", "weten", "welke"]))
+            })
         {
             return None;
         }
@@ -1774,6 +1775,50 @@ mod tests {
             1200,
         );
         assert_eq!(decision.matches, ["ACT-WANDEL-005"]);
+    }
+
+    #[test]
+    fn fronted_between_comparisons_limit_the_scan_to_complete_named_alternatives() {
+        let corpus = corpus();
+        for query in [
+            "Between Parkonderhoud and Wandelen, which are on Thursday? Give each time and location.",
+            "Tussen Parkonderhoud en Wandelen, welke zijn er op donderdag? Geef alle opties met tijden en plek.",
+        ] {
+            let (outcome, decision) = search(&corpus, query, 1200);
+            assert!(
+                decision.applied && decision.exhaustive,
+                "{query}: {decision:?}"
+            );
+            assert_eq!(decision.matches, ["ACT-WANDEL-005"], "{query}");
+            assert_eq!(outcome.hits.len(), 4, "{query}");
+            assert!(outcome.hits.iter().any(|hit| {
+                hit.section.source_title == "Parkonderhoud" && hit.section.id == "S2"
+            }));
+        }
+    }
+
+    #[test]
+    fn incomplete_between_phrases_do_not_claim_a_named_subset() {
+        let corpus = corpus();
+        for query in [
+            "Between 10 and 12, which activities are on Thursday? Give all locations and times.",
+            "Tussen 10 en 12, welke activiteiten zijn er op donderdag? Geef tijd en plek.",
+            "Between these options, which are on Thursday? Give their locations and times.",
+            "Between Wandelen and local options, which are on Thursday? Give each time and location.",
+            "Between Parkonderhoud and Wandelen plus local options, which are on Thursday? Give each time and location.",
+            "Between Parkonderhoud and Wandelen, including local options, which are on Thursday? Give each time and location.",
+        ] {
+            let (_, decision) = search(&corpus, query, 1200);
+            assert!(!decision.applied, "{query}: {decision:?}");
+            assert!(!decision.exhaustive, "{query}: {decision:?}");
+        }
+        let (_, ordinary_mentions) = search(
+            &corpus,
+            "I have heard of Parkonderhoud and Tuinieren. Which outdoor activities are on Thursday? Give all locations and times.",
+            1200,
+        );
+        assert!(ordinary_mentions.applied, "{ordinary_mentions:?}");
+        assert_eq!(ordinary_mentions.matches, ["ACT-WANDEL-005"]);
     }
 
     #[test]
