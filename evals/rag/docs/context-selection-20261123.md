@@ -2,6 +2,8 @@
 
 This opt-in, model-free experiment compares two **joint selection policies**. It does not change the website, Evals/Benchmark matrices or existing defaults:
 
+The completed [23 November comparison](context-selection-20261123-results.md) is **NO_GO**: the candidate reduced complete source sets from 14/20 to 9/20. Existing defaults are retained.
+
 - `baseline`: weighted MiniLM, three section seeds, current activity expansion.
 - `activity_balanced`: the same weighted candidates, up to six distinct activity seeds, then balanced context allocation.
 
