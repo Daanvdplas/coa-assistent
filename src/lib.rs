@@ -99,7 +99,7 @@ pub struct SearchResult {
 
 pub const AS_OF: &str = "2026-10-20";
 pub const DEFAULT_TOP_K: usize = 3;
-pub const GUIDED_RETRIEVAL_VERSION: &str = "guided-rag-v1";
+pub const GUIDED_RETRIEVAL_VERSION: &str = "guided-rag-v2";
 
 /// Search methods exposed by the demo, including opt-in Guided retrieval.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -436,7 +436,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(result["retrieval_method"], "guided");
-        assert_eq!(result["retrieval_policy"], "guided-rag-v1");
+        assert_eq!(result["retrieval_policy"], "guided-rag-v2");
         assert_eq!(result["top_k"], 3);
         assert_eq!(result["requested_top_k"], 6);
         assert_eq!(result["guided_selection"]["exhaustive"], true);

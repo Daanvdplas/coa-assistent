@@ -30,6 +30,7 @@ struct Fields {
     schedule: bool,
     place: bool,
     supplies: bool,
+    guidance: bool,
 }
 
 struct Intake {
@@ -67,6 +68,91 @@ fn has(words: &[&str], values: &[&str]) -> bool {
 
 fn phrases(text: &str, values: &[&str]) -> bool {
     values.iter().any(|value| text.contains(value))
+}
+
+fn take_title<'a>(corpus: &'a PreparedCorpus, tokens: &[&str]) -> Option<(&'a str, usize)> {
+    corpus
+        .activities
+        .iter()
+        .filter_map(|activity| {
+            let normalized = activity.title.to_lowercase();
+            let title: Vec<_> = words(&normalized).collect();
+            let consumed = if tokens.starts_with(&title) {
+                title.len()
+            } else if matches!(tokens, ["de" | "het" | "the", rest @ ..] if rest.starts_with(&title)) {
+                title.len() + 1
+            } else {
+                return None;
+            };
+            Some((activity.id.as_str(), consumed))
+        })
+        .max_by_key(|(_, consumed)| *consumed)
+}
+
+fn named_subset(corpus: &PreparedCorpus, text: &str) -> Option<Option<BTreeSet<String>>> {
+    for clause in text
+        .split(['?', '!', ';'])
+        .flat_map(|clause| clause.split(". "))
+    {
+        let tokens: Vec<_> = clause
+            .split_inclusive(',')
+            .flat_map(|part| words(part).chain(part.ends_with(',').then_some(",")))
+            .collect();
+        let (mut remaining, fronted_dutch) = match tokens.as_slice() {
+            ["which", "of", "these" | "those", ..]
+            | ["welke", "van", "deze" | "die", ..]
+            | [
+                "which",
+                "of",
+                "the",
+                "following" | "activities" | "options",
+                ..,
+            ]
+            | [
+                "welke",
+                "van",
+                "de",
+                "volgende" | "activiteiten" | "opties",
+                ..,
+            ] => continue,
+            ["which", "of", names @ ..] | ["welke", "van", names @ ..] => (names, false),
+            ["van", names @ ..] if take_title(corpus, names).is_some() => (names, true),
+            _ => continue,
+        };
+
+        let mut names = BTreeSet::new();
+        loop {
+            let (title, consumed) = take_title(corpus, remaining)?;
+            names.insert(title.to_owned());
+            remaining = &remaining[consumed..];
+            let (next, separated) = match remaining {
+                [",", "and" | "en" | "or" | "of", tail @ ..] => (tail, true),
+                [",", tail @ ..] if take_title(corpus, tail).is_some() => (tail, true),
+                ["and" | "en" | "or" | "of", tail @ ..] => (tail, true),
+                _ => (remaining, false),
+            };
+            remaining = next;
+            if !separated {
+                break;
+            }
+        }
+        let question = remaining.strip_prefix(&[","]).unwrap_or(remaining);
+        if names.len() < 2
+            || matches!(
+                question,
+                ["plus" | "including" | "inclusief", ..] | ["as", "well", "as", ..]
+            )
+            || (fronted_dutch
+                && !matches!(
+                    question,
+                    ["welke", ..] | ["wil", "ik", "weten", "welke", ..]
+                ))
+        {
+            return None;
+        }
+        return Some(Some(names));
+    }
+    Some(None)
 }
 
 fn parse_clock(word: &str) -> Option<u16> {
@@ -134,7 +220,9 @@ fn time_predicate(words: &[&str], index: usize, minutes: u16) -> Option<Time> {
     match (previous, words[index], next) {
         (_, "beginnen" | "begint" | "start" | "starten" | "starts" | "starting" | "begin", _)
         | (_, "van", "start") => Some(Time::StartsAt(minutes)),
-        (_, "bezig" | "running" | "ongoing" | "active" | "run", _)
+        (_, "bezig" | "running" | "ongoing" | "active" | "run" | "underway", _)
+        | ("under", "way", _)
+        | (_, "under", "way")
         | ("in", "progress", _)
         | (_, "in", "progress")
         | ("taking", "place", _)
@@ -432,6 +520,8 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
     }
     let comparison_request =
         has(&words, &["compare", "vergelijk"]) || phrases(&text, &["naast elkaar", "side by side"]);
+    let subset = named_subset(corpus, &text)?;
+    let explicit_subset = subset.is_some();
     let all = explicit_all
         || (!one
             && phrases(
@@ -451,6 +541,7 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
     let broad = all
         || one
         || comparison_request
+        || explicit_subset
         || phrases(
             &text,
             &[
@@ -469,7 +560,7 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
         return None;
     }
 
-    let restrict_names = phrases(
+    let legacy_subset = phrases(
         &text,
         &[
             "welke van deze",
@@ -479,27 +570,43 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
         ],
     );
     let padded = format!(" {} ", words.join(" "));
-    let names: BTreeSet<_> = corpus
-        .activities
-        .iter()
-        .filter(|activity| {
-            let title = activity.title.to_lowercase();
-            padded.contains(&format!(
-                " {} ",
-                self::words(&title).collect::<Vec<_>>().join(" ")
-            ))
-        })
-        .map(|activity| activity.id.clone())
-        .collect();
-    let comparison = comparison_request && names.len() >= 2;
+    let names: BTreeSet<_> = subset.unwrap_or_else(|| {
+        corpus
+            .activities
+            .iter()
+            .filter(|activity| {
+                let title = activity.title.to_lowercase();
+                padded.contains(&format!(
+                    " {} ",
+                    self::words(&title).collect::<Vec<_>>().join(" ")
+                ))
+            })
+            .map(|activity| activity.id.clone())
+            .collect()
+    });
+    let comparison = (comparison_request || explicit_subset || legacy_subset) && names.len() >= 2;
     let all = all || comparison;
-    let restrict_names = restrict_names || comparison;
+    let restrict_names = legacy_subset || comparison;
     if (comparison && one) || (comparison_request && !all) {
         return None;
     }
-    if (restrict_names && names.is_empty()) || (!all && !names.is_empty()) {
+    if (restrict_names
+        && (names.len() < 2
+            || phrases(
+                &text,
+                &[
+                    "for example",
+                    "for instance",
+                    "such as",
+                    "bijvoorbeeld",
+                    "zoals",
+                ],
+            )))
+        || (!all && !names.is_empty())
+    {
         return None;
     }
+    let mut requested_guidance = false;
     if comparison {
         let roles = corpus
             .activities
@@ -508,26 +615,58 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
             .fold(text.clone(), |query, activity| {
                 query.replace(&activity.title.to_lowercase(), "")
             });
-        if self::words(&roles).any(|word| {
-            matches!(
-                word,
-                "language"
-                    | "taal"
-                    | "taalniveau"
-                    | "nederlands"
-                    | "help"
-                    | "hulp"
-                    | "support"
-                    | "ondersteuning"
-                    | "guidance"
-                    | "begeleiding"
-                    | "assistance"
-                    | "experience"
-                    | "ervaring"
-                    | "accessibility"
-                    | "toegankelijkheid"
-            )
-        }) {
+        let roles = self::words(&roles).collect::<Vec<_>>().join(" ");
+        requested_guidance = phrases(
+            &roles,
+            &[
+                "who guides",
+                "who leads",
+                "who helps",
+                "who supports",
+                "wie begeleidt",
+                "wie helpt",
+                "wie ondersteunt",
+                "what support",
+                "what help",
+                "which support",
+                "kind of support",
+                "kind of help",
+                "welke ondersteuning",
+                "welke begeleiding",
+                "welke hulp",
+            ],
+        );
+        if phrases(&roles, &["only with", "but only", "alleen met"])
+            || self::words(&roles).any(|word| {
+                matches!(
+                    word,
+                    "language"
+                        | "taal"
+                        | "taalniveau"
+                        | "nederlands"
+                        | "experience"
+                        | "ervaring"
+                        | "accessibility"
+                        | "toegankelijkheid"
+                        | "medical"
+                        | "medisch"
+                        | "if"
+                        | "unless"
+                        | "als"
+                        | "tenzij"
+                ) || (!requested_guidance
+                    && matches!(
+                        word,
+                        "help"
+                            | "hulp"
+                            | "support"
+                            | "ondersteuning"
+                            | "guidance"
+                            | "begeleiding"
+                            | "assistance"
+                    ))
+            })
+        {
             return None;
         }
     }
@@ -620,7 +759,8 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
                     "end",
                 ],
             )
-            || phrases(&text, &["hoe laat"]),
+            || phrases(&text, &["hoe laat"])
+            || (comparison && has(&words, &["hours", "uren"])),
         place: environment.is_some()
             || address.is_some()
             || has(
@@ -670,8 +810,15 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
                 ],
             )
             || (comparison && has(&words, &["bring", "meenemen"])),
+        guidance: requested_guidance,
     };
-    if comparison && !(fields.description || fields.schedule || fields.place || fields.supplies) {
+    if comparison
+        && !(fields.description
+            || fields.schedule
+            || fields.place
+            || fields.supplies
+            || fields.guidance)
+    {
         return None;
     }
     Some(Intake {
@@ -702,6 +849,10 @@ fn place(section: &str) -> bool {
 
 fn supplies(section: &str) -> bool {
     matches!(section, "kosten en materiaal" | "wat neem je mee?")
+}
+
+fn guidance(section: &str) -> bool {
+    section == "taal en hulp"
 }
 
 fn intake_venue_statement(sentence: &str) -> Option<Option<Environment>> {
@@ -917,7 +1068,7 @@ fn evidence_bundle<'a>(
     activity: &ActivityRecord,
     sections: &[&'a Section],
     venue_evidence: &[&Section],
-) -> Vec<&'a Section> {
+) -> (Vec<&'a Section>, bool) {
     let schedule_keys: BTreeSet<_> = activity
         .schedule
         .iter()
@@ -937,10 +1088,26 @@ fn evidence_bundle<'a>(
                     .iter()
                     .any(|evidence| evidence.id == section.id)
                 || (fields.supplies && supplies(&heading))
+                || (fields.guidance && guidance(&heading))
         })
         .collect();
     bundle.sort_by(|left, right| left.id.cmp(&right.id));
-    bundle
+    let fields = &intake.fields;
+    let has_heading = |role: fn(&str) -> bool| {
+        bundle
+            .iter()
+            .any(|section| role(&section.heading.to_lowercase()))
+    };
+    let complete = (!fields.description || has_heading(|heading| heading.starts_with("wat doen")))
+        && (!fields.schedule
+            || bundle.iter().any(|section| {
+                section.heading.eq_ignore_ascii_case("wanneer?")
+                    || schedule_keys.contains(section.id.as_str())
+            }))
+        && (!fields.place || has_heading(place))
+        && (!fields.supplies || has_heading(supplies))
+        && (!fields.guidance || has_heading(guidance));
+    (bundle, complete)
 }
 
 pub(crate) fn apply_intake_policy(
@@ -957,6 +1124,7 @@ pub(crate) fn apply_intake_policy(
     let mut matches = Vec::new();
     let mut contextual = Vec::new();
     let mut counterexamples = Vec::new();
+    let mut has_requested_evidence = true;
     for activity in &corpus.activities {
         let named = intake.names.contains(&activity.id);
         if intake.restrict_names && !named {
@@ -973,14 +1141,20 @@ pub(crate) fn apply_intake_policy(
             (None, Vec::new())
         };
         let eligibility = eligibility(&intake, activity, &sections, venue);
-        let bundle = evidence_bundle(&intake, activity, &sections, &venue_evidence);
+        let (bundle, complete) = evidence_bundle(&intake, activity, &sections, &venue_evidence);
         match eligibility {
-            Eligibility::Match => matches.push((activity, bundle)),
+            Eligibility::Match => {
+                has_requested_evidence &= complete;
+                matches.push((activity, bundle));
+            }
             Eligibility::Unknown => {
                 decision.unknown.push(activity.id.clone());
                 contextual.push(bundle);
             }
-            Eligibility::Excluded | Eligibility::DifferentStart if named => contextual.push(bundle),
+            Eligibility::Excluded | Eligibility::DifferentStart if named => {
+                has_requested_evidence &= complete;
+                contextual.push(bundle);
+            }
             Eligibility::DifferentStart if intake.all => {
                 let schedule = activity.schedule.as_ref().expect("known start time");
                 counterexamples.push(
@@ -1072,7 +1246,10 @@ pub(crate) fn apply_intake_policy(
         .filter(|hit| hit.inclusion == Inclusion::Seed)
         .map(|hit| SectionKey::from(&hit.section))
         .collect();
-    decision.exhaustive = intake.all && decision.unknown.is_empty() && outcome.omitted.is_empty();
+    decision.exhaustive = intake.all
+        && has_requested_evidence
+        && decision.unknown.is_empty()
+        && outcome.omitted.is_empty();
     (outcome, decision)
 }
 
@@ -1569,6 +1746,136 @@ mod tests {
             1200,
         );
         assert!(!decision.applied, "{decision:?}");
+    }
+
+    #[test]
+    fn closed_named_subsets_supply_positive_and_negative_schedule_evidence() {
+        let corpus = corpus();
+        for query in [
+            "Which of Tuinieren and Wandelen takes place on Thursday? Give the time and place.",
+            "Van Tuinieren en Wandelen, welke vindt plaats op donderdag? Geef tijd en plek.",
+        ] {
+            let (outcome, decision) = search(&corpus, query, 1200);
+            assert!(
+                decision.applied && decision.exhaustive,
+                "{query}: {decision:?}"
+            );
+            assert_eq!(decision.matches, ["ACT-WANDEL-005"]);
+            assert_eq!(outcome.hits.len(), 4);
+            assert!(
+                outcome.hits.iter().any(|hit| {
+                    hit.section.source_title == "Tuinieren" && hit.section.id == "S2"
+                })
+            );
+        }
+        let (_, decision) = search(
+            &corpus,
+            "Which outdoor activities are running Thursday at 10:00? Tuinieren and Parkonderhoud are just examples.",
+            1200,
+        );
+        assert_eq!(decision.matches, ["ACT-WANDEL-005"]);
+    }
+
+    #[test]
+    fn underway_uses_the_activity_window_without_discarding_negation() {
+        let corpus = corpus();
+        let (_, underway) = search(
+            &corpus,
+            "Which outdoor activities are underway at 10:00 on Thursday? Give all with their meeting point.",
+            1200,
+        );
+        assert!(underway.applied && underway.exhaustive, "{underway:?}");
+        assert_eq!(underway.matches, ["ACT-WANDEL-005"]);
+
+        for phrase in ["not underway at", "no longer underway at"] {
+            let (_, negated) = search(
+                &corpus,
+                &format!("Which outdoor activities are {phrase} 10:00 on Thursday?"),
+                1200,
+            );
+            assert!(!negated.applied, "{phrase}: {negated:?}");
+        }
+        let (_, starts) = search(
+            &corpus,
+            "Which outdoor activities start at 10:00 on Thursday? Give all options.",
+            1200,
+        );
+        assert!(starts.applied && starts.exhaustive);
+        assert!(starts.matches.is_empty());
+    }
+
+    #[test]
+    fn named_weekly_hours_meeting_points_and_guides_deliver_all_requested_roles() {
+        let corpus = corpus();
+        let (outcome, decision) = search(
+            &corpus,
+            "Compare Tuinieren and Wandelen. Give their weekly hours, meeting points and who guides participants.",
+            1200,
+        );
+        assert!(decision.applied && decision.exhaustive, "{decision:?}");
+        for title in ["Tuinieren", "Wandelen"] {
+            let references: Vec<_> = outcome
+                .hits
+                .iter()
+                .filter(|hit| hit.section.source_title == title)
+                .map(|hit| hit.section.id.as_str())
+                .collect();
+            assert_eq!(references, ["S2", "S3", "S4"], "{title}");
+        }
+        let (_, conditional) = search(
+            &corpus,
+            "Compare Tuinieren and Wandelen by weekly hours and who guides participants, but only if I can receive personal support.",
+            1200,
+        );
+        assert!(!conditional.applied, "{conditional:?}");
+    }
+
+    #[test]
+    fn a_named_comparison_cannot_claim_missing_canonical_guidance_is_complete() {
+        let mut sections = corpus().sections;
+        sections.retain(|section| {
+            section.source_title != "Wandelen" || section.heading != "Taal en hulp"
+        });
+        let corpus = PreparedCorpus::new(sections, None, None).unwrap();
+        let (_, decision) = search(
+            &corpus,
+            "Compare Tuinieren and Wandelen. Give their times and who guides participants.",
+            1200,
+        );
+        assert!(decision.applied);
+        assert!(!decision.exhaustive, "{decision:?}");
+    }
+
+    #[test]
+    fn bare_hours_in_a_named_comparison_request_schedule_evidence() {
+        let (outcome, decision) = search(
+            &corpus(),
+            "Compare Tuinieren and Wandelen. Give their hours and meeting places.",
+            1200,
+        );
+        assert!(decision.applied && decision.exhaustive, "{decision:?}");
+        assert_eq!(
+            outcome
+                .hits
+                .iter()
+                .filter(|hit| hit.section.id == "S2")
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn illustrative_names_and_unsupported_conditions_cannot_claim_a_closed_comparison() {
+        let corpus = corpus();
+        for query in [
+            "Which of these activities are on Thursday? For example Tuinieren and Parkonderhoud. List all options with times and places.",
+            "Compare Tuinieren and Wandelen. Give their weekly hours and who guides them if their needs change.",
+            "Which of Tuinieren and Wandelen plus Parkonderhoud runs on Thursday? Give each meeting point.",
+            "Which of Tuinieren and Wandelen, including Parkonderhoud, runs on Thursday? Give each meeting point.",
+        ] {
+            let (_, decision) = search(&corpus, query, 1200);
+            assert!(!decision.applied, "{query}: {decision:?}");
+        }
     }
 
     #[test]

@@ -11,6 +11,10 @@ const script = fileURLToPath(import.meta.url);
 const root = resolve(dirname(script), "../../..");
 const dataset = join(root, "evals/shared/datasets/guided-demo-20261123/cases.json");
 const frozenSha256 = "33b05aaff1872eba8f18c9e08a7c047f25d5e9e380b6863dfddb795532b662fd";
+const confirmation = join(dirname(dataset), "confirmation.json");
+const confirmationSha256 = "69e80941ed313d9c378a2da06d9b30deb255f1f8ee707e236aa3099e171998a2";
+const holdoutCount = 12;
+const confirmationCount = 6;
 const methods = ["dense", "bm25", "guided"] as const;
 const topK = 3;
 const contextLimit = 1200;
@@ -36,6 +40,7 @@ type Dataset = {
   sources: { path: string; sha256: string }[];
   cases: Case[];
 };
+type Confirmation = { schema: string; baseSha256: string; cases: Case[] };
 type Fingerprint = { id: string; date: string; title: string; sha256: string };
 type GuidedResult = Classification & {
   applied: boolean;
@@ -73,14 +78,33 @@ export function earliestComplete(alternatives: string[][], attempts: string[][])
   return null;
 }
 
+export function passesSourceCoverage(firstCompletions: (number | null)[], extension: boolean): boolean {
+  const expectedCount = holdoutCount + (extension ? confirmationCount : 0);
+  const firstCount = firstCompletions.filter(attempt => attempt === 1).length;
+  const freshFirstCount = firstCompletions.slice(holdoutCount).filter(attempt => attempt === 1).length;
+  return firstCompletions.length === expectedCount && firstCompletions.every(attempt => attempt !== null) &&
+    firstCount >= (extension ? 15 : 10) && (!extension || freshFirstCount >= 5);
+}
+
 function sectionKey(section: Section): string {
   return section.source_id + ":" + section.id;
 }
 
-function loadDataset() {
+function loadDataset(extension: boolean) {
   const bytes = readFileSync(dataset);
   assert.equal(sha256(bytes), frozenSha256, "frozen holdout bytes");
   const definition = JSON.parse(bytes.toString("utf8")) as Dataset;
+  assert.equal(definition.schema, "guided-demo-holdout-v1");
+  assert.equal(definition.cases.length, holdoutCount);
+  if (extension) {
+    const bytes = readFileSync(confirmation);
+    assert.equal(sha256(bytes), confirmationSha256, "frozen confirmation bytes");
+    const supplement = JSON.parse(bytes.toString("utf8")) as Confirmation;
+    assert.equal(supplement.schema, "guided-demo-confirmation-v2");
+    assert.equal(supplement.baseSha256, frozenSha256);
+    assert.equal(supplement.cases.length, confirmationCount);
+    definition.cases.push(...supplement.cases);
+  }
   const documents = definition.sources.map(source => {
     const path = checkedFile(join(root, source.path), root, 128 * 1024);
     const bytes = readFileSync(path);
@@ -113,7 +137,7 @@ function loadDataset() {
   });
   assert.equal(fingerprints.length, 12);
   assert.equal(sections.size, 72);
-  assert.equal(definition.cases.length, 12);
+  assert.equal(new Set(definition.cases.map(scenario => scenario.id)).size, definition.cases.length);
   for (const scenario of definition.cases) {
     const phrases = [scenario.question, ...scenario.followups];
     assert(phrases.length <= 3 && phrases.every(phrase => phrase.length > 0 && phrase === phrase.trim()));
@@ -123,7 +147,8 @@ function loadDataset() {
       ...scenario.firstGuided.matches, ...scenario.firstGuided.unknown,
     ].every(id => fingerprints.some(source => source.id === id)), scenario.id);
   }
-  return { definition, sections, fingerprints };
+  const guidedPolicy = extension ? "guided-rag-v2" : "guided-rag-v1";
+  return { definition, sections, fingerprints, extension, guidedPolicy };
 }
 
 function planRows(definition: Dataset) {
@@ -139,7 +164,7 @@ function emittedTokens(result: SearchResult): number {
 }
 
 function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
-  const { definition, sections, fingerprints } = corpus;
+  const { definition, sections, fingerprints, extension, guidedPolicy } = corpus;
   const planned = planRows(definition);
   assert.equal(rows.length, planned.length, "all planned rows captured");
   const technicalErrors: string[] = [];
@@ -168,7 +193,8 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
       }
       if (method === "guided") {
         const selection = result.guided_selection;
-        assert(selection && result.retrieval_policy === "guided-rag-v1");
+        assert(selection, "missing Guided selection");
+        assert.equal(result.retrieval_policy, guidedPolicy, "Guided policy version");
         assert.equal(result.requested_top_k, topK);
         assert.equal(selection.estimated_context_tokens, emittedTokens(result));
         assert(selection.estimated_context_tokens <= contextLimit, "context limit exceeded");
@@ -197,6 +223,12 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
   if (corpusVectors.size !== 1) technicalErrors.push("expected one shared set of document vectors");
 
   const typedFailures: string[] = [];
+  const selectorChecks: {
+    caseId: string;
+    expected: Classification;
+    observed: (Classification & { applied: boolean }) | null;
+    passed: boolean;
+  }[] = [];
   const cases = definition.cases.map(scenario => {
     const caseMethods = methods.map(method => {
       const results = [scenario.question, ...scenario.followups].map((_query, index) =>
@@ -206,10 +238,15 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
       const delivery = new Set(attempts.flat());
       if (method === "guided" && scenario.firstGuided) {
         const metadata = results[0]?.guided_selection;
-        if (!metadata?.applied ||
-            !same([...metadata.matches].sort(), [...scenario.firstGuided.matches].sort()) ||
-            !same([...metadata.unknown].sort(), [...scenario.firstGuided.unknown].sort()) ||
-            metadata.exhaustive !== scenario.firstGuided.exhaustive) typedFailures.push(scenario.id);
+        const passed = metadata?.applied === true &&
+          same([...metadata.matches].sort(), [...scenario.firstGuided.matches].sort()) &&
+          same([...metadata.unknown].sort(), [...scenario.firstGuided.unknown].sort()) &&
+          metadata.exhaustive === scenario.firstGuided.exhaustive;
+        if (!passed) typedFailures.push(scenario.id);
+        const observed = metadata ? {
+          applied: metadata.applied, matches: metadata.matches, unknown: metadata.unknown, exhaustive: metadata.exhaustive,
+        } : null;
+        selectorChecks.push({ caseId: scenario.id, expected: scenario.firstGuided, observed, passed });
       }
       return {
         method,
@@ -220,20 +257,21 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
     });
     return { id: scenario.id, theme: scenario.theme, methods: caseMethods };
   });
-  const summary = methods.map((method, index) => ({
+  const summarize = (cohort: typeof cases) => methods.map((method, index) => ({
     method,
-    first: cases.filter(scenario => scenario.methods[index].firstComplete === 1).length,
-    final: cases.filter(scenario => scenario.methods[index].firstComplete !== null).length,
+    first: cohort.filter(scenario => scenario.methods[index].firstComplete === 1).length,
+    final: cohort.filter(scenario => scenario.methods[index].firstComplete !== null).length,
   }));
   const losses = cases.filter(scenario =>
     scenario.methods[2].firstComplete === null && scenario.methods.slice(0, 2).some(method => method.firstComplete !== null),
   ).map(scenario => scenario.id);
-  const [,, guided] = summary;
   return {
-    verdict: guided.first >= 10 && guided.final === cases.length && !losses.length &&
+    verdict: passesSourceCoverage(cases.map(scenario => scenario.methods[2].firstComplete), extension) && !losses.length &&
         !technicalErrors.length && !typedFailures.length ? "GO" : "NO_GO",
     rows: rows.length,
-    summary,
+    summary: summarize(cases),
+    confirmationSummary: extension ? summarize(cases.slice(holdoutCount)) : undefined,
+    selectorChecks: extension ? selectorChecks : undefined,
     cases,
     typedFailures,
     technicalErrors,
@@ -249,7 +287,17 @@ function renderReport(assessment: ReturnType<typeof assess>): string {
     "",
     "| Method | Complete on first search | Complete after planned searches |",
     "| --- | ---: | ---: |",
-    ...assessment.summary.map(row => `| ${row.method} | ${row.first}/12 | ${row.final}/12 |`),
+    ...assessment.summary.map(row =>
+      `| ${row.method} | ${row.first}/${assessment.cases.length} | ${row.final}/${assessment.cases.length} |`,
+    ),
+    ...(assessment.confirmationSummary ? [
+      "",
+      "| Fresh confirmation cases | Complete on first search | Complete after planned searches |",
+      "| --- | ---: | ---: |",
+      ...assessment.confirmationSummary.map(row =>
+        `| ${row.method} | ${row.first}/${confirmationCount} | ${row.final}/${confirmationCount} |`,
+      ),
+    ] : []),
     "",
     "| Case | Dense first complete | BM25 first complete | Guided first complete |",
     "| --- | ---: | ---: | ---: |",
@@ -266,8 +314,8 @@ function renderReport(assessment: ReturnType<typeof assess>): string {
   ].join("\n");
 }
 
-function run(binary: string, out: string) {
-  const corpus = loadDataset();
+function run(binary: string, out: string, extension: boolean) {
+  const corpus = loadDataset(extension);
   const privateRoot = join(root, "evals/rag/results/local");
   const outputPath = relative(privateRoot, out);
   assert(outputPath.length > 0 && !outputPath.startsWith("..") && !isAbsolute(outputPath), "use a fresh path under evals/rag/results/local/");
@@ -320,6 +368,8 @@ function run(binary: string, out: string) {
     binarySha256,
     cacheRevision,
     datasetSha256: frozenSha256,
+    ...(extension ? { confirmationSha256 } : {}),
+    guidedPolicy: corpus.guidedPolicy,
     corpusSha256: corpus.definition.corpusSha256,
     rawSha256: sha256(readFileSync(raw)),
     planSha256: sha256(JSON.stringify(plan)),
@@ -333,11 +383,14 @@ function run(binary: string, out: string) {
   if (assessment.verdict !== "GO") process.exitCode = 1;
 }
 
-function replay(out: string) {
-  const corpus = loadDataset();
+function replay(out: string, extension: boolean) {
+  const corpus = loadDataset(extension);
   const raw = readFileSync(join(out, "raw.jsonl"));
   const provenance = JSON.parse(readFileSync(join(out, "provenance.json"), "utf8"));
   assert.equal(provenance.datasetSha256, frozenSha256);
+  assert.equal(provenance.confirmationSha256, extension ? confirmationSha256 : undefined);
+  const capturedPolicy = extension ? provenance.guidedPolicy : provenance.guidedPolicy ?? "guided-rag-v1";
+  assert.equal(capturedPolicy, corpus.guidedPolicy);
   assert.equal(provenance.corpusSha256, corpus.definition.corpusSha256);
   assert.equal(provenance.rawSha256, sha256(raw));
   assert.equal(provenance.planSha256, sha256(JSON.stringify(planRows(corpus.definition))));
@@ -350,8 +403,9 @@ if (process.argv[1] && resolve(process.argv[1]) === script) {
     binary: { type: "string" },
     out: { type: "string" },
     replay: { type: "string" },
+    extension: { type: "boolean", default: false },
   } });
-  if (values.replay && !values.binary && !values.out) replay(resolve(values.replay));
-  else if (values.binary && values.out && !values.replay) run(resolve(values.binary), resolve(values.out));
-  else throw new Error("Use --binary BINARY --out NEW_FOLDER or --replay EXISTING_FOLDER");
+  if (values.replay && !values.binary && !values.out) replay(resolve(values.replay), values.extension);
+  else if (values.binary && values.out && !values.replay) run(resolve(values.binary), resolve(values.out), values.extension);
+  else throw new Error("Use --binary BINARY --out NEW_FOLDER or --replay EXISTING_FOLDER, with --extension for v2");
 }
