@@ -3,8 +3,8 @@ mod evaluation;
 mod operator_lock;
 mod trace_dashboard;
 mod web;
-use meedoen_retrieval::Index;
-use serde_json::json;
+use meedoen_retrieval::{DemoSearchMethod, Index};
+use std::io::Read;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         "mcp" => {
             let corpus = parse_corpus(&mut args).map_err(std::io::Error::other)?;
-            let method = parse_mcp_method(&mut args).map_err(std::io::Error::other)?;
+            let method = parse_method(&mut args, false).map_err(std::io::Error::other)?;
             if !args.is_empty() {
                 return Err(
                     "Usage: mcp [--corpus baseline-five|expanded-ten|demo-twelve] [--method dense|bm25]".into(),
@@ -108,27 +108,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 meedoen_retrieval::corpus::CorpusId::BaselineFive
             };
+            let method = if command == "search" {
+                parse_method(&mut args, true).map_err(std::io::Error::other)?
+            } else {
+                None
+            };
             let top_k = parse_top_k(&mut args).map_err(std::io::Error::other)?;
             if command == "eval" && !args.is_empty() {
                 return Err("Usage: eval [--top-k 1..6]".into());
             }
-            let question = if command == "search" {
+            let queries = if command == "search" {
                 Some(
-                    meedoen_retrieval::validate_query(&args.join(" "))
+                    parse_search_queries(&args, std::io::stdin().lock())
                         .map_err(std::io::Error::other)?,
                 )
             } else {
                 None
             };
+            if method == Some(DemoSearchMethod::Guided)
+                && corpus != meedoen_retrieval::corpus::CorpusId::DemoTwelve
+            {
+                return Err("Guided search requires --corpus demo-twelve".into());
+            }
             let mut index = Index::load_for_corpus(corpus).map_err(std::io::Error::other)?;
-            let output = if let Some(question) = question {
-                json!(
-                    index
-                        .search_with_top_k(&question, top_k)
-                        .map_err(std::io::Error::other)?
-                )
-            } else {
-                evaluation::run(&mut index, top_k).map_err(std::io::Error::other)?
+            let mut search = |question: &str| {
+                match method {
+                    Some(method) => index.search_for_method(question, top_k, method),
+                    None => index.search_with_top_k(question, top_k).and_then(|result| {
+                        serde_json::to_value(result).map_err(|error| error.to_string())
+                    }),
+                }
+                .map_err(std::io::Error::other)
+            };
+            let output = match queries {
+                Some(SearchQueries::Single(question)) => search(&question)?,
+                Some(SearchQueries::Batch(questions)) => serde_json::Value::Array(
+                    questions
+                        .iter()
+                        .map(|question| search(question))
+                        .collect::<Result<_, _>>()?,
+                ),
+                None => evaluation::run(&mut index, top_k).map_err(std::io::Error::other)?,
             };
             println!("{}", serde_json::to_string_pretty(&output)?);
             return Ok(());
@@ -136,13 +156,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "serve" if args.is_empty() => {}
         _ => {
             return Err(
-                "Usage: [serve | search [--top-k 1..6] QUESTION | eval [--top-k 1..6] | mcp | ask [--top-k 1..6] QUESTION]".into(),
+                "Usage: [serve | search [--corpus ID] [--method dense|bm25|guided] [--top-k 1..6] (QUESTION | --queries-stdin) | eval [--top-k 1..6] | mcp | ask [--top-k 1..6] QUESTION]".into(),
             );
         }
     }
     let index = Index::load_for_corpus(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
         .map_err(std::io::Error::other)?;
     web::serve(index).await
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SearchQueries {
+    Single(String),
+    Batch(Vec<String>),
+}
+
+fn parse_search_queries(args: &[String], input: impl Read) -> Result<SearchQueries, String> {
+    if !args.iter().any(|arg| arg == "--queries-stdin") {
+        return meedoen_retrieval::validate_query(&args.join(" ")).map(SearchQueries::Single);
+    }
+    if args.len() != 1 {
+        return Err("Use --queries-stdin once instead of a positional question".into());
+    }
+
+    const MAX_BYTES: usize = 64 * 1024;
+    let mut bytes = Vec::new();
+    input
+        .take((MAX_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Could not read search queries from stdin: {error}"))?;
+    if bytes.len() > MAX_BYTES {
+        return Err("Search queries on stdin exceed 64 KiB".into());
+    }
+    let queries: Vec<String> = serde_json::from_slice(&bytes)
+        .map_err(|_| "Expected a JSON array of search questions on stdin")?;
+    if !(1..=64).contains(&queries.len()) {
+        return Err("Expected 1 to 64 search queries on stdin".into());
+    }
+    queries
+        .iter()
+        .map(|query| meedoen_retrieval::validate_query(query))
+        .collect::<Result<_, _>>()
+        .map(SearchQueries::Batch)
 }
 
 fn parse_corpus(args: &mut Vec<String>) -> Result<meedoen_retrieval::corpus::CorpusId, String> {
@@ -159,9 +214,10 @@ fn parse_corpus(args: &mut Vec<String>) -> Result<meedoen_retrieval::corpus::Cor
     Ok(corpus)
 }
 
-fn parse_mcp_method(
+fn parse_method(
     args: &mut Vec<String>,
-) -> Result<Option<meedoen_retrieval::DemoSearchMethod>, String> {
+    allow_guided: bool,
+) -> Result<Option<DemoSearchMethod>, String> {
     if args.iter().filter(|arg| arg.as_str() == "--method").count() > 1 {
         return Err("Duplicate --method option".into());
     }
@@ -169,8 +225,13 @@ fn parse_mcp_method(
         return Ok(None);
     };
     let value = args.get(position + 1).ok_or("Missing --method value")?;
-    let method = serde_json::from_value(serde_json::Value::String(value.clone()))
-        .map_err(|_| "Select --method dense or bm25")?;
+    let method = match value.as_str() {
+        "dense" => DemoSearchMethod::Dense,
+        "bm25" => DemoSearchMethod::Bm25,
+        "guided" if allow_guided => DemoSearchMethod::Guided,
+        _ if allow_guided => return Err("Select --method dense, bm25 or guided".into()),
+        _ => return Err("Select --method dense or bm25".into()),
+    };
     args.drain(position..=position + 1);
     Ok(Some(method))
 }
@@ -194,6 +255,47 @@ fn parse_top_k(args: &mut Vec<String>) -> Result<usize, String> {
 #[cfg(test)]
 mod cli_tests {
     use super::*;
+    #[test]
+    fn stdin_search_requires_bounded_valid_questions_before_loading_the_index() {
+        let stdin = ["--queries-stdin".into()];
+        assert_eq!(
+            parse_search_queries(&stdin, br#"["Waar?", "Wanneer?"]"#.as_slice()).unwrap(),
+            SearchQueries::Batch(vec!["Waar?".into(), "Wanneer?".into()])
+        );
+        assert_eq!(
+            parse_search_queries(&stdin, b"[]".as_slice()).unwrap_err(),
+            "Expected 1 to 64 search queries on stdin"
+        );
+        for bytes in [
+            b"{}".to_vec(),
+            br#"["Waar?", ""]"#.to_vec(),
+            serde_json::to_vec(&vec!["Waar?"; 65]).unwrap(),
+            vec![b' '; 64 * 1024 + 1],
+        ] {
+            assert!(parse_search_queries(&stdin, bytes.as_slice()).is_err());
+        }
+        assert!(
+            parse_search_queries(&[stdin[0].clone(), "Waar?".into()], b"[]".as_slice()).is_err()
+        );
+        assert_eq!(
+            parse_search_queries(&["Waar?".into()], b"[]".as_slice()).unwrap(),
+            SearchQueries::Single("Waar?".into())
+        );
+    }
+
+    #[test]
+    fn guided_search_flag_is_local_to_search_command() {
+        let mut args = vec!["--method".into(), "guided".into(), "Waar?".into()];
+        assert_eq!(
+            parse_method(&mut args, true).unwrap(),
+            Some(DemoSearchMethod::Guided)
+        );
+        assert_eq!(args, ["Waar?"]);
+        assert!(parse_method(&mut vec!["--method".into(), "guided".into()], false).is_err());
+        assert!(parse_method(&mut vec!["--method".into(), "other".into()], true).is_err());
+        assert_eq!(parse_method(&mut args, true).unwrap(), None);
+    }
+
     #[test]
     fn explicit_corpus_selection_preserves_question_and_legacy_default() {
         let mut args = vec!["--corpus".into(), "expanded-ten".into(), "Wanneer?".into()];

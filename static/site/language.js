@@ -37,6 +37,7 @@
     retrievalMethod: ["Zoekmethode", "Search method"],
     methodDense: ["Op betekenis", "By meaning"],
     methodBm25: ["Op woorden", "By words"],
+    methodGuided: ["Gericht zoeken", "Guided search"],
     submit: ["Zoek een antwoord", "Find an answer"],
     resultLabel: ["Uitvoering en antwoord", "Run and answer"],
     answer: ["Het antwoord", "The answer"],

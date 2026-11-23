@@ -262,6 +262,12 @@
     setBusy(true);
     try {
       source = await api("/api/source");
+      if (source.guided_retrieval_available === true) {
+        const option = node("option", t("methodGuided"));
+        option.value = "guided";
+        option.dataset.i18n = "methodGuided";
+        el("retrieval-method").append(option);
+      }
       source.sources.forEach(doc => {
         const trigger = node("button", sourceTitle(doc.id), "source-document");
         trigger.type = "button";
