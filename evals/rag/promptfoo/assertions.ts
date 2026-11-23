@@ -373,7 +373,7 @@ function browserEmbedding(record: NativeRecord, variables: Variables): string {
   );
   return spec.document_prefix;
 }
-function validateLocal(
+export function validateLocal(
   record: NativeRecord,
   variables: Variables,
   criteria: Criteria,
