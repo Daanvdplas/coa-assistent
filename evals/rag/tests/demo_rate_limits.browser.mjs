@@ -52,6 +52,11 @@ async function selectEnglish(page) {
   await page.getByRole("button", { name: "English" }).click();
 }
 
+test("the demo accepts a question without offering a choice of search method", async t => {
+  const page = await submitQuestion(t, "demo_rate_limit", 30);
+  assert.equal(await page.locator("#form").getByRole("combobox").count(), 0);
+});
+
 test("network limit rounds up and shows the remaining time after switching languages", async t => {
   const page = await submitQuestion(t, "ip_rate_limit", 61);
   const status = page.getByRole("status");
