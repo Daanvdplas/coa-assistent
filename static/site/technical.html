@@ -10,7 +10,7 @@
     html[lang="nl"] .locale-en,html[lang="en"] .locale-nl{display:none}
     .embedding-lesson { max-width:680px; margin-inline:auto; }
     .embedding-lesson section { margin:0; scroll-margin-top:24px; }
-    .embedding-lesson section + section { margin-top:32px; padding-top:28px; border-top:1px solid var(--line); }
+    .embedding-lesson section + section { margin-top:60px; }
     .embedding-lesson h2 { margin:0 0 12px; }
     .embedding-lesson h3 { margin:24px 0 10px; }
     .embedding-lesson header h1 { text-align:center; margin-bottom:24px; }
@@ -22,7 +22,6 @@
     .embedding-tile p { margin:0; }
     .embedding-numbers { font:clamp(.8rem,2.5vw,1rem)/1.5 ui-monospace,monospace; white-space:nowrap; }
     .embedding-converter { text-align:center; margin:10px 0; font-size:.9375rem; }
-    .embedding-converter .flow-arrow { display:block; }
     .meaning-map { position:relative; height:190px; }
     .meaning-point { position:absolute; font-size:1rem; line-height:1.35; padding-top:16px; }
     .meaning-point::before { content:""; position:absolute; left:0; top:0; width:9px; height:9px; border-radius:50%; background:var(--heading); }
@@ -35,7 +34,6 @@
     .architecture-canvas { width:900px; height:399.375px; overflow:hidden; }
     .architecture-scroll svg { display:block; width:900px; height:auto; max-width:none; transform:translateY(-61.875px); }
     @media(max-width:650px) { .embedding-lesson .rag-architecture { --diagram-width:calc(100vw - 32px); } }
-    .lesson-recap { margin-top:24px; }
     .embedding-lesson .lesson-links { font-size:.875rem; margin-top:24px; }
     @media(max-width:450px) {
       .embedding-pair { gap:8px; }
@@ -118,12 +116,12 @@
         <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Tekst over de activiteit</span><span class="locale-en" lang="en">Activity text</span></small><p><span class="locale-nl" lang="nl">Tuinieren: we kweken groenten en bloemen.</span><span class="locale-en" lang="en">Gardening: we grow vegetables and flowers.</span></p></div>
         <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Je vraag</span><span class="locale-en" lang="en">Your question</span></small><p><span class="locale-nl" lang="nl">Wanneer kan ik met planten werken?</span><span class="locale-en" lang="en">When can I work with plants?</span></p></div>
       </div>
-      <div class="embedding-converter"><span class="flow-arrow" aria-hidden="true">↓</span><span class="locale-nl" lang="nl">Hetzelfde embeddingmodel</span><span class="locale-en" lang="en">Same embedding model</span><span class="flow-arrow" aria-hidden="true">↓</span></div>
+      <div class="embedding-converter" aria-hidden="true">↓</div>
       <div class="embedding-pair">
         <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de tekst</span><span class="locale-en" lang="en">Text’s numbers</span></small><p class="embedding-numbers">[0.2, 0.8, …]</p></div>
         <div class="embedding-tile"><small><span class="locale-nl" lang="nl">Getallen van de vraag</span><span class="locale-en" lang="en">Question’s numbers</span></small><p class="embedding-numbers">[0.3, 0.7, …]</p></div>
       </div>
-      <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld. De getallen en posities op de kaart zijn verzonnen om het idee te laten zien.</span><span class="locale-en" lang="en">Simplified example. Numbers and map positions are made up to show the idea.</span></figcaption>
+      <figcaption><span class="locale-nl" lang="nl">Vereenvoudigd voorbeeld.</span><span class="locale-en" lang="en">Simplified example.</span></figcaption>
     </figure>
     <h3><span class="locale-nl" lang="nl">Zoekopdracht embedden en zoeken</span><span class="locale-en" lang="en">Embed the search query and search</span></h3>
     <p class="locale-nl" lang="nl">Ook de zoekopdracht wordt met hetzelfde model in getallen omgezet. Die worden vergeleken met de getallen in de database. Denk aan een kaart: vergelijkbare betekenissen liggen vaak dicht bij elkaar.</p>
@@ -135,20 +133,23 @@
         <span class="meaning-point meaning-bicycle"><span class="locale-nl" lang="nl">Fietsen repareren</span><span class="locale-en" lang="en">Bicycle repair</span></span>
       </div>
     </figure>
-    <p class="locale-nl" lang="nl">Zo kan “met planten werken” bij “Tuinieren” uitkomen, ook met andere woorden. De zoekfunctie geeft de gevonden tekst terug. Het LLM gebruikt die tekst voor een antwoord.</p>
-    <p class="locale-en" lang="en">This can connect “working with plants” to “Gardening”, even with different words. The search function returns the matching text. The LLM uses that text to answer.</p>
+    <p class="locale-nl" lang="nl">Zo kan “met planten werken” bij “Tuinieren” uitkomen, ook met andere woorden.</p>
+    <p class="locale-en" lang="en">This can connect “working with plants” to “Gardening”, even with different words.</p>
+    <h3><span class="locale-nl" lang="nl">Hoe wordt tekst een lijst getallen?</span><span class="locale-en" lang="en">How does text become a list of numbers?</span></h3>
+    <p class="locale-nl" lang="nl">Het model deelt de tekst op in woorden en stukjes van woorden. Voor elk stukje haalt het een lijst getallen op die het tijdens de training heeft geleerd. Daarna past het die getallen aan op basis van de rest van de tekst. Zo krijgt ‘bank’ andere getallen in ‘op de bank zitten’ dan in ‘geld op de bank zetten’.</p>
+    <p class="locale-en" lang="en">The model splits the text into words and parts of words. For each piece, it looks up a list of numbers it learned during training. It then adjusts those numbers based on the rest of the text. That’s why ‘bank’ gets different numbers in ‘sit by the river bank’ and ‘put money in the bank’.</p>
+    <p class="locale-nl" lang="nl">Het model neemt het gemiddelde van de aangepaste lijsten. Zo krijg je één lijst van 384 getallen voor de hele tekst.</p>
+    <p class="locale-en" lang="en">The model averages the adjusted lists. This gives you one list of 384 numbers for the whole text.</p>
   </section>
 
   <section id="rag" aria-labelledby="rag-heading">
     <h2 id="rag-heading"><span class="locale-nl" lang="nl">Hoe gebruikt het brein (LLM) de RAG?</span><span class="locale-en" lang="en">How does the brain (LLM) use RAG?</span></h2>
-    <p class="locale-nl" lang="nl">Het brein in het diagram is een LLM: een taalmodel dat antwoorden schrijft. RAG laat dit model informatie opzoeken in de activiteitteksten.</p>
-    <p class="locale-en" lang="en">The brain in the diagram is an LLM: a language model that writes answers. RAG lets this model look up information in the activity descriptions.</p>
-    <p class="locale-nl" lang="nl">Het LLM geeft de zoekfunctie een zoekopdracht. Bij zoeken op betekenis wordt die geëmbed en vergeleken met de getallen in de database. De zoekfunctie stuurt de gevonden tekststukken terug. Het LLM leest die gewone tekst en schrijft daarmee een antwoord met bronnen.</p>
-    <p class="locale-en" lang="en">The LLM sends a query to the search function. For meaning-based search, it is embedded and compared with the numbers in the database. The search function returns the matching passages. The LLM reads that ordinary text and uses it to write an answer with sources.</p>
-    <p class="lesson-recap locale-nl" lang="nl">Ontbreekt er iets, dan kan het LLM opnieuw zoeken. De bronnen helpen je het antwoord te controleren. Het antwoord kan nog steeds fouten bevatten.</p>
-    <p class="lesson-recap locale-en" lang="en">If a detail is missing, the LLM can search again. The sources help you check the answer. The answer can still contain mistakes.</p>
+    <p class="locale-nl" lang="nl">Het brein in het diagram is een LLM, een ander model dan het embeddingmodel. Het LLM gebruikt RAG als zoektool. Het geeft een zoekvraag en krijgt de best passende stukken uit de activiteitteksten terug.</p>
+    <p class="locale-en" lang="en">The brain in the diagram is an LLM, a different model from the embedding model. The LLM uses RAG as a search tool. It sends a search query and gets back the best-matching passages from the activity descriptions.</p>
+    <p class="locale-nl" lang="nl">Als het nog iets mist, kan het opnieuw zoeken. Zodra het denkt genoeg informatie te hebben, schrijft het daarmee een antwoord met bronnen.</p>
+    <p class="locale-en" lang="en">If something is still missing, it can search again. Once it thinks it has enough information, it uses the passages to write an answer with sources.</p>
   </section>
-  <p class="lesson-links"><a href="/" data-i18n="demo">Demo</a> · <a href="https://github.com/Daanvdplas/coa-assistent/blob/main/docs/code-tour.html"><span class="locale-nl" lang="nl">Bekijk de code</span><span class="locale-en" lang="en">Explore the code</span></a></p>
+  <p class="lesson-links"><a href="/" data-i18n="demo">Demo</a> · <a href="https://github.com/Daanvdplas/coa-assistent"><span class="locale-nl" lang="nl">Bekijk de code</span><span class="locale-en" lang="en">Explore the code</span></a></p>
 </article>
 </main>
 <footer class="site-footer"><span class="locale-nl" lang="nl">Onafhankelijk leerproject. Alle activiteiten en voorbeeldgegevens zijn verzonnen.</span><span class="locale-en" lang="en">An independent learning project. All activities and example details are fictional.</span></footer>
