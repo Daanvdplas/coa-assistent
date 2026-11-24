@@ -3,6 +3,7 @@
   const byId = id => document.getElementById(id);
   const list = byId('search-eval-list');
   if (!list) return;
+  const benchmarkNav = byId('eval-benchmark-nav');
   const node = (tag, text, className) => {
     const element = document.createElement(tag);
     if (text !== undefined && text !== null) element.textContent = text;
@@ -31,12 +32,14 @@
     card.status.dataset.status = type;
   }
   function controls() {
+    benchmarkNav.hidden = !canRun();
     for (const card of cards) {
       const usesEmbeddings = methodFor(card.method.value)?.uses_embeddings === true;
       card.method.disabled = Boolean(active);
       card.model.disabled = Boolean(active) || !usesEmbeddings;
       card.start.disabled = !canRun() || Boolean(active) || (usesEmbeddings && !catalog.embedding_models.some(model => model.available));
       card.stop.disabled = !canRun() || card.cancelling === true;
+      card.benchmark.hidden = !canRun();
       card.benchmark.disabled = !canRun() || Boolean(active) || benchmarkStarting || !card.evaluation.dataset || !card.evaluation.case_id;
       card.modelLabel.textContent = usesEmbeddings ? 'Embeddingmodel' : 'Embeddingmodel (niet gebruikt)';
     }
