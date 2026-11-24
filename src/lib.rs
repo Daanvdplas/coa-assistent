@@ -99,14 +99,16 @@ pub struct SearchResult {
 
 pub const AS_OF: &str = "2026-10-20";
 pub const DEFAULT_TOP_K: usize = 3;
+pub const GUIDED_RETRIEVAL_VERSION: &str = "guided-rag-v5";
 
-/// The two methods exposed by the ordinary demo; lab-only hybrids are excluded.
+/// Search methods exposed by the demo, including opt-in Guided retrieval.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DemoSearchMethod {
     #[default]
     Dense,
     Bm25,
+    Guided,
 }
 
 impl DemoSearchMethod {
@@ -114,6 +116,7 @@ impl DemoSearchMethod {
         match self {
             Self::Dense => "dense",
             Self::Bm25 => "bm25",
+            Self::Guided => "guided",
         }
     }
 }
@@ -124,6 +127,7 @@ pub struct Index {
     sources: Vec<source::Source>,
     sections: Vec<Section>,
     vectors: Vec<Vec<f32>>,
+    guided_corpus: Option<retrieval::PreparedCorpus>,
     manifest: manifest::Manifest,
 }
 impl Index {
@@ -197,6 +201,7 @@ impl Index {
             sources,
             sections,
             vectors,
+            guided_corpus: None,
             manifest,
         })
     }
@@ -213,8 +218,7 @@ impl Index {
         self.search_with_top_k(question, DEFAULT_TOP_K)
     }
 
-    /// Ordinary demo retrieval: the same corpus, whole sections and variable top-k.
-    /// BM25 reuses the shared scoring math, without importing lab selection limits.
+    /// Demo retrieval over the same canonical source sections.
     pub fn search_for_method(
         &mut self,
         question: &str,
@@ -239,10 +243,97 @@ impl Index {
                     "hits": hits,
                 })
             }
+            DemoSearchMethod::Guided => self.search_guided(question, top_k)?,
         };
         result["retrieval_method"] = serde_json::json!(method);
         Ok(result)
     }
+
+    fn search_guided(
+        &mut self,
+        question: &str,
+        requested_top_k: usize,
+    ) -> Result<serde_json::Value, String> {
+        if self.corpus != corpus::CorpusId::DemoTwelve {
+            return Err("Guided retrieval requires the twelve demo activity documents".into());
+        }
+        let question = validate_query(question)?;
+        ranking::validate_top_k(requested_top_k)?;
+        let query = self.embed_query(&question)?;
+        if self.guided_corpus.is_none() {
+            let identity = retrieval::EmbeddingIdentity {
+                provider: "local".into(),
+                model: MODEL.into(),
+                sdk: self.manifest.sdk.into(),
+                dimensions: self.manifest.dimensions,
+                encoding: self.manifest.encoding.into(),
+                document_prefix: String::new(),
+                query_prefix: String::new(),
+            };
+            self.guided_corpus = Some(retrieval::PreparedCorpus::new(
+                self.sections.clone(),
+                Some(self.vectors.clone()),
+                Some(identity),
+            )?);
+        }
+        let corpus = self.guided_corpus.as_ref().expect("prepared Guided corpus");
+        let config = retrieval::RetrievalConfig {
+            method: retrieval::SearchMethod::HybridWeighted,
+            selection: retrieval::SelectionMode::ActivityExpansion,
+            top_k: requested_top_k.min(DEFAULT_TOP_K),
+            candidate_k: 30,
+            context_token_limit: 1200,
+            vector_weight: 0.7,
+            ..Default::default()
+        };
+        let request = retrieval::RetrievalRequest {
+            query: question.clone(),
+            filters: Default::default(),
+        };
+        let ranked = retrieval::retrieve(corpus, &request, &config, Some(&query))?;
+        let (outcome, decision) = retrieval::apply_intake_policy(corpus, &ranked);
+        let matches: Vec<_> = decision
+            .matches
+            .iter()
+            .filter(|source_id| {
+                outcome
+                    .hits
+                    .iter()
+                    .any(|hit| hit.section.source_id == **source_id)
+                    && !outcome
+                        .omitted
+                        .iter()
+                        .any(|omission| omission.key.source_id == **source_id)
+            })
+            .collect();
+        let exhaustive = decision.exhaustive && matches.len() == decision.matches.len();
+        let hits: Vec<_> = outcome
+            .hits
+            .iter()
+            .map(|hit| serde_json::json!({"section": hit.section, "inclusion": hit.inclusion}))
+            .collect();
+        Ok(serde_json::json!({
+            "question": question,
+            "model": self.manifest.model,
+            "sources": self.manifest.sources,
+            "as_of": self.manifest.as_of,
+            "manifest": self.manifest,
+            "retrieval_policy": GUIDED_RETRIEVAL_VERSION,
+            "top_k": config.top_k,
+            "requested_top_k": requested_top_k,
+            "guided_selection": {
+                "applied": decision.applied,
+                "matches": matches,
+                "unknown": decision.unknown,
+                "exhaustive": exhaustive,
+                "estimated_context_tokens": outcome.estimated_context_tokens,
+                "omitted_sections": outcome.omitted.len(),
+                "config": config,
+            },
+            "hits": hits,
+        }))
+    }
+
     pub fn search_with_top_k(
         &mut self,
         question: &str,
@@ -250,14 +341,7 @@ impl Index {
     ) -> Result<SearchResult, String> {
         let question = validate_query(question)?;
         ranking::validate_top_k(top_k)?;
-        let mut embedded = self
-            .model
-            .embed([&question], None)
-            .map_err(|e| e.to_string())?;
-        if embedded.len() != 1 {
-            return Err("Expected one query embedding".into());
-        }
-        let query = embedded.remove(0);
+        let query = self.embed_query(&question)?;
         let scores = self
             .vectors
             .iter()
@@ -273,6 +357,17 @@ impl Index {
             manifest: self.manifest.clone(),
             top_k,
         })
+    }
+
+    fn embed_query(&mut self, question: &str) -> Result<Vec<f32>, String> {
+        let mut embedded = self
+            .model
+            .embed([question], None)
+            .map_err(|error| error.to_string())?;
+        if embedded.len() != 1 {
+            return Err("Expected one query embedding".into());
+        }
+        Ok(embedded.remove(0))
     }
 }
 
@@ -320,6 +415,78 @@ pub fn keyword_search(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn guided_demo_method_has_a_distinct_wire_identity() {
+        let method = serde_json::from_str::<DemoSearchMethod>(r#""guided""#).unwrap();
+        assert_eq!(method.id(), "guided");
+        assert_eq!(serde_json::to_value(method).unwrap(), "guided");
+        assert_eq!(DemoSearchMethod::default(), DemoSearchMethod::Dense);
+    }
+
+    #[test]
+    #[ignore = "requires the existing local MiniLM model cache"]
+    fn guided_demo_returns_complete_canonical_evidence_with_tested_seed_cap() {
+        let method = serde_json::from_str::<DemoSearchMethod>(r#""guided""#).unwrap();
+        let mut index = Index::load_for_corpus(corpus::CorpusId::DemoTwelve).unwrap();
+        let result = index
+            .search_for_method(
+                "Welke binnenactiviteiten zijn om 14.15 uur bezig? Noem ze allemaal met dag en locatie.",
+                6,
+                method,
+            )
+            .unwrap();
+        assert_eq!(result["retrieval_method"], "guided");
+        assert_eq!(result["retrieval_policy"], "guided-rag-v5");
+        assert_eq!(result["top_k"], 3);
+        assert_eq!(result["requested_top_k"], 6);
+        assert_eq!(result["guided_selection"]["exhaustive"], true);
+        assert_eq!(
+            result["guided_selection"]["matches"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4
+        );
+        let hits = result["hits"].as_array().unwrap();
+        assert_eq!(hits.len(), 8);
+        for hit in hits {
+            assert!(
+                index
+                    .sections
+                    .iter()
+                    .any(|section| { serde_json::to_value(section).unwrap() == hit["section"] })
+            );
+        }
+        assert!(result.get("candidates").is_none());
+        assert!(index.search_for_method("Tuinieren", 0, method).is_err());
+
+        let truncated = index
+            .search_for_method(
+                "Welke binnenactiviteiten zijn er? Noem ze allemaal met hun dag, tijd, locatie, kosten, materialen en wat je daar doet.",
+                1,
+                method,
+            )
+            .unwrap();
+        assert_eq!(truncated["top_k"], 1);
+        assert_eq!(truncated["guided_selection"]["exhaustive"], false);
+        assert!(
+            truncated["guided_selection"]["omitted_sections"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        let delivered = truncated["hits"].as_array().unwrap();
+        for source_id in truncated["guided_selection"]["matches"].as_array().unwrap() {
+            assert_eq!(
+                delivered
+                    .iter()
+                    .filter(|hit| hit["section"]["source_id"] == *source_id)
+                    .count(),
+                4
+            );
+        }
+    }
+
     #[test]
     fn ordinary_bm25_keeps_whole_sections_and_unbounded_lexical_scores() {
         let sources = corpus::CorpusId::ExpandedTen.sources().unwrap();

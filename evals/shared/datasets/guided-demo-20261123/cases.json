@@ -1,0 +1,289 @@
+{
+  "schema": "guided-demo-holdout-v1",
+  "corpus": "demo-twelve",
+  "corpusSha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+  "sources": [
+    {
+      "path": "fixtures/document.md",
+      "sha256": "bca80ca505327a9d8882bc24da8643722c909b4a4a53d5b2dd7ab1affa9d6434"
+    },
+    {
+      "path": "fixtures/bicycle-workshop.md",
+      "sha256": "325779cb17203fe2a8966e405c7e6671837a08a8cd74b12e0401f0492d233024"
+    },
+    {
+      "path": "fixtures/language-cafe.md",
+      "sha256": "18b7b85dec63666b1744c1ba0f1ad549fa6304c68c8ad184a13c2be7347910ef"
+    },
+    {
+      "path": "fixtures/community-cooking.md",
+      "sha256": "3aacb079e7201f131bfc6e1134e113c4d0003bb4eed8167958e60c6b639fe053"
+    },
+    {
+      "path": "fixtures/walking.md",
+      "sha256": "f65335bb91b8fc17b68836916619dbaa459837c29c3396e47d658069376bd691"
+    },
+    {
+      "path": "fixtures/expanded-10-20261105/activity-006.md",
+      "sha256": "002c356af337ded8eba62d259cb6665883d6e9c746116ed6a72287ee0f190a59"
+    },
+    {
+      "path": "fixtures/expanded-10-20261105/activity-007.md",
+      "sha256": "6c49659f9565ea9dae1dcd3e69f4ec2c0b83e5b6c548e40d461aef679c07bc7e"
+    },
+    {
+      "path": "fixtures/expanded-10-20261105/activity-008.md",
+      "sha256": "4eeaf24cb354eb656aba62f3f742d9f8311bf27292b841dc6004cf6f671da1bc"
+    },
+    {
+      "path": "fixtures/expanded-10-20261105/activity-009.md",
+      "sha256": "31579b0f991527fd449e5b42e5b289efb310b50862f34396d826fb202c68bc58"
+    },
+    {
+      "path": "fixtures/expanded-10-20261105/activity-010.md",
+      "sha256": "68164374faa434214843ec59ed7cde6fd01c199c2066f730116b6786829de142"
+    },
+    {
+      "path": "fixtures/demo-12-20261113/activity-011.md",
+      "sha256": "1dcfabc4d81092a377167a9bb37fd59b7fcca91582339a6c8cd6566e2bfce9d5"
+    },
+    {
+      "path": "fixtures/demo-12-20261113/activity-012.md",
+      "sha256": "1386cc26897a9dccb0ca719d8a860ad0c3f1c59543e1ce84560d4b846d0f7bce"
+    }
+  ],
+  "cases": [
+    {
+      "id": "GUIDED-DEMO-01",
+      "theme": "broad intake",
+      "question": "Monday is the only day I have time to join an activity. What would I practise there, and what are the Monday hours and meeting place?",
+      "followups": [
+        "Monday activity: what to practise, hours and meeting place."
+      ],
+      "alternatives": [
+        [
+          "ACT-DIGI-010:S1",
+          "ACT-DIGI-010:S2",
+          "ACT-DIGI-010:S3"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-02",
+      "theme": "narrow intake and assistance",
+      "question": "Op vrijdagochtend wil ik buiten meehelpen met planten verzorgen. Waar en hoe laat kan dat, en kan ik bij die activiteit tussendoor pauzeren?",
+      "followups": [
+        "Vrijdagochtend planten verzorgen buiten: tijd, plek en tussendoor pauzeren."
+      ],
+      "alternatives": [
+        [
+          "ACT-PARK-007:S1",
+          "ACT-PARK-007:S2",
+          "ACT-PARK-007:S3",
+          "ACT-PARK-007:S4"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-03",
+      "theme": "exact start and nearby exclusion",
+      "question": "Van Fietsen opknappen en Creatief atelier wil ik weten welke activiteit dinsdag exact om 14.00 uur begint. Geef de locatie en eindtijd van de match en zeg hoe laat de andere begint.",
+      "followups": [
+        "Fietsen opknappen dinsdag: begintijd, eindtijd en locatie.",
+        "Creatief atelier dinsdag: hoe laat begint het?"
+      ],
+      "alternatives": [
+        [
+          "ACT-FIETS-002:S2",
+          "ACT-FIETS-002:S3",
+          "ACT-MAAK-006:S2"
+        ]
+      ],
+      "firstGuided": {
+        "matches": [
+          "ACT-FIETS-002"
+        ],
+        "unknown": [],
+        "exhaustive": true
+      }
+    },
+    {
+      "id": "GUIDED-DEMO-04",
+      "theme": "active at a time",
+      "question": "Which of Fietsen opknappen and Creatief atelier are underway at 14:30 on Tuesday? For every match, give the full hours and meeting place.",
+      "followups": [
+        "Fietsen opknappen at 14:30 Tuesday: full hours and meeting place.",
+        "Creatief atelier at 14:30 Tuesday: full hours and meeting place."
+      ],
+      "alternatives": [
+        [
+          "ACT-FIETS-002:S2",
+          "ACT-FIETS-002:S3",
+          "ACT-MAAK-006:S2",
+          "ACT-MAAK-006:S3"
+        ]
+      ],
+      "firstGuided": {
+        "matches": [
+          "ACT-FIETS-002",
+          "ACT-MAAK-006"
+        ],
+        "unknown": [],
+        "exhaustive": true
+      }
+    },
+    {
+      "id": "GUIDED-DEMO-05",
+      "theme": "complete list of four",
+      "question": "Welke gratis binnenactiviteiten zijn om 14.50 uur nog bezig? Geef een volledig overzicht met per activiteit de weekdag, eindtijd en het adres.",
+      "followups": [
+        "Alle gratis binnenactiviteiten die om 14.50 uur bezig zijn: weekdag, eindtijd en adres per activiteit."
+      ],
+      "alternatives": [
+        [
+          "ACT-FIETS-002:S2",
+          "ACT-FIETS-002:S3",
+          "ACT-FIETS-002:S5",
+          "ACT-TAAL-003:S2",
+          "ACT-TAAL-003:S3",
+          "ACT-TAAL-003:S5",
+          "ACT-MAAK-006:S2",
+          "ACT-MAAK-006:S3",
+          "ACT-MAAK-006:S5",
+          "ACT-NAAI-012:S2",
+          "ACT-NAAI-012:S3",
+          "ACT-NAAI-012:S5"
+        ]
+      ],
+      "firstGuided": {
+        "matches": [
+          "ACT-FIETS-002",
+          "ACT-TAAL-003",
+          "ACT-MAAK-006",
+          "ACT-NAAI-012"
+        ],
+        "unknown": [],
+        "exhaustive": true
+      }
+    },
+    {
+      "id": "GUIDED-DEMO-06",
+      "theme": "three named topics and assistance",
+      "question": "Compare Muziekgroep, Schaken and Samen koken. For each, tell me the weekly hours, the room or address, and who guides a beginner.",
+      "followups": [
+        "Schaken and Samen koken: weekly hours, room or address, and who guides a beginner.",
+        "Muziekgroep: weekly hours, room or address, and who guides a beginner."
+      ],
+      "alternatives": [
+        [
+          "ACT-MUZIEK-009:S2",
+          "ACT-MUZIEK-009:S3",
+          "ACT-MUZIEK-009:S4",
+          "ACT-SCHAAK-011:S2",
+          "ACT-SCHAAK-011:S3",
+          "ACT-SCHAAK-011:S4",
+          "ACT-KOKEN-004:S2",
+          "ACT-KOKEN-004:S3",
+          "ACT-KOKEN-004:S4"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-07",
+      "theme": "unknown sound and dated capacity",
+      "question": "At Muziekgroep, may I start by listening, and does the description say how loud the room is or guarantee a free spot?",
+      "followups": [
+        "Muziekgroep: start by listening, sound level, guaranteed free spot."
+      ],
+      "alternatives": [
+        [
+          "ACT-MUZIEK-009:S1",
+          "ACT-MUZIEK-009:S5",
+          "ACT-MUZIEK-009:S6"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-08",
+      "theme": "dated availability comparison",
+      "question": "De bron van Naaicafé is van 13 november. Wanneer stond daar één vrije plek vermeld, en is dat op 13 november opnieuw nagekeken? Controleer ook de oude melding van één plek bij Digitale hulp.",
+      "followups": [
+        "Naaicafé: datum van één vrije plek en nieuwe controle op 13 november.",
+        "Digitale hulp: oude datum en melding van één vrije plek."
+      ],
+      "alternatives": [
+        [
+          "ACT-NAAI-012:S6",
+          "ACT-DIGI-010:S6"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-09",
+      "theme": "positive precise location and material",
+      "question": "Waar ligt de schaakruimte precies en moet ik een bord of stukken regelen? Ik kan trappen slecht op lopen.",
+      "followups": [
+        "Schaken: precieze plek van de ruimte, trap, bord en stukken."
+      ],
+      "alternatives": [
+        [
+          "ACT-SCHAAK-011:S3",
+          "ACT-SCHAAK-011:S5"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-10",
+      "theme": "language exclusion and equipment",
+      "question": "Bij de Buurtbibliotheek: kan ik Nederlands leren en met weinig Nederlands voorlezen, wie legt de taken uit en moet ik iets meenemen?",
+      "followups": [
+        "Buurtbibliotheek: Nederlands leren, voorlezen met weinig Nederlands, uitleg en zelf iets meenemen."
+      ],
+      "alternatives": [
+        [
+          "ACT-BIEB-008:S1",
+          "ACT-BIEB-008:S4",
+          "ACT-BIEB-008:S5"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-11",
+      "theme": "one activity with two evidence alternatives",
+      "question": "Ik kan op dinsdag en wil vóór 17.00 uur binnen met mijn handen iets maken of opknappen. Noem één optie met wat ik er doe, plaats, tijd en benodigd materiaal.",
+      "followups": [
+        "Dinsdag binnen vóór 17.00 iets maken of opknappen: één optie met taak, plaats, tijd en materiaal."
+      ],
+      "alternatives": [
+        [
+          "ACT-MAAK-006:S1",
+          "ACT-MAAK-006:S2",
+          "ACT-MAAK-006:S3",
+          "ACT-MAAK-006:S5"
+        ],
+        [
+          "ACT-FIETS-002:S1",
+          "ACT-FIETS-002:S2",
+          "ACT-FIETS-002:S3",
+          "ACT-FIETS-002:S5"
+        ]
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-12",
+      "theme": "exclusion despite shared park",
+      "question": "Between Wandelen and Parkonderhoud, which one can I actually join on Friday at 10:15? Tell me the meeting point for the match and why the other does not meet the time.",
+      "followups": [
+        "Parkonderhoud on Friday at 10:15: hours and meeting point.",
+        "Wandelen: why does it not meet the Friday 10:15 time?"
+      ],
+      "alternatives": [
+        [
+          "ACT-PARK-007:S2",
+          "ACT-PARK-007:S3",
+          "ACT-WANDEL-005:S2"
+        ]
+      ]
+    }
+  ]
+}

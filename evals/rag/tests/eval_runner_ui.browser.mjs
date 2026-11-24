@@ -88,6 +88,8 @@ test('public or missing execution permission stays read-only while historical re
       const {page} = flow;
       const card = page.locator('#eval-garden-time-location'); await card.waitFor(); await card.locator('summary').first().click();
       await page.locator('#eval-catalog-status').getByText('Zoektests kun je alleen lokaal starten.', {exact: true}).waitFor();
+      assert.equal(await page.getByRole('link', {name: 'Benchmark', exact: true}).count(), 0);
+      assert.equal(await card.locator('.eval-benchmark').isVisible(), false);
       assert.equal(await card.locator('.eval-start').isDisabled(), true);
       assert.equal(await card.locator('.eval-stop').isDisabled(), true);
       await card.getByLabel('Zoekmethode').selectOption('bm25');
@@ -119,6 +121,13 @@ test('a stale stop handler cannot cancel after execution permission is withdrawn
     assert.equal(flow.cancelled, false);
     assert.deepEqual(flow.mutations, ['POST /api/session', 'POST /api/evals/rag/runs']);
   } finally { await flow.page.close(); }
+});
+test('Benchmark navigation stays hidden without catalog approval', async () => {
+  const page = await browser.newPage({javaScriptEnabled: false});
+  try {
+    await page.goto(base + '/resultaten/');
+    assert.equal(await page.getByRole('link', {name: 'Benchmark', exact: true}).count(), 0);
+  } finally { await page.close(); }
 });
 test('three collapsed tests only run on click and retain results after reopening', async () => {
   const flow = await fixture(); const { page, starts } = flow;
@@ -163,6 +172,12 @@ test('quality catalog renders eleven canonical quality questions and T05 without
     assert.deepEqual(await flow.page.locator('.eval-card-title').allTextContents(),visible.map(item=>item.question));
     assert.equal(await flow.page.locator('.search-eval-card[open]').count(),0);
     assert.equal(await flow.page.locator('.eval-benchmark').count(),12);
+    const benchmarkNav = flow.page.getByRole('link', {name: 'Benchmark', exact: true});
+    assert.equal(await benchmarkNav.getAttribute('href'), '/benchmark/');
+    await flow.page.getByRole('link', {name: 'Evals', exact: true}).focus();
+    await flow.page.keyboard.press('Tab');
+    assert.equal(await benchmarkNav.evaluate(link => link === document.activeElement), true);
+    assert.equal(await flow.page.locator('#eval-quality-10 .eval-benchmark').isEnabled(), true);
     assert.equal(await flow.page.getByRole('region',{name:'Zoektests',exact:true}).count(),1);
     assert.deepEqual(flow.mutations,[]);
     const card=flow.page.locator('#eval-quality-10');await card.locator('summary').first().click();

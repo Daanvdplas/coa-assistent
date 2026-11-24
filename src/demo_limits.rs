@@ -6,6 +6,8 @@ use std::{
     time::{Duration, Instant},
 };
 const QUESTION_WINDOW: Duration = Duration::from_secs(3600);
+const MAX_QUESTIONS_PER_IP: usize = 10;
+const MAX_DEMO_QUESTIONS: usize = 100;
 const SESSION_WINDOW: Duration = Duration::from_secs(600);
 const COOLDOWN: Duration = Duration::from_secs(5);
 const MAX_CLIENTS: usize = 4096;
@@ -38,9 +40,12 @@ struct Visitor {
 #[derive(Default)]
 pub struct DemoLimits {
     visitors: HashMap<IpAddr, Visitor>,
+    demo_questions: VecDeque<Instant>,
 }
 impl DemoLimits {
     fn cleanup(&mut self, now: Instant) {
+        self.demo_questions
+            .retain(|at| now.duration_since(*at) < QUESTION_WINDOW);
         self.visitors.retain(|_, visitor| {
             visitor
                 .questions
@@ -69,16 +74,26 @@ impl DemoLimits {
     }
     pub fn check_run(&mut self, ip: IpAddr, session: &str, now: Instant) -> Result<(), Blocked> {
         self.check_capacity(ip, now)?;
-        if let Some(visitor) = self.visitors.get(&ip) {
-            if visitor.questions.len() >= 10 {
-                let remaining =
-                    QUESTION_WINDOW.saturating_sub(now.duration_since(visitor.questions[0]));
-                return Err(Blocked::until(
-                    "rate_limit",
-                    "Je kunt maximaal tien vragen per uur stellen. Wacht even voordat je opnieuw probeert.",
-                    remaining,
-                ));
-            }
+        let visitor = self.visitors.get(&ip);
+        // The demo queue includes every question from this IP, so its first
+        // question expires at or before the first question from this IP.
+        if let Some(visitor) = visitor
+            && visitor.questions.len() >= MAX_QUESTIONS_PER_IP
+        {
+            return Err(Blocked::until(
+                "ip_rate_limit",
+                "Vanaf jouw netwerk zijn net veel vragen gesteld. Probeer het later nog eens.",
+                QUESTION_WINDOW.saturating_sub(now.duration_since(visitor.questions[0])),
+            ));
+        }
+        if self.demo_questions.len() >= MAX_DEMO_QUESTIONS {
+            return Err(Blocked::until(
+                "demo_rate_limit",
+                "Het is even druk bij de demo. Probeer het later nog eens.",
+                QUESTION_WINDOW.saturating_sub(now.duration_since(self.demo_questions[0])),
+            ));
+        }
+        if let Some(visitor) = visitor {
             if let Some(at) = visitor.last_question.get(session) {
                 return Err(Blocked::until(
                     "session_cooldown",
@@ -97,6 +112,7 @@ impl DemoLimits {
         Ok(())
     }
     pub fn record_run(&mut self, ip: IpAddr, session: &str, now: Instant) -> Arc<()> {
+        self.demo_questions.push_back(now);
         let visitor = self.visitors.entry(ip).or_default();
         // The run task owns the permit, so completion or cancellation releases it.
         let permit = Arc::new(());
@@ -162,12 +178,57 @@ mod tests {
             limits.record_run(ip(), &session, now);
         }
         let blocked = limits.check_run(ip(), "new-session", now).unwrap_err();
-        assert_eq!(blocked.code, "rate_limit");
+        assert_eq!(blocked.code, "ip_rate_limit");
         assert_eq!(blocked.retry_after_seconds, 3600);
         assert_eq!(
             limits.check_run(ip(), "new-session", now + Duration::from_secs(3600)),
             Ok(())
         );
+    }
+    #[test]
+    fn demo_wide_quota_releases_one_slot_at_a_time_as_questions_expire() {
+        let mut limits = DemoLimits::default();
+        let now = Instant::now();
+        let later = now + Duration::from_secs(10);
+        for n in 1..=100 {
+            let address = IpAddr::from([192, 0, 2, n]);
+            let at = if n == 1 { now } else { later };
+            assert_eq!(limits.check_run(address, "one", at), Ok(()));
+            limits.record_run(address, "one", at);
+        }
+        let next = IpAddr::from([192, 0, 2, 101]);
+        let expiry = now + Duration::from_secs(3600);
+        let blocked = limits
+            .check_run(next, "one", expiry - Duration::from_millis(100))
+            .unwrap_err();
+        assert_eq!(blocked.code, "demo_rate_limit");
+        assert_eq!(blocked.retry_after_seconds, 1);
+        assert_eq!(limits.check_run(next, "one", expiry), Ok(()));
+        limits.record_run(next, "one", expiry);
+        let blocked = limits.check_run(ip(), "two", expiry).unwrap_err();
+        assert_eq!(blocked.code, "demo_rate_limit");
+        assert_eq!(blocked.retry_after_seconds, 10);
+    }
+    #[test]
+    fn overlapping_quotas_report_the_later_expiry_and_prefer_the_ip_on_ties() {
+        let now = Instant::now();
+        for (ip_delay, expected_wait) in [(7, 3597), (0, 3590)] {
+            let mut limits = DemoLimits::default();
+            let mut questions = vec![(ip_delay, ip()); 10];
+            questions.extend((2..=91).map(|n| (0, IpAddr::from([192, 0, 2, n]))));
+            questions.sort_unstable();
+            for (index, (delay, address)) in questions.into_iter().enumerate() {
+                let session = format!("session-{index}");
+                let at = now + Duration::from_secs(delay);
+                assert_eq!(limits.check_run(address, &session, at), Ok(()));
+                limits.record_run(address, &session, at);
+            }
+            let blocked = limits
+                .check_run(ip(), "next", now + Duration::from_secs(10))
+                .unwrap_err();
+            assert_eq!(blocked.code, "ip_rate_limit");
+            assert_eq!(blocked.retry_after_seconds, expected_wait);
+        }
     }
     #[test]
     fn same_session_has_a_five_second_cooldown_but_another_visitor_can_start() {
@@ -233,16 +294,22 @@ mod tests {
     fn full_memory_does_not_evict_existing_quota_and_expires_after_the_window() {
         let now = Instant::now();
         let mut limits = DemoLimits::default();
-        for n in 0..MAX_CLIENTS {
+        for n in 1..MAX_CLIENTS {
             let address = IpAddr::V4(std::net::Ipv4Addr::from(n as u32));
-            limits.record_run(address, "one", now);
+            limits.record_session(address, now);
         }
         let original = IpAddr::V4(std::net::Ipv4Addr::from(0));
-        for _ in 1..10 {
+        for _ in 0..10 {
             limits.record_run(original, "one", now);
         }
-        assert!(limits.check_run(ip(), "new", now).is_err());
-        assert!(limits.check_run(original, "new", now).is_err());
+        assert_eq!(
+            limits.check_run(ip(), "new", now).unwrap_err().code,
+            "rate_limit"
+        );
+        assert_eq!(
+            limits.check_run(original, "new", now).unwrap_err().code,
+            "ip_rate_limit"
+        );
         assert_eq!(
             limits.check_run(ip(), "new", now + Duration::from_secs(3600)),
             Ok(())

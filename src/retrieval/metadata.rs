@@ -168,7 +168,7 @@ fn clock_minutes(value: &str) -> Option<u16> {
     (hours <= 24 && minutes < 60 && (hours != 24 || minutes == 0)).then_some(hours * 60 + minutes)
 }
 
-fn explicit_environment(sentence: &str) -> Option<Environment> {
+pub(super) fn explicit_environment(sentence: &str) -> Option<Environment> {
     let sentence = sentence.trim().to_lowercase();
     // A controlled statement grammar, not general Dutch interpretation: "binnen"
     // can also mean "within", and arbitrary tails can add conditions or exceptions.

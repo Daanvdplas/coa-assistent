@@ -10,7 +10,7 @@ The explanation page embeds the Dutch and English architecture diagram. Its edit
 flowchart LR
     Browser --> Web["Rust web server"]
     Web --> Rig["Rig / OpenAI Responses API"]
-    Rig --> Search["Local Index: MiniLM or BM25"]
+    Rig --> Search["Local Index: Dense, BM25 or Guided"]
     Web --> Results["Saved evaluation projections"]
     Web --> LocalJob["Local promptfoo retrieval job"]
     Web -. "optional" .-> Traces["Private SQLite trace store"]
@@ -44,7 +44,7 @@ Hosting adds a separate route allowlist; the local evaluation worker is not a su
 
 ## Trace one question
 
-[`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question, `answer_language` (`nl`/`en`, default `nl`) and `retrieval_method` (`dense`/`bm25`, default `dense`) before starting background work. Invalid enum values return HTTP 422. Later selector changes apply only to new questions; replay retains the original context.
+[`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question, `answer_language` (`nl`/`en`, default `nl`) and `retrieval_method` (`dense`/`bm25`/`guided`, default `dense`) before starting background work. Invalid enum values return HTTP 422. The twelve-activity demo offers `guided` only when the server starts with `COA_DEMO_GUIDED_RAG=1`. A request for disabled Guided search returns HTTP 400 before run admission. Selector changes apply to new questions. Replay uses the original method and source context, including the Guided policy version.
 
 [`ResponsesRunner::run`](../src/responses.rs) delegates model/tool steps to Rig in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). The agent registers only the typed `SearchTool`, native structured-answer schema and `RunPolicy` hooks. Rig owns the agent loop; COA does not run a second competing loop.
 
@@ -91,6 +91,8 @@ The local quantized multilingual MiniLM model uses fastembed 7.1.2, 384 dimensio
 
 `dense` ranks by cosine similarity. BM25 uses title, heading and full section text, Unicode words, k1=1.2, b=0.75 and no stemming. A BM25 query does not embed its text; the shared website index still loads MiniLM on startup to retain the established index identity. Dense hits expose `similarity`, BM25 hits `bm25_score`; neither is a probability or calibrated no-match threshold. The runner rejects mixed or unexpected methods and publishes the actual method only after validation.
 
+Guided search combines MiniLM and BM25 with a vector weight of 0.7. It ranks with a candidate limit of 30 and up to three starting sections, then expands within activities. Supported constraints can select whole source passages across the corpus. Each search uses a ceiling of 1,200 estimated section tokens. The policy version is checked against each completed Guided search before storing its run.
+
 The retrieval lab additionally offers RRF/weighted hybrid methods and document/SQLite profiles. Both stores feed the same canonical sections and exact f32 vectors to the same Rust scorer; SQLite is a storage/cache comparison, not a separate SQL vector or FTS ranker. Activity expansion adds whole related sections under a context ceiling. Typed user filters cannot come from expectations or case IDs; unknown source fields remain unknown. [Retrieval procedures and metrics](../evals/rag/docs/retrieval-lab.md) give the full contract.
 
 ## Sessions, concurrency and network limits
@@ -99,7 +101,7 @@ A semaphore allows ten active model questions; the eleventh gets HTTP 429 withou
 
 Sessions expire 30 minutes after creation or the latest started question. API access performs cleanup; pending runs are protected and polling does not extend the lifetime. Capacity eviction removes only inactive sessions/completed runs after input validation. Dynamic API responses, including errors/reports, use `Cache-Control: no-store`. Restart removes application RAM, not swap, downloads or provider copies.
 
-[`DemoLimits`](../src/demo_limits.rs) limits each network address to ten started model questions/hour and thirty new sessions/ten minutes, plus five seconds between starts in one session. Start and replay share the limit; new tabs/sessions do not reset the address counter. Rejections start no model attempt and include HTTP 429 plus `Retry-After` where a remaining wait is known. Capacity rejection has no predicted wait.
+[`DemoLimits`](../src/demo_limits.rs) allows ten started questions per network address and one hundred across the demo in a rolling hour. Starts and replays share both counters across sessions. If both quotas apply, the network quota determines the wait. Hourly rejections return HTTP 429, the code `ip_rate_limit` or `demo_rate_limit`, and the wait in both `Retry-After` and `retry_after_seconds`. Session creation has its own limit of thirty per network address in ten minutes. Questions started in the same session must be at least five seconds apart. A concurrent capacity rejection has no predicted wait.
 
 Identity comes from the TCP peer, normalizing IPv4-mapped IPv6 and IPv6 to /64. `X-Forwarded-For` is ignored. Only an exact `COA_TRUSTED_PROXY_IP` peer may supply a single valid `X-Real-IP`; missing/invalid values are refused. The proxy must overwrite the header. Counters hold at most 4096 addresses in RAM, are not written to run records/reports/logs, and expire on subsequent checks or restart. A full table refuses a new address. Shared wifi shares limits; this is neither user identity nor an account-wide spending cap.
 

@@ -15,11 +15,21 @@
   const errorCodes = {
     capacity: "capacityFull",
     rate_limit: "rateLimited",
+    ip_rate_limit: "ipRateLimited",
+    demo_rate_limit: "demoRateLimited",
     session_cooldown: "sessionCooldown",
     visitor_busy: "visitorBusy",
     session_limit: "sessionLimited",
   };
-  function requestError(key) { return Object.assign(new Error(key), { code: key }); }
+  function requestError(key, retryAt) { return Object.assign(new Error(key), { code: key, retryAt }); }
+  function retryDeadline(response, data) {
+    if (response.status !== 429) return;
+    const header = response.headers.get("Retry-After") || "";
+    const seconds = Number.isSafeInteger(data.retry_after_seconds) && data.retry_after_seconds > 0
+      ? data.retry_after_seconds
+      : /^\d+$/.test(header) ? Number(header) : 0;
+    if (Number.isSafeInteger(seconds) && seconds > 0) return Date.now() + seconds * 1000;
+  }
   async function api(path, body) {
     let response;
     try {
@@ -31,22 +41,35 @@
     } catch { throw requestError("networkFailed"); }
     let data;
     try { data = await response.json(); } catch { throw requestError("requestFailed"); }
-    if (!response.ok) throw requestError(errorCodes[data.code] || errorKeys[data.error] || "requestFailed");
+    if (!response.ok) {
+      throw requestError(errorCodes[data.code] || errorKeys[data.error] || "requestFailed", retryDeadline(response, data));
+    }
     return data;
   }
   function setBusy(value) {
     busy = value;
     document.querySelectorAll(".run-control").forEach(item => { item.disabled = value; });
   }
+  function statusMessage({ key, reason, retryAt }) {
+    if (key !== "ipRateLimited" && key !== "demoRateLimited") {
+      return t(key, reason ? { reason: t(reason) } : {});
+    }
+    const seconds = Math.ceil((retryAt - Date.now()) / 1000);
+    if (!(seconds > 0)) return t(key + "UnknownWait");
+    const unit = seconds >= 60 ? "minute" : "second";
+    const amount = unit === "minute" ? Math.ceil(seconds / 60) : seconds;
+    const wait = new Intl.NumberFormat(language(), { style: "unit", unit, unitDisplay: "long" }).format(amount);
+    return t(key, { wait });
+  }
   function renderStatus() {
     const parts = [];
     if (source.model_configuration?.offline_mock) parts.push(t("offlineTest"));
-    if (status) parts.push(t(status.key, status.reason ? { reason: t(status.reason) } : {}));
+    if (status) parts.push(statusMessage(status));
     el("status").textContent = parts.join(" ");
     el("status").className = status?.error ? "error" : "";
   }
-  function message(key, error = false, reason) {
-    status = key ? { key, error, reason } : null;
+  function message(key, error = false, { reason, retryAt } = {}) {
+    status = key ? { key, error, reason, retryAt } : null;
     renderStatus();
   }
   function node(tag, text, className) {
@@ -219,7 +242,7 @@
       }
       showRun(run);
       message(run.status === "failed" ? "failedStatus" : null, run.status === "failed");
-    } catch (error) { message(error.code || "requestFailed", true); }
+    } catch (error) { message(error.code || "requestFailed", true, { retryAt: error.retryAt }); }
     finally { if (version === pollVersion) setBusy(false); }
   }
   async function begin() {
@@ -232,7 +255,7 @@
       await watch(run);
     } catch (error) {
       setBusy(false);
-      message(error.code || "requestFailed", true);
+      message(error.code || "requestFailed", true, { retryAt: error.retryAt });
     }
   }
   el("form").addEventListener("submit", event => { event.preventDefault(); begin(); });
@@ -262,6 +285,12 @@
     setBusy(true);
     try {
       source = await api("/api/source");
+      if (source.guided_retrieval_available === true) {
+        const option = node("option", t("methodGuided"));
+        option.value = "guided";
+        option.dataset.i18n = "methodGuided";
+        el("retrieval-method").append(option);
+      }
       source.sources.forEach(doc => {
         const trigger = node("button", sourceTitle(doc.id), "source-document");
         trigger.type = "button";
@@ -293,7 +322,7 @@
         await watch(pending);
       } else if (!source.runtime_ready) message("runtimeUnavailable", true);
     } catch (error) {
-      message("loadFailed", true, error.code || "requestFailed");
+      message("loadFailed", true, { reason: error.code || "requestFailed" });
       setBusy(false);
     }
   })();

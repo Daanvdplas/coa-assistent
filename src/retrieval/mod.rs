@@ -1,12 +1,14 @@
 //! Storage-independent retrieval over canonical, source-backed sections.
 mod config;
 mod engine;
+mod intake;
 mod metadata;
 #[cfg(test)]
 mod tests;
 
 pub use config::*;
 pub use engine::*;
+pub(crate) use intake::apply_intake_policy;
 pub use metadata::*;
 
 use crate::Section;

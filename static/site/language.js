@@ -37,6 +37,7 @@
     retrievalMethod: ["Zoekmethode", "Search method"],
     methodDense: ["Op betekenis", "By meaning"],
     methodBm25: ["Op woorden", "By words"],
+    methodGuided: ["Gericht zoeken", "Guided search"],
     submit: ["Zoek een antwoord", "Find an answer"],
     resultLabel: ["Uitvoering en antwoord", "Run and answer"],
     answer: ["Het antwoord", "The answer"],
@@ -64,6 +65,22 @@
     runBusy: ["Jouw vorige vraag wordt nog verwerkt. Wacht tot die klaar is.", "Your previous question is still being processed. Please wait for it to finish."],
     capacityFull: ["Er worden al tien vragen verwerkt. Probeer het over een moment opnieuw.", "Ten questions are already being processed. Please try again in a moment."],
     rateLimited: ["Je hebt de limiet voor vragen bereikt. Wacht even en probeer het later opnieuw.", "You have reached the question limit. Please wait and try again later."],
+    ipRateLimited: [
+      "Vanaf jouw netwerk zijn net veel vragen gesteld. Je kunt over {wait} weer verder.",
+      "There have been several questions from your network. You can try again in {wait}."
+    ],
+    ipRateLimitedUnknownWait: [
+      "Vanaf jouw netwerk zijn net veel vragen gesteld. Probeer het zo nog eens.",
+      "There have been several questions from your network. Try again in a moment."
+    ],
+    demoRateLimited: [
+      "Het is even druk bij de demo. Probeer het over {wait} nog eens.",
+      "The demo is busy right now. Try again in {wait}."
+    ],
+    demoRateLimitedUnknownWait: [
+      "Het is even druk bij de demo. Probeer het zo nog eens.",
+      "The demo is busy right now. Try again in a moment."
+    ],
     sessionCooldown: ["Wacht vijf seconden voordat je een nieuwe vraag stelt.", "Please wait five seconds before asking another question."],
     visitorBusy: ["Er wordt al een vraag verwerkt vanaf jouw netwerk. Probeer het zo opnieuw.", "A question from your network is already being processed. Please try again shortly."],
     sessionLimited: ["Je hebt te vaak opnieuw verbinding gemaakt. Wacht een paar minuten voordat je het opnieuw probeert.", "You have reconnected too often. Please wait a few minutes before trying again."],

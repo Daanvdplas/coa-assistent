@@ -14,7 +14,7 @@ use axum::{
     routing::{get, post},
 };
 use meedoen_retrieval::{
-    DemoSearchMethod, Index,
+    DemoSearchMethod, GUIDED_RETRIEVAL_VERSION, Index,
     codex::AnswerLanguage,
     demo_limits::{Blocked, DemoLimits, client_ip},
     responses::{ResponsesRunner, Search},
@@ -61,6 +61,7 @@ struct WebState {
     capacity: Arc<Semaphore>,
     runner_error: Option<String>,
     bundled_evaluations: bool,
+    guided_retrieval_available: bool,
     manifest: Value,
     sources: Value,
     configuration: Value,
@@ -123,7 +124,18 @@ fn locked(app: &App) -> Result<std::sync::MutexGuard<'_, RunStore>, ApiError> {
 fn context(app: &App, top_k: usize, language: AnswerLanguage, method: DemoSearchMethod) -> Value {
     let mut configuration = app.configuration.clone();
     configuration["prompt_version"] = json!("responses-activity-v1");
-    json!({"web_version":"activity-demo-responses-v1","answer_language":language,"retrieval_method":method,"sources":app.manifest["sources"],"as_of":app.manifest["as_of"],"retrieval_manifest":app.manifest,"model_configuration":configuration,"top_k":top_k})
+    let mut snapshot = json!({"web_version":"activity-demo-responses-v1","answer_language":language,"retrieval_method":method,"sources":app.manifest["sources"],"as_of":app.manifest["as_of"],"retrieval_manifest":app.manifest,"model_configuration":configuration,"top_k":top_k});
+    if method == DemoSearchMethod::Guided {
+        snapshot["retrieval_policy"] = json!(GUIDED_RETRIEVAL_VERSION);
+    }
+    snapshot
+}
+
+fn require_retrieval_method(app: &App, method: DemoSearchMethod) -> Result<(), ApiError> {
+    if method == DemoSearchMethod::Guided && !app.guided_retrieval_available {
+        return Err(error("Gericht zoeken is niet ingeschakeld."));
+    }
+    Ok(())
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -138,8 +150,8 @@ async fn new_session(
     Json(input): Json<SessionRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let ip = visitor_ip(&app, &headers, peer)?;
-    let now = Instant::now();
     let mut limits = limits_locked(&app)?;
+    let now = Instant::now();
     limits.check_session(ip, now).map_err(rate_error)?;
     let mut store = locked(&app)?;
     let id = store.session(&input.seen_question_ids).map_err(error)?;
@@ -173,16 +185,17 @@ fn start(
     language: AnswerLanguage,
     method: DemoSearchMethod,
 ) -> Result<Json<Value>, ApiError> {
+    require_retrieval_method(&app, method)?;
     let Visitor { ip, session } = visitor;
+    let snapshot = context(&app, top_k, language, method);
+    let mut limits = limits_locked(&app)?;
+    let now = Instant::now();
+    limits.check_run(ip, &session, now).map_err(rate_error)?;
     let permit = app.capacity.clone().try_acquire_owned().map_err(|_| ApiError {
         status: StatusCode::TOO_MANY_REQUESTS,
         body: json!({"error":"Er worden al tien vragen verwerkt. Probeer het straks opnieuw.","code":"capacity"}),
         retry_after: None,
     })?;
-    let snapshot = context(&app, top_k, language, method);
-    let now = Instant::now();
-    let mut limits = limits_locked(&app)?;
-    limits.check_run(ip, &session, now).map_err(rate_error)?;
     let (run, thread_id) = {
         let mut store = locked(&app)?;
         let thread_id = store.thread_id(&session).map_err(error)?;
@@ -214,13 +227,21 @@ fn start(
                 .await
                 .and_then(|result| {
                     let mut result = result;
-                    let actual = result["tool_calls"]
+                    let completed_calls = result["tool_calls"]
                         .as_array()
-                        .and_then(|calls| calls.iter().find(|call| call["status"] == "completed"))
-                        .map(|call| call["result"]["retrieval_method"].clone())
                         .ok_or("tool: Zoekmethode ontbreekt in het zoekresultaat")?;
+                    let mut completed_calls = completed_calls.iter().filter(|call| call["status"] == "completed");
+                    let first_call = completed_calls.next().ok_or("tool: Zoekmethode ontbreekt in het zoekresultaat")?;
+                    let actual = first_call["result"]["retrieval_method"].clone();
                     if actual != snapshot["retrieval_method"] {
                         return Err("tool: Zoekmethode verschilt van de vastgelegde methode.".into());
+                    }
+                    if method == DemoSearchMethod::Guided {
+                        let policy = &snapshot["retrieval_policy"];
+                        if std::iter::once(first_call).chain(completed_calls).any(|call| &call["result"]["retrieval_policy"] != policy) {
+                            return Err("tool: Zoekbeleid verschilt van het vastgelegde zoekbeleid.".into());
+                        }
+                        result["retrieval_policy"] = policy.clone();
                     }
                     result["retrieval_method"] = actual;
                     for key in ["sources", "as_of"] {
@@ -300,6 +321,7 @@ async fn replay(
         .unwrap_or(AnswerLanguage::Nl);
     let method = serde_json::from_value(original.context["retrieval_method"].clone())
         .unwrap_or(DemoSearchMethod::Dense);
+    require_retrieval_method(&app, method)?;
     let original = locked(&app)?
         .replay(
             &session,
@@ -518,7 +540,7 @@ fn router_with_benchmarks(app: App, benchmarks: Arc<benchmarks::Benchmarks>) -> 
  .route("/assets/promptfoo-results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/promptfoo-results.js"))}))
  .route("/assets/results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/results.js"))}))
  .route("/assets/results.json",get(||async{([(header::CONTENT_TYPE,"application/json; charset=utf-8")],include_str!("../evals/rag/site/results.json"))}))
- .route("/api/source",get({let app=app.clone();move||{let app=app.clone();async move{Json(json!({"sources":app.sources,"as_of":app.manifest["as_of"],"runtime_ready":app.runner.is_some(),"runtime_error":app.runner_error,"model_configuration":app.configuration}))}}}))
+ .route("/api/source",get({let app=app.clone();move||{let app=app.clone();async move{Json(json!({"sources":app.sources,"as_of":app.manifest["as_of"],"runtime_ready":app.runner.is_some(),"runtime_error":app.runner_error,"model_configuration":app.configuration,"guided_retrieval_available":app.guided_retrieval_available}))}}}))
  .route("/api/questions",get(||async{Json(serde_json::from_str::<Value>(include_str!("../evals/rag/datasets/garden/questions.json")).unwrap())}))
  .route("/api/session",post(new_session).get(summary)).route("/api/runs",post(run))
  .route("/api/runs/{id}",get(get_run)).route("/api/runs/{id}/replay",post(replay))
@@ -539,6 +561,8 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
         .transpose()
         .map_err(std::io::Error::other)?;
     let corpus = index.corpus();
+    let guided_retrieval_available = corpus == meedoen_retrieval::corpus::CorpusId::DemoTwelve
+        && std::env::var_os("COA_DEMO_GUIDED_RAG").is_some_and(|value| value == "1");
     let manifest = serde_json::to_value(index.manifest())?;
     let sources = serde_json::to_value(index.sources())?;
     let index = Mutex::new(index);
@@ -572,6 +596,7 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
         runner,
         runner_error,
         bundled_evaluations,
+        guided_retrieval_available,
         configuration,
         manifest,
         sources,
@@ -706,6 +731,7 @@ mod tests {
             runner: None,
             runner_error: None,
             bundled_evaluations: true,
+            guided_retrieval_available: false,
             manifest: json!({}),
             sources: json!([]),
             configuration: json!({}),
@@ -849,6 +875,92 @@ mod tests {
         let (status, body) = request_json(app, "POST", "/api/session", "", json!({})).await;
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(body["code"], "session_limit");
+    }
+    #[tokio::test]
+    async fn demo_quota_counts_accepted_questions_and_reports_the_same_wait_in_header_and_body() {
+        use tower::ServiceExt;
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
+        {
+            let mut limits = app.limits.lock().unwrap();
+            let now = Instant::now();
+            for address in 1..=99 {
+                limits.record_run(IpAddr::from([192, 0, 2, address]), "prior", now);
+            }
+        }
+        let (status, session) =
+            request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        let session = session["session_id"].as_str().unwrap();
+        let (status, _) = request_json(
+            app.clone(),
+            "POST",
+            "/api/runs",
+            session,
+            json!({"question":""}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, run) = request_json(
+            app.clone(),
+            "POST",
+            "/api/runs",
+            session,
+            json!({"question":"Which activities are available?"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{run}");
+        let id = run["id"].as_str().unwrap();
+        wait_for_unavailable_runtime(&app, session, id).await;
+        let (status, _) = request_json(
+            app.clone(),
+            "GET",
+            &format!("/api/runs/{id}"),
+            session,
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, next_session) =
+            request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        let _capacity = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            app.capacity.clone().acquire_many_owned(10),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let response = router(app)
+            .oneshot(
+                axum::http::Request::builder()
+                    .extension(ConnectInfo(SocketAddr::from(([203, 0, 113, 1], 43210))))
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header(
+                        "x-test-session",
+                        next_session["session_id"].as_str().unwrap(),
+                    )
+                    .body(axum::body::Body::from(
+                        json!({"question":"Which activities are indoors?"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        let retry_after = response.headers()[header::RETRY_AFTER]
+            .to_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+        let bytes = axum::body::to_bytes(response.into_body(), 8192)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], "demo_rate_limit");
+        assert_eq!(body["retry_after_seconds"], retry_after);
+        assert!((1..=3600).contains(&retry_after));
     }
     #[test]
     fn duplicate_proxy_headers_are_rejected_and_untrusted_headers_are_ignored() {
@@ -1000,6 +1112,7 @@ mod tests {
             }
             if i == 10 {
                 assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+                assert_eq!(run["code"], "capacity");
                 assert!(!run.to_string().contains(api_key));
             } else {
                 assert_eq!(status, StatusCode::OK);
@@ -1100,7 +1213,7 @@ mod tests {
             .await
             .unwrap();
         let body: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(body["code"], "rate_limit");
+        assert_eq!(body["code"], "ip_rate_limit");
         assert!(body["retry_after_seconds"].as_u64().unwrap() <= 3600);
         let (status, body) = request_json_from(
             app.clone(),
@@ -1112,7 +1225,7 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(body["code"], "rate_limit");
+        assert_eq!(body["code"], "ip_rate_limit");
         assert_eq!(
             requests.load(Ordering::SeqCst),
             20,
@@ -1564,6 +1677,145 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn guided_retrieval_requires_local_opt_in_before_recording_a_run() {
+        use tower::ServiceExt;
+        let app = Arc::new(WebState {
+            capacity: Arc::new(Semaphore::new(0)),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
+        });
+        let session = locked(&app).unwrap().session(&[]).unwrap();
+        let response = router(app.clone())
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/runs")
+                    .extension(ConnectInfo(
+                        "127.0.0.1:43210".parse::<SocketAddr>().unwrap(),
+                    ))
+                    .header("content-type", "application/json")
+                    .header("x-test-session", &session)
+                    .body(axum::body::Body::from(
+                        json!({"question":"Wanneer tuinieren?","retrieval_method":"guided"})
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["error"], "Gericht zoeken is niet ingeschakeld.");
+        assert!(
+            locked(&app).unwrap().summary(&session).unwrap()["runs"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let (status, source) = request_json(app, "GET", "/api/source", &session, json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(source["guided_retrieval_available"], false);
+    }
+
+    #[tokio::test]
+    async fn local_opt_in_advertises_guided_search_and_accepts_the_explicit_method() {
+        let app = Arc::new(WebState {
+            guided_retrieval_available: true,
+            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
+        });
+        let session = locked(&app).unwrap().session(&[]).unwrap();
+        let (status, source) =
+            request_json(app.clone(), "GET", "/api/source", &session, json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(source["guided_retrieval_available"], true);
+        let (status, run) = request_json(
+            app.clone(),
+            "POST",
+            "/api/runs",
+            &session,
+            json!({"question":"Wanneer tuinieren?","retrieval_method":"guided"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(run["context"]["retrieval_method"], "guided");
+        assert_eq!(run["context"]["retrieval_policy"], GUIDED_RETRIEVAL_VERSION);
+        wait_for_unavailable_runtime(&app, &session, run["id"].as_str().unwrap()).await;
+    }
+
+    #[tokio::test]
+    async fn disabled_guided_search_refuses_replay_before_admission() {
+        let search: Search = Arc::new(|_, _, _| panic!("disabled replay must not search"));
+        let runner = ResponsesRunner::new(
+            "coa-local-test-key".into(),
+            "http://127.0.0.1:1/v1/responses",
+            search,
+        )
+        .unwrap();
+        let app = Arc::new(WebState {
+            runner: Some(runner),
+            capacity: Arc::new(Semaphore::new(0)),
+            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
+        });
+        let (session, run) = {
+            let mut store = locked(&app).unwrap();
+            let session = store.session(&[]).unwrap();
+            let snapshot = context(&app, 3, AnswerLanguage::Nl, DemoSearchMethod::Guided);
+            let run = store
+                .begin(&session, "Wanneer tuinieren?", 3, snapshot, None)
+                .unwrap();
+            store
+                .complete(
+                    &session,
+                    &run.id,
+                    Err("synthetic runtime unavailable".into()),
+                )
+                .unwrap();
+            (session, run)
+        };
+        let (status, body) = request_json(
+            app,
+            "POST",
+            &format!("/api/runs/{}/replay", run.id),
+            &session,
+            json!({}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"], "Gericht zoeken is niet ingeschakeld.");
+    }
+
+    #[test]
+    fn guided_replay_is_bound_to_the_retrieval_policy_version() {
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve));
+        let method = serde_json::from_value(json!("guided")).unwrap();
+        let snapshot = context(&app, 3, AnswerLanguage::Nl, method);
+        assert_eq!(snapshot["retrieval_method"], "guided");
+        assert!(
+            snapshot["retrieval_policy"]
+                .as_str()
+                .is_some_and(|version| !version.is_empty())
+        );
+        let mut store = locked(&app).unwrap();
+        let session = store.session(&[]).unwrap();
+        let run = store
+            .begin(&session, "Wanneer tuinieren?", 3, snapshot.clone(), None)
+            .unwrap();
+        store
+            .complete(
+                &session,
+                &run.id,
+                Err("synthetic runtime unavailable".into()),
+            )
+            .unwrap();
+        assert!(store.replay(&session, &run.id, &snapshot).is_ok());
+        let mut changed = snapshot;
+        changed["retrieval_policy"] = json!("different-version");
+        assert!(store.replay(&session, &run.id, &changed).is_err());
     }
 
     #[tokio::test]
