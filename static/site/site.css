@@ -4,13 +4,13 @@
 
 /* COA palette and symbol: https://coa.nl/nl, checked 2026-11-16. */
 :root{--control-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='m2 4 4 4 4-4' fill='none' stroke='%23002D36' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
-select,.method-field select{appearance:none;background-image:var(--control-chevron);background-repeat:no-repeat;background-size:12px 12px;background-position:right 14px center;padding-inline-end:40px}
+select{appearance:none;background-image:var(--control-chevron);background-repeat:no-repeat;background-size:12px 12px;background-position:right 14px center;padding-inline-end:40px}
 .demo-nav .language-trigger::after{content:"";display:block;flex:0 0 12px;width:12px;height:12px;background:var(--control-chevron) center/12px 12px no-repeat}
 .demo-nav .language-options button[aria-pressed=true],.language-switch button[aria-pressed=true]{background:var(--accent-soft)}
 .activity[open]>summary,.test-question[open]>summary{color:var(--heading);background:var(--accent-soft)}
 .trial-table button[aria-expanded=true]{background:var(--accent-soft)}
 ::selection{background:var(--accent);color:var(--ink)}
-@media(forced-colors:active){select,.method-field select{appearance:auto;background-image:none}.demo-nav .language-trigger::after{background:none;border-right:1px solid ButtonText;border-bottom:1px solid ButtonText;width:7px;height:7px;flex-basis:7px;transform:rotate(45deg)}}
+@media(forced-colors:active){select{appearance:auto;background-image:none}.demo-nav .language-trigger::after{background:none;border-right:1px solid ButtonText;border-bottom:1px solid ButtonText;width:7px;height:7px;flex-basis:7px;transform:rotate(45deg)}}
 
 @media(max-width:650px){.results-controls{grid-template-columns:minmax(0,1fr);gap:6px}.results-controls select+label{margin-top:6px}}
 

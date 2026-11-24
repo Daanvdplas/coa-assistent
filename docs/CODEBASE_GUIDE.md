@@ -44,7 +44,7 @@ Hosting adds a separate route allowlist; the local evaluation worker is not a su
 
 ## Trace one question
 
-[`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question, `answer_language` (`nl`/`en`, default `nl`) and `retrieval_method` (`dense`/`bm25`/`guided`, default `dense`) before starting background work. Invalid enum values return HTTP 422. The twelve-activity demo offers `guided` only when the server starts with `COA_DEMO_GUIDED_RAG=1`. A request for disabled Guided search returns HTTP 400 before run admission. Selector changes apply to new questions. Replay uses the original method and source context, including the Guided policy version.
+[`demo.js`](../static/site/demo.js) creates a session, posts a question and polls its run. `POST /api/runs` captures the question and `answer_language` (`nl`/`en`, default `nl`) before starting background work. The server fixes every new run in the twelve-activity demo to Guided search. Older clients can still send the valid `retrieval_method` values. Other local corpora retain their Dense and BM25 request handling. Local replay uses the original method and source context, including the Guided policy version.
 
 [`ResponsesRunner::run`](../src/responses.rs) delegates model/tool steps to Rig in [`rig_runtime.rs`](../src/responses/rig_runtime.rs). The agent registers only the typed `SearchTool`, native structured-answer schema and `RunPolicy` hooks. Rig owns the agent loop; COA does not run a second competing loop.
 

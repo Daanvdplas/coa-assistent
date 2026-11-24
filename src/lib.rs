@@ -101,7 +101,7 @@ pub const AS_OF: &str = "2026-10-20";
 pub const DEFAULT_TOP_K: usize = 3;
 pub const GUIDED_RETRIEVAL_VERSION: &str = "guided-rag-v5";
 
-/// Search methods exposed by the demo, including opt-in Guided retrieval.
+/// Search methods used by the demo and evaluation runners.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DemoSearchMethod {

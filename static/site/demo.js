@@ -251,7 +251,7 @@
     setBusy(true);
     message("starting");
     try {
-      const run = await api("/api/runs", { question: el("question").value.trim(), top_k: 3, answer_language: language(), retrieval_method: el("retrieval-method").value });
+      const run = await api("/api/runs", { question: el("question").value.trim(), top_k: 3, answer_language: language() });
       await watch(run);
     } catch (error) {
       setBusy(false);
@@ -285,12 +285,6 @@
     setBusy(true);
     try {
       source = await api("/api/source");
-      if (source.guided_retrieval_available === true) {
-        const option = node("option", t("methodGuided"));
-        option.value = "guided";
-        option.dataset.i18n = "methodGuided";
-        el("retrieval-method").append(option);
-      }
       source.sources.forEach(doc => {
         const trigger = node("button", sourceTitle(doc.id), "source-document");
         trigger.type = "button";

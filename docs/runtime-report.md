@@ -31,11 +31,11 @@ Take **“Where and when can I garden?”** This follows the real implementation
 
 At startup, [`main`](../src/main.rs) selects `demo-twelve`. [`Index::load_for_corpus`](../src/lib.rs) parses twelve documents into 72 sections. Each retains its document ID, heading and source date. MiniLM embeds the document title, heading and exact section text into a 384-number vector. Sections and vectors stay in process memory.
 
-The [browser](../static/site/demo.js) sends the question, answer language, search method and `top_k: 3` to `POST /api/runs`. The [web handler](../src/web.rs) checks the session and limits, saves a pending run in RAM and starts asynchronous work. The browser receives a run ID and polls for completion.
+The [browser](../static/site/demo.js) sends the question, answer language and `top_k: 3` to `POST /api/runs`. The [web handler](../src/web.rs) sets Guided search, checks the session and limits, saves a pending run in RAM and starts asynchronous work. The browser receives a run ID and polls for completion.
 
 [`ResponsesRunner`](../src/responses.rs) hands the question to the [Rig agent](../src/responses/rig_runtime.rs). Rig owns the model/tool loop; the application supplies one tool, `search_document`. A policy hook requires a search before an answer. That tool invokes a Rust callback against the shared index. The web route uses no Codex subprocess or MCP connection.
 
-Meaning-based search embeds the search query locally and ranks sections by cosine similarity. The alternative web method, BM25, ranks matching words. Both return ordinary source text with document, section and date information. Sol receives those passages, **not the vectors**. It can request a focused search if the first results omit the garden address. It can still miss it: the recorded 13 November Rig smoke test did exactly that and left the precise address unknown.
+The demo uses Guided search. It embeds the search query locally, combines cosine similarity with BM25 word matching, and selects source passages with document, section and date information. Sol can request a focused search for missing details. In the 13 November Rig smoke test, the search missed the garden address and the answer left it unknown.
 
 The gardening source records Tuesday 10:00–12:00 in `S2` and a fictional location in `S3`. Its availability observation in `S6` is dated 1 September. The document's 20 October publication date does not make that availability current. See the unchanged [fictional gardening document](../fixtures/document.md).
 

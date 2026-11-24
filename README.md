@@ -2,7 +2,7 @@
 
 COA Assistent helps a staff member explore suitable activities with a resident. Ask a question about twelve fictional activities, then check the source passages behind the answer.
 
-For example: “Which indoor activity can I join on Tuesday, and where and when does it take place?” The assistant searches the activity descriptions and may search again for missing details. Local multilingual embeddings or BM25 find passages; OpenAI Sol, through Rig, writes the answer. Each suggestion retains its source and date.
+For example: “Which indoor activity can I join on Tuesday, and where and when does it take place?” The assistant searches the activity descriptions and may search again for missing details. Guided search combines local multilingual embeddings with BM25 and selects relevant passages. OpenAI Sol, through Rig, writes the answer. Each suggestion retains its source and date.
 
 This is an independent prototype, not an official COA product. Use fictional information only: questions and retrieved passages are sent to OpenAI. Participation remains voluntary; the staff member checks the evidence and discusses options with the resident. Missing or outdated information stays unknown. The demo changes no records, sends no messages and enrolls nobody.
 
