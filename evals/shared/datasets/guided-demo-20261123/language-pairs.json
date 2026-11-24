@@ -1,0 +1,191 @@
+{
+  "schema": "guided-demo-language-pairs-v1",
+  "cases": [
+    {
+      "id": "GUIDED-DEMO-01",
+      "language": "nl",
+      "question": "Maandag is de enige dag waarop ik tijd heb om mee te doen aan een activiteit. Wat zou ik er oefenen en wat zijn de tijden en de ontmoetingsplek op maandag?",
+      "followups": [
+        "Activiteit op maandag: wat ik er kan oefenen, tijden en ontmoetingsplek."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-02",
+      "language": "en",
+      "question": "On Friday morning I want to help take care of plants outdoors. Where and at what time can I do that, and can I take breaks during the activity?",
+      "followups": [
+        "Taking care of plants outdoors on Friday morning: time, place and taking breaks during the activity."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-03",
+      "language": "en",
+      "question": "Of Fietsen opknappen and Creatief atelier, I want to know which activity starts at exactly 14.00 on Tuesday. Give the location and end time of the match and say what time the other one starts.",
+      "followups": [
+        "Fietsen opknappen on Tuesday: start time, end time and location.",
+        "Creatief atelier on Tuesday: what time does it start?"
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-04",
+      "language": "nl",
+      "question": "Welke van Fietsen opknappen en Creatief atelier zijn dinsdag om 14:30 bezig? Geef van elke match de volledige tijden en de ontmoetingsplek.",
+      "followups": [
+        "Fietsen opknappen om 14:30 op dinsdag: volledige tijden en ontmoetingsplek.",
+        "Creatief atelier om 14:30 op dinsdag: volledige tijden en ontmoetingsplek."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-05",
+      "language": "en",
+      "question": "Which free indoor activities are still running at 14.50? Give a complete overview with the weekday, end time and address for each activity.",
+      "followups": [
+        "All free indoor activities running at 14.50: weekday, end time and address for each activity."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-06",
+      "language": "nl",
+      "question": "Vergelijk Muziekgroep, Schaken en Samen koken. Geef voor elke activiteit de wekelijkse tijden, de ruimte of het adres en wie een beginner begeleidt.",
+      "followups": [
+        "Schaken en Samen koken: wekelijkse tijden, ruimte of adres en wie een beginner begeleidt.",
+        "Muziekgroep: wekelijkse tijden, ruimte of adres en wie een beginner begeleidt."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-07",
+      "language": "nl",
+      "question": "Mag ik bij Muziekgroep beginnen met luisteren, en zegt de beschrijving hoe luid het in de ruimte is of garandeert die een vrije plek?",
+      "followups": [
+        "Muziekgroep: beginnen met luisteren, geluidsniveau, gegarandeerde vrije plek."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-08",
+      "language": "en",
+      "question": "The source for Naaicafé is dated November 13. When did it list one free spot, and was that checked again on November 13? Also check the old mention of one spot for Digitale hulp.",
+      "followups": [
+        "Naaicafé: date of the one free spot and recheck on November 13.",
+        "Digitale hulp: old date and mention of one free spot."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-09",
+      "language": "en",
+      "question": "Where exactly is the chess room, and do I need to arrange a board or pieces? I have difficulty walking up stairs.",
+      "followups": [
+        "Schaken: exact location of the room, stairs, board and pieces."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-10",
+      "language": "en",
+      "question": "At Buurtbibliotheek, can I learn Dutch and read aloud if I only speak a little Dutch, who explains the tasks, and do I need to bring anything?",
+      "followups": [
+        "Buurtbibliotheek: learning Dutch, reading aloud with limited Dutch, explanation and whether I need to bring anything."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-11",
+      "language": "en",
+      "question": "I am free on Tuesday and want to make or fix something with my hands indoors before 17.00. Give me one option with what I would do, the place, the time and the materials I need.",
+      "followups": [
+        "Making or fixing something indoors before 17.00 on Tuesday: one option with task, place, time and materials."
+      ]
+    },
+    {
+      "id": "GUIDED-DEMO-12",
+      "language": "nl",
+      "question": "Welke van Wandelen en Parkonderhoud kan ik vrijdag om 10:15 daadwerkelijk bijwonen? Geef de ontmoetingsplek van de match en leg uit waarom de andere activiteit niet op dat tijdstip past.",
+      "followups": [
+        "Parkonderhoud op vrijdag om 10:15: tijden en ontmoetingsplek.",
+        "Wandelen: waarom past de activiteit niet op vrijdag om 10:15?"
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-01",
+      "language": "en",
+      "question": "Which of Schaken and Buurtbibliotheek is already running at 10.30 on Wednesday? Give the hours and address of the match and the start time of the other activity.",
+      "followups": [
+        "Schaken on Wednesday: start time for the comparison at 10.30.",
+        "Buurtbibliotheek at 10.30 on Wednesday: hours and address."
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-02",
+      "language": "nl",
+      "question": "Welke van Muziekgroep en Wandelen begint exact om 10:00? Geef de ontmoetingsplek van de match en de begintijd van de andere activiteit.",
+      "followups": [
+        "Muziekgroep: begint die exact om 10:00? Geef de ontmoetingsplek.",
+        "Wandelen: geef de begintijd ter vergelijking met 10:00."
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-03",
+      "language": "en",
+      "question": "Compare Naaicafé and Digitale hulp. What day and hours are they on, where should I go, and who helps me get started at each?",
+      "followups": [
+        "Naaicafé: what day and hours, where should I go, and who helps me get started?",
+        "Digitale hulp: what day and hours, where should I go, and who helps me get started?"
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-04",
+      "language": "nl",
+      "question": "Vergelijk Tuinieren, Parkonderhoud en Samen koken. Geef van elk de weekdag, tijden en het adres van de ontmoetingsplek. Wie leidt de groep bij elk?",
+      "followups": [
+        "Tuinieren en Parkonderhoud: weekdag, tijden, adres van de ontmoetingsplek en wie elke groep leidt.",
+        "Samen koken: weekdag, tijden, adres van de ontmoetingsplek en wie de groep leidt."
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-05",
+      "language": "en",
+      "question": "For Creatief atelier, can I join without any drawing experience, do I need to bring paint, and does the source say if there is a spot available now?",
+      "followups": [
+        "Creatief atelier: drawing experience, bringing paint and current availability according to the source."
+      ]
+    },
+    {
+      "id": "GUIDED-CONFIRM-06",
+      "language": "nl",
+      "question": "Zeggen de beschrijvingen van Parkonderhoud en Wandelen wat er bij slecht weer met Parkonderhoud gebeurt en of de wandelroute rolstoeltoegankelijk is?",
+      "followups": [
+        "Parkonderhoud: wat gebeurt er bij slecht weer?",
+        "Wandelen: zegt de beschrijving of de wandelroute rolstoeltoegankelijk is?"
+      ]
+    },
+    {
+      "id": "GUIDED-BETWEEN-01",
+      "language": "nl",
+      "question": "Welke van Naaicafé en Digitale hulp is om 15:30 nog bezig? Waar moet ik voor die activiteit zijn? Geef de tijden van allebei.",
+      "followups": [
+        "Naaicafé en Digitale hulp om 15:30: welke is bezig, waar is die en wat zijn de tijden van beide?"
+      ]
+    },
+    {
+      "id": "GUIDED-BETWEEN-02",
+      "language": "nl",
+      "question": "Welke van Schaken en Creatief atelier begint om 16:00? Geef de tijden en het straatadres van die activiteit en de begintijd van de andere.",
+      "followups": [
+        "Schaken en Creatief atelier: welke begint om 16:00? Geef de tijden en het straatadres plus de begintijd van de andere."
+      ]
+    },
+    {
+      "id": "GUIDED-BETWEEN-03",
+      "language": "nl",
+      "question": "Tussen 11:20 en 11:50 op vrijdag, is er dan een buitenactiviteit? Geef de tijden en het adres uit de bron.",
+      "followups": [
+        "Buitenactiviteit op vrijdag tussen 11:20 en 11:50: tijden en adres uit de bron."
+      ]
+    },
+    {
+      "id": "GUIDED-BETWEEN-04",
+      "language": "en",
+      "question": "Where should I go for Taalcafé? Does it say anything about transport or a spot available now, and do I need to bring my own cards?",
+      "followups": [
+        "Taalcafé: address, transport, current availability and bringing my own cards."
+      ]
+    }
+  ]
+}

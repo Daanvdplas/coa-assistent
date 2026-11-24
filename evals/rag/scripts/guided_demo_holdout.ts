@@ -32,7 +32,7 @@ type Classification = {
 };
 type ExpectedSelector = Classification & { applied?: boolean };
 type ObservedSelector = Classification & { applied: boolean };
-type Case = {
+export type Case = {
   id: string;
   theme: string;
   question: string;
@@ -56,7 +56,7 @@ type GuidedResult = Classification & {
   omitted_sections: number;
   config: { method: string; selection: string; top_k: number; candidate_k: number; context_token_limit: number; vector_weight: number };
 };
-type SearchResult = {
+export type SearchResult = {
   question: string;
   retrieval_method: Method;
   top_k: number;
@@ -82,9 +82,10 @@ const guidedPolicies = {
   extension: "guided-rag-v2",
   final: "guided-rag-v3",
   fallback: "guided-rag-v4",
+  "candidate-v5": "guided-rag-v5",
 };
 
-export function requireGuidedPolicy(policy: string | undefined, mode: Mode) {
+export function requireGuidedPolicy(policy: string | undefined, mode: keyof typeof guidedPolicies) {
   assert.equal(policy, guidedPolicies[mode], "Guided policy version");
 }
 
@@ -119,7 +120,7 @@ export function passesSelector(expected: ExpectedSelector, observed: ObservedSel
     observed.exhaustive === expected.exhaustive;
 }
 
-function sectionKey(section: Section): string {
+export function sectionKey(section: Section): string {
   return section.source_id + ":" + section.id;
 }
 
@@ -129,7 +130,7 @@ function readFrozen<T>(path: string, expectedSha256: string): T {
   return JSON.parse(bytes.toString("utf8")) as T;
 }
 
-function loadDataset(mode: Mode) {
+export function loadDataset(mode: Mode) {
   const definition = readFrozen<Dataset>(dataset, frozenSha256);
   assert.equal(definition.schema, "guided-demo-holdout-v1");
   assert.equal(definition.cases.length, holdoutCount);
@@ -206,8 +207,54 @@ function emittedTokens(result: SearchResult): number {
   return result.hits.reduce((total, hit) => total + Math.ceil([...JSON.stringify(hit.section)].length / 4), 0);
 }
 
-function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
+export function validateSearchResult(
+  result: SearchResult, query: string, method: Method, corpus: ReturnType<typeof loadDataset>, corpusVectors: Set<string>,
+  candidateMode?: "candidate-v5",
+) {
   const { definition, sections, fingerprints, mode } = corpus;
+  assert.equal(result.question, query);
+  assert.equal(result.retrieval_method, method);
+  assert.equal(result.top_k, topK);
+  assert.equal(result.manifest.source_sha256, definition.corpusSha256);
+  assert(same(result.sources, fingerprints), "source provenance differs");
+  assert.equal(result.as_of, "2026-11-13");
+  assert(/^[0-9a-f]{64}$/.test(result.manifest.document_vectors_sha256), "missing vector hash");
+  corpusVectors.add(result.manifest.document_vectors_sha256);
+  const seen = new Set<string>();
+  for (const hit of result.hits) {
+    const key = sectionKey(hit.section);
+    const expected = sections.get(key);
+    assert(expected && same(hit.section, expected) && !seen.has(key), "noncanonical or duplicate section " + key);
+    seen.add(key);
+  }
+  if (method === "guided") {
+    const selection = result.guided_selection;
+    assert(selection, "missing Guided selection");
+    requireGuidedPolicy(result.retrieval_policy, candidateMode ?? mode);
+    assert.equal(result.requested_top_k, topK);
+    assert.equal(selection.estimated_context_tokens, emittedTokens(result));
+    assert(selection.estimated_context_tokens <= contextLimit, "context limit exceeded");
+    assert.equal(selection.config.context_token_limit, contextLimit);
+    assert.equal(selection.config.method, "hybrid_weighted");
+    assert.equal(selection.config.selection, "activity_expansion");
+    assert.equal(selection.config.top_k, topK);
+    assert.equal(selection.config.candidate_k, 30);
+    assert.equal(selection.config.vector_weight, 0.7);
+    assert(typeof selection.applied === "boolean" && typeof selection.exhaustive === "boolean");
+    assert(Number.isInteger(selection.omitted_sections) && selection.omitted_sections >= 0);
+    assert(Array.isArray(selection.matches) && Array.isArray(selection.unknown));
+    const classified = [...selection.matches, ...selection.unknown];
+    assert.equal(new Set(classified).size, classified.length, "duplicate or conflicting classifications");
+    assert(classified.every(id => fingerprints.some(source => source.id === id)), "unknown activity identifier");
+    assert(!selection.exhaustive || (selection.applied && selection.omitted_sections === 0 && selection.unknown.length === 0));
+    assert(selection.matches.every(id => result.hits.some(hit => hit.section.source_id === id)), "matched activity without emitted evidence");
+  } else {
+    assert(result.hits.length <= topK && !result.guided_selection);
+  }
+}
+
+function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
+  const { definition, mode } = corpus;
   const planned = planRows(definition);
   assert.equal(rows.length, planned.length, "all planned rows captured");
   const technicalErrors: string[] = [];
@@ -219,45 +266,7 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
     const identification = [caseId, method, attempt].join("/");
     try {
       assert(result && !row.error, row.error ?? "missing CLI result");
-      assert.equal(result.question, query);
-      assert.equal(result.retrieval_method, method);
-      assert.equal(result.top_k, topK);
-      assert.equal(result.manifest.source_sha256, definition.corpusSha256);
-      assert(same(result.sources, fingerprints), "source provenance differs");
-      assert.equal(result.as_of, "2026-11-13");
-      assert(/^[0-9a-f]{64}$/.test(result.manifest.document_vectors_sha256), "missing vector hash");
-      corpusVectors.add(result.manifest.document_vectors_sha256);
-      const seen = new Set<string>();
-      for (const hit of result.hits) {
-        const key = sectionKey(hit.section);
-        const expected = sections.get(key);
-        assert(expected && same(hit.section, expected) && !seen.has(key), "noncanonical or duplicate section " + key);
-        seen.add(key);
-      }
-      if (method === "guided") {
-        const selection = result.guided_selection;
-        assert(selection, "missing Guided selection");
-        requireGuidedPolicy(result.retrieval_policy, mode);
-        assert.equal(result.requested_top_k, topK);
-        assert.equal(selection.estimated_context_tokens, emittedTokens(result));
-        assert(selection.estimated_context_tokens <= contextLimit, "context limit exceeded");
-        assert.equal(selection.config.context_token_limit, contextLimit);
-        assert.equal(selection.config.method, "hybrid_weighted");
-        assert.equal(selection.config.selection, "activity_expansion");
-        assert.equal(selection.config.top_k, topK);
-        assert.equal(selection.config.candidate_k, 30);
-        assert.equal(selection.config.vector_weight, 0.7);
-        assert(typeof selection.applied === "boolean" && typeof selection.exhaustive === "boolean");
-        assert(Number.isInteger(selection.omitted_sections) && selection.omitted_sections >= 0);
-        assert(Array.isArray(selection.matches) && Array.isArray(selection.unknown));
-        const classified = [...selection.matches, ...selection.unknown];
-        assert.equal(new Set(classified).size, classified.length, "duplicate or conflicting classifications");
-        assert(classified.every(id => fingerprints.some(source => source.id === id)), "unknown activity identifier");
-        assert(!selection.exhaustive || (selection.applied && selection.omitted_sections === 0 && selection.unknown.length === 0));
-        assert(selection.matches.every(id => result.hits.some(hit => hit.section.source_id === id)), "matched activity without emitted evidence");
-      } else {
-        assert(result.hits.length <= topK && !result.guided_selection);
-      }
+      validateSearchResult(result, query, method, corpus, corpusVectors);
       valid.set(identification, result);
     } catch (error) {
       technicalErrors.push(identification + ": " + String(error));

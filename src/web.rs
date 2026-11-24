@@ -150,8 +150,8 @@ async fn new_session(
     Json(input): Json<SessionRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let ip = visitor_ip(&app, &headers, peer)?;
-    let now = Instant::now();
     let mut limits = limits_locked(&app)?;
+    let now = Instant::now();
     limits.check_session(ip, now).map_err(rate_error)?;
     let mut store = locked(&app)?;
     let id = store.session(&input.seen_question_ids).map_err(error)?;
@@ -187,15 +187,15 @@ fn start(
 ) -> Result<Json<Value>, ApiError> {
     require_retrieval_method(&app, method)?;
     let Visitor { ip, session } = visitor;
+    let snapshot = context(&app, top_k, language, method);
+    let mut limits = limits_locked(&app)?;
+    let now = Instant::now();
+    limits.check_run(ip, &session, now).map_err(rate_error)?;
     let permit = app.capacity.clone().try_acquire_owned().map_err(|_| ApiError {
         status: StatusCode::TOO_MANY_REQUESTS,
         body: json!({"error":"Er worden al tien vragen verwerkt. Probeer het straks opnieuw.","code":"capacity"}),
         retry_after: None,
     })?;
-    let snapshot = context(&app, top_k, language, method);
-    let now = Instant::now();
-    let mut limits = limits_locked(&app)?;
-    limits.check_run(ip, &session, now).map_err(rate_error)?;
     let (run, thread_id) = {
         let mut store = locked(&app)?;
         let thread_id = store.thread_id(&session).map_err(error)?;
@@ -876,6 +876,92 @@ mod tests {
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(body["code"], "session_limit");
     }
+    #[tokio::test]
+    async fn demo_quota_counts_accepted_questions_and_reports_the_same_wait_in_header_and_body() {
+        use tower::ServiceExt;
+        let app = Arc::new(test_state(meedoen_retrieval::corpus::CorpusId::ExpandedTen));
+        {
+            let mut limits = app.limits.lock().unwrap();
+            let now = Instant::now();
+            for address in 1..=99 {
+                limits.record_run(IpAddr::from([192, 0, 2, address]), "prior", now);
+            }
+        }
+        let (status, session) =
+            request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        let session = session["session_id"].as_str().unwrap();
+        let (status, _) = request_json(
+            app.clone(),
+            "POST",
+            "/api/runs",
+            session,
+            json!({"question":""}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, run) = request_json(
+            app.clone(),
+            "POST",
+            "/api/runs",
+            session,
+            json!({"question":"Which activities are available?"}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{run}");
+        let id = run["id"].as_str().unwrap();
+        wait_for_unavailable_runtime(&app, session, id).await;
+        let (status, _) = request_json(
+            app.clone(),
+            "GET",
+            &format!("/api/runs/{id}"),
+            session,
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, next_session) =
+            request_json(app.clone(), "POST", "/api/session", "", json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+        let _capacity = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            app.capacity.clone().acquire_many_owned(10),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let response = router(app)
+            .oneshot(
+                axum::http::Request::builder()
+                    .extension(ConnectInfo(SocketAddr::from(([203, 0, 113, 1], 43210))))
+                    .method("POST")
+                    .uri("/api/runs")
+                    .header("content-type", "application/json")
+                    .header(
+                        "x-test-session",
+                        next_session["session_id"].as_str().unwrap(),
+                    )
+                    .body(axum::body::Body::from(
+                        json!({"question":"Which activities are indoors?"}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+        let retry_after = response.headers()[header::RETRY_AFTER]
+            .to_str()
+            .unwrap()
+            .parse::<u64>()
+            .unwrap();
+        let bytes = axum::body::to_bytes(response.into_body(), 8192)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["code"], "demo_rate_limit");
+        assert_eq!(body["retry_after_seconds"], retry_after);
+        assert!((1..=3600).contains(&retry_after));
+    }
     #[test]
     fn duplicate_proxy_headers_are_rejected_and_untrusted_headers_are_ignored() {
         let state = WebState {
@@ -1026,6 +1112,7 @@ mod tests {
             }
             if i == 10 {
                 assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+                assert_eq!(run["code"], "capacity");
                 assert!(!run.to_string().contains(api_key));
             } else {
                 assert_eq!(status, StatusCode::OK);
@@ -1126,7 +1213,7 @@ mod tests {
             .await
             .unwrap();
         let body: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(body["code"], "rate_limit");
+        assert_eq!(body["code"], "ip_rate_limit");
         assert!(body["retry_after_seconds"].as_u64().unwrap() <= 3600);
         let (status, body) = request_json_from(
             app.clone(),
@@ -1138,7 +1225,7 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
-        assert_eq!(body["code"], "rate_limit");
+        assert_eq!(body["code"], "ip_rate_limit");
         assert_eq!(
             requests.load(Ordering::SeqCst),
             20,
