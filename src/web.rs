@@ -16,6 +16,7 @@ use axum::{
 use meedoen_retrieval::{
     DemoSearchMethod, GUIDED_RETRIEVAL_VERSION, Index,
     codex::AnswerLanguage,
+    corpus::CorpusId,
     demo_limits::{Blocked, DemoLimits, client_ip},
     responses::{ResponsesRunner, Search},
     runs::{RunStore, Verdict},
@@ -52,7 +53,7 @@ struct Visitor {
     session: String,
 }
 struct WebState {
-    corpus: meedoen_retrieval::corpus::CorpusId,
+    corpus: CorpusId,
     store: Mutex<RunStore>,
     traces: Option<TraceStore>,
     limits: Mutex<DemoLimits>,
@@ -61,10 +62,14 @@ struct WebState {
     capacity: Arc<Semaphore>,
     runner_error: Option<String>,
     bundled_evaluations: bool,
-    guided_retrieval_available: bool,
     manifest: Value,
     sources: Value,
     configuration: Value,
+}
+impl WebState {
+    fn guided_retrieval_available(&self) -> bool {
+        self.corpus == CorpusId::DemoTwelve
+    }
 }
 fn error(message: impl Into<String>) -> ApiError {
     let message = message.into();
@@ -132,7 +137,7 @@ fn context(app: &App, top_k: usize, language: AnswerLanguage, method: DemoSearch
 }
 
 fn require_retrieval_method(app: &App, method: DemoSearchMethod) -> Result<(), ApiError> {
-    if method == DemoSearchMethod::Guided && !app.guided_retrieval_available {
+    if method == DemoSearchMethod::Guided && !app.guided_retrieval_available() {
         return Err(error("Gericht zoeken is niet ingeschakeld."));
     }
     Ok(())
@@ -281,6 +286,11 @@ async fn run(
     Json(input): Json<RunRequest>,
 ) -> Result<Json<Value>, ApiError> {
     let ip = visitor_ip(&app, &headers, peer)?;
+    let method = if app.guided_retrieval_available() {
+        DemoSearchMethod::Guided
+    } else {
+        input.retrieval_method
+    };
     start(
         app,
         Visitor {
@@ -291,7 +301,7 @@ async fn run(
         input.top_k.unwrap_or(3),
         None,
         input.answer_language,
-        input.retrieval_method,
+        method,
     )
 }
 async fn get_run(
@@ -540,7 +550,7 @@ fn router_with_benchmarks(app: App, benchmarks: Arc<benchmarks::Benchmarks>) -> 
  .route("/assets/promptfoo-results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/promptfoo-results.js"))}))
  .route("/assets/results.js",get(||async{([(header::CONTENT_TYPE,"text/javascript; charset=utf-8")],include_str!("../evals/rag/site/results.js"))}))
  .route("/assets/results.json",get(||async{([(header::CONTENT_TYPE,"application/json; charset=utf-8")],include_str!("../evals/rag/site/results.json"))}))
- .route("/api/source",get({let app=app.clone();move||{let app=app.clone();async move{Json(json!({"sources":app.sources,"as_of":app.manifest["as_of"],"runtime_ready":app.runner.is_some(),"runtime_error":app.runner_error,"model_configuration":app.configuration,"guided_retrieval_available":app.guided_retrieval_available}))}}}))
+ .route("/api/source",get({let app=app.clone();move||{let app=app.clone();async move{Json(json!({"sources":app.sources,"as_of":app.manifest["as_of"],"runtime_ready":app.runner.is_some(),"runtime_error":app.runner_error,"model_configuration":app.configuration,"guided_retrieval_available":app.guided_retrieval_available()}))}}}))
  .route("/api/questions",get(||async{Json(serde_json::from_str::<Value>(include_str!("../evals/rag/datasets/garden/questions.json")).unwrap())}))
  .route("/api/session",post(new_session).get(summary)).route("/api/runs",post(run))
  .route("/api/runs/{id}",get(get_run)).route("/api/runs/{id}/replay",post(replay))
@@ -561,8 +571,6 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
         .transpose()
         .map_err(std::io::Error::other)?;
     let corpus = index.corpus();
-    let guided_retrieval_available = corpus == meedoen_retrieval::corpus::CorpusId::DemoTwelve
-        && std::env::var_os("COA_DEMO_GUIDED_RAG").is_some_and(|value| value == "1");
     let manifest = serde_json::to_value(index.manifest())?;
     let sources = serde_json::to_value(index.sources())?;
     let index = Mutex::new(index);
@@ -596,7 +604,6 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
         runner,
         runner_error,
         bundled_evaluations,
-        guided_retrieval_available,
         configuration,
         manifest,
         sources,
@@ -731,7 +738,6 @@ mod tests {
             runner: None,
             runner_error: None,
             bundled_evaluations: true,
-            guided_retrieval_available: false,
             manifest: json!({}),
             sources: json!([]),
             configuration: json!({}),
@@ -1680,11 +1686,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn guided_retrieval_requires_local_opt_in_before_recording_a_run() {
+    async fn guided_search_requires_the_twelve_activity_corpus() {
         use tower::ServiceExt;
         let app = Arc::new(WebState {
             capacity: Arc::new(Semaphore::new(0)),
-            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
+            ..test_state(CorpusId::BaselineFive)
         });
         let session = locked(&app).unwrap().session(&[]).unwrap();
         let response = router(app.clone())
@@ -1723,33 +1729,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn local_opt_in_advertises_guided_search_and_accepts_the_explicit_method() {
-        let app = Arc::new(WebState {
-            guided_retrieval_available: true,
-            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
-        });
-        let session = locked(&app).unwrap().session(&[]).unwrap();
-        let (status, source) =
-            request_json(app.clone(), "GET", "/api/source", &session, json!({})).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(source["guided_retrieval_available"], true);
-        let (status, run) = request_json(
-            app.clone(),
-            "POST",
-            "/api/runs",
-            &session,
-            json!({"question":"Wanneer tuinieren?","retrieval_method":"guided"}),
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(run["context"]["retrieval_method"], "guided");
-        assert_eq!(run["context"]["retrieval_policy"], GUIDED_RETRIEVAL_VERSION);
-        wait_for_unavailable_runtime(&app, &session, run["id"].as_str().unwrap()).await;
+    async fn twelve_activity_demo_always_uses_guided_for_new_runs() {
+        for requested_method in [None, Some("dense"), Some("bm25"), Some("guided")] {
+            let app = Arc::new(test_state(CorpusId::DemoTwelve));
+            let session = locked(&app).unwrap().session(&[]).unwrap();
+            let (status, source) =
+                request_json(app.clone(), "GET", "/api/source", &session, json!({})).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(source["guided_retrieval_available"], true);
+            let mut input = json!({"question":"Wanneer tuinieren?"});
+            if let Some(method) = requested_method {
+                input["retrieval_method"] = json!(method);
+            }
+            let (status, run) =
+                request_json(app.clone(), "POST", "/api/runs", &session, input).await;
+            assert_eq!(status, StatusCode::OK);
+            assert_eq!(
+                run["context"]["retrieval_method"], "guided",
+                "requested method: {requested_method:?}"
+            );
+            assert_eq!(run["context"]["retrieval_policy"], GUIDED_RETRIEVAL_VERSION);
+            wait_for_unavailable_runtime(&app, &session, run["id"].as_str().unwrap()).await;
+        }
     }
 
     #[tokio::test]
-    async fn disabled_guided_search_refuses_replay_before_admission() {
-        let search: Search = Arc::new(|_, _, _| panic!("disabled replay must not search"));
+    async fn unsupported_guided_search_refuses_replay_before_admission() {
+        let search: Search = Arc::new(|_, _, _| panic!("unsupported replay must not search"));
         let runner = ResponsesRunner::new(
             "coa-local-test-key".into(),
             "http://127.0.0.1:1/v1/responses",
@@ -1759,7 +1765,7 @@ mod tests {
         let app = Arc::new(WebState {
             runner: Some(runner),
             capacity: Arc::new(Semaphore::new(0)),
-            ..test_state(meedoen_retrieval::corpus::CorpusId::DemoTwelve)
+            ..test_state(CorpusId::BaselineFive)
         });
         let (session, run) = {
             let mut store = locked(&app).unwrap();

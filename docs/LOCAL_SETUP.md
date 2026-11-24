@@ -25,8 +25,6 @@ env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE \
 
 Open **http://127.0.0.1:8766/** when the server is ready. You can read the twelve fictional sources, technical explanation and saved results; new answers are unavailable. Do not start local evaluation jobs as part of this preview. The first launch builds Rust and downloads approximately 235 MB of MiniLM files to `.model-cache/` in the working directory. Later launches reuse them. Keep the terminal open; **Ctrl+C** stops the server.
 
-To preview the optional **Guided search** selector, add `COA_DEMO_GUIDED_RAG=1` next to `COA_DISABLE_DOTENV=1` in the command above. The same credential-free preview rules apply.
-
 ## Enable new answers with an approved limit
 
 Before proceeding, agree an explicit positive number of **model attempts** with the user and explain the cost assumptions below. One question can consume up to five attempts; failed attempts count too. There is no default limit. A separate owner's fifty attempts or $100 authorization does not apply to your copy.
@@ -118,7 +116,6 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 | `OPENAI_API_KEY` | Server-side key, inherited or read from working-directory `.env`; never put its value in command arguments. |
 | `COA_OPENAI_API_KEY_FILE` | Alternative explicit external provider-key file; takes precedence over `.env`. |
 | `COA_DISABLE_DOTENV` | Set to `1` to skip `.env`, including for a credential-free preview. |
-| `COA_DEMO_GUIDED_RAG` | Set to `1` to offer Guided search for the twelve-activity demo. Off by default. |
 | `COA_DEMO_BUDGET_FILE` | Persistent approved schema-2 budget; required for real API attempts. |
 | `COA_TRACE_DB` | Optional private trace database outside the checkout; unset disables recording. See [local traces](traces.md). |
 | `COA_TRUSTED_PROXY_IP` | Exact trusted proxy peer; unset for direct local use. See [deployment](public-deployment.md). |

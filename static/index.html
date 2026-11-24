@@ -16,10 +16,7 @@
       .demo-main .example-question { display:inline-flex; align-items:center; min-height:44px; max-width:100%; padding:8px 0; border:0; border-radius:2px; background:transparent; font-size:.875rem; font-weight:400; text-align:start; white-space:normal; overflow-wrap:anywhere; text-decoration:none; color:var(--ink); }
       .demo-main .example-question:not(:disabled):hover { background:var(--surface); color:var(--heading); }
       @media(max-width:650px) { .example-questions { flex-direction:column; align-items:stretch; gap:0; margin-top:-8px; } .demo-main .example-question { width:100%; justify-content:flex-start; } }
-      .form-actions { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; }
-      .method-field { flex:0 1 240px; min-width:0; }
-      .method-field select { width:100%; min-height:48px; background:var(--surface); border-color:var(--muted); border-radius:2px; padding:10px 14px; }
-      .toolbar { display:flex; }
+      .toolbar { display:flex; justify-content:flex-end; }
       .toolbar button { white-space:nowrap; }
       #status { margin:20px 0 0; font-size:.9375rem; }
       #status:empty { display:none; }
@@ -69,14 +66,14 @@
       .search-step>.error,.search-step>.muted { margin-inline-start:22px; }
       .error { color:var(--error); }
       [hidden] { display:none !important; }
-      @media(max-width:650px) { .source-document { flex-basis:140px; } .form-actions { display:grid; grid-template-columns:minmax(0,1fr); justify-content:stretch; gap:16px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
+      @media(max-width:650px) { .source-document { flex-basis:140px; } .toolbar button { width:100%; } .answer-panel { padding:16px; } }
       @media(max-width:650px) { #source .source-document { flex-basis:calc(50% - 1px); min-width:min(100%,8rem); } #source .source-document { min-height:48px; padding-inline:8px; gap:6px; } }
       @media(max-width:360px) { #source .source-document { font-size:.875rem; padding-inline:6px; gap:4px; } }
     </style>
 
-  <link rel="stylesheet" href="/assets/site.css?v=20261118-shared-layout">
-<script src="/assets/language.js?v=20261124-hourly-limits" defer></script>
-<script src="/assets/demo.js?v=20261124-hourly-limits" defer></script>
+  <link rel="stylesheet" href="/assets/site.css?v=20261124-guided-only">
+<script src="/assets/language.js?v=20261124-guided-only" defer></script>
+<script src="/assets/demo.js?v=20261124-guided-only" defer></script>
 </head>
   <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main app-main">
@@ -96,17 +93,8 @@
           <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Welke buitenactiviteit eindigt vóór 11.00 uur?</button>
           <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Binnen om 14.00 uur: gratis en materiaal aanwezig</button>
         </div>
-        <div class="form-actions">
-        <div class="method-field">
-          <label for="retrieval-method" data-i18n="retrievalMethod">Zoekmethode</label>
-          <select id="retrieval-method">
-            <option value="dense" data-i18n="methodDense">Op betekenis</option>
-            <option value="bm25" data-i18n="methodBm25">Op woorden</option>
-          </select>
-        </div>
         <div class="toolbar">
           <button class="primary run-control" type="submit" data-i18n="submit">Zoek een antwoord</button>
-        </div>
         </div>
       </form>
       <p id="status" role="status"></p>
