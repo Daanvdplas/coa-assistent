@@ -166,6 +166,11 @@ fn parse_clock(word: &str) -> Option<u16> {
     (hour < 24 && minute < 60).then_some(hour * 60 + minute)
 }
 
+fn looks_like_clock(word: &str) -> bool {
+    word.split_once(['.', ':'])
+        .is_some_and(|(hour, _)| hour.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 fn addresses(words: &[&str]) -> impl Iterator<Item = (String, u16)> {
     words.windows(2).filter_map(|pair| {
         let street = pair[0];
@@ -378,10 +383,7 @@ fn read_time(text: &str, words: &[&str]) -> Option<Option<Time>> {
     }
     let clocks: Vec<_> = words
         .iter()
-        .filter(|word| {
-            word.split_once(['.', ':'])
-                .is_some_and(|(hour, _)| hour.bytes().all(|byte| byte.is_ascii_digit()))
-        })
+        .filter(|word| looks_like_clock(word))
         .map(|word| parse_clock(word))
         .collect::<Option<_>>()?;
     if clocks.len() > 1 {
@@ -409,6 +411,36 @@ fn read_time(text: &str, words: &[&str]) -> Option<Option<Time>> {
         return Some(Some(Time::Morning));
     }
     Some(None)
+}
+
+fn requested_environment(words: &[&str]) -> Option<Option<Environment>> {
+    let indoor = has(
+        words,
+        &[
+            "binnen",
+            "binnenactiviteit",
+            "binnenactiviteiten",
+            "indoor",
+            "indoors",
+        ],
+    );
+    let outdoor = has(
+        words,
+        &[
+            "buiten",
+            "buitenactiviteit",
+            "buitenactiviteiten",
+            "outdoor",
+            "outdoors",
+            "outside",
+        ],
+    );
+    match (indoor, outdoor) {
+        (true, false) => Some(Some(Environment::Indoor)),
+        (false, true) => Some(Some(Environment::Outdoor)),
+        (false, false) => Some(None),
+        (true, true) => None,
+    }
 }
 
 fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
@@ -455,33 +487,7 @@ fn read_intake(corpus: &PreparedCorpus, question: &str) -> Option<Intake> {
     {
         return None;
     }
-    let indoor = has(
-        &words,
-        &[
-            "binnen",
-            "binnenactiviteit",
-            "binnenactiviteiten",
-            "indoor",
-            "indoors",
-        ],
-    );
-    let outdoor = has(
-        &words,
-        &[
-            "buiten",
-            "buitenactiviteit",
-            "buitenactiviteiten",
-            "outdoor",
-            "outdoors",
-            "outside",
-        ],
-    );
-    let environment = match (indoor, outdoor) {
-        (true, false) => Some(Environment::Indoor),
-        (false, true) => Some(Environment::Outdoor),
-        (false, false) => None,
-        (true, true) => return None,
-    };
+    let environment = requested_environment(&words)?;
     let days: Vec<_> = DAYS
         .into_iter()
         .filter(|(_, names)| {
@@ -1111,12 +1117,239 @@ fn evidence_bundle<'a>(
     (bundle, complete)
 }
 
+fn literal_overlap_window(query: &str) -> Option<(Weekday, Environment, super::TimeWindow)> {
+    let text = query.to_lowercase();
+    let query_words: Vec<_> = words(&text).collect();
+    if query_words
+        .iter()
+        .filter(|word| looks_like_clock(word))
+        .count()
+        != 2
+        || (0..query_words.len()).any(|index| negation_at(&query_words, index))
+        || stopped_predicate(&query_words)
+        || has(
+            &query_words,
+            &[
+                "or",
+                "of",
+                "no",
+                "never",
+                "geen",
+                "nooit",
+                "without",
+                "zonder",
+                "except",
+                "behalve",
+                "unless",
+                "tenzij",
+                "am",
+                "pm",
+                "a.m",
+                "p.m",
+                "around",
+                "roughly",
+                "ongeveer",
+                "omstreeks",
+                "compare",
+                "vergelijk",
+            ],
+        )
+        || phrases(
+            &text,
+            &["which of", "welke van", "instead of", "in plaats van"],
+        )
+    {
+        return None;
+    }
+    let environment = requested_environment(&query_words)??;
+    let mut weekdays = DAYS
+        .into_iter()
+        .filter(|(_, names)| has(&query_words, names));
+    let (weekday, _) = weekdays.next()?;
+    if weekdays.next().is_some() {
+        return None;
+    }
+
+    for clause in text
+        .split(['?', '!', ';'])
+        .flat_map(|clause| clause.split(". "))
+    {
+        let tokens: Vec<_> = words(clause).collect();
+        for index in 0..tokens.len() {
+            let (range, conjunction) = match &tokens[index..] {
+                ["between", range @ ..] => (range, "and"),
+                ["tussen", range @ ..] => (range, "en"),
+                _ => continue,
+            };
+            let Some((start, rest)) = range.split_first() else {
+                continue;
+            };
+            let rest = rest.strip_prefix(&["uur"]).unwrap_or(rest);
+            let [join, end, ..] = rest else {
+                continue;
+            };
+            if *join != conjunction {
+                continue;
+            }
+            let start_minutes = parse_clock(start)?;
+            let end_minutes = parse_clock(end)?;
+            return (start_minutes < end_minutes).then_some((
+                weekday,
+                environment,
+                super::TimeWindow {
+                    start_minutes,
+                    end_minutes,
+                },
+            ));
+        }
+    }
+    None
+}
+
+fn ranked_evidence_hit(baseline: &RetrievalOutcome, section: &Section) -> RetrievalHit {
+    let key = SectionKey::from(section);
+    RetrievalHit {
+        section: section.clone(),
+        scores: baseline
+            .candidates
+            .iter()
+            .find(|candidate| candidate.key == key)
+            .map(|candidate| candidate.scores.clone()),
+        inclusion: if baseline.seeds.contains(&key) {
+            Inclusion::Seed
+        } else {
+            Inclusion::ActivityExpansion
+        },
+    }
+}
+
+fn overlap_fallback(
+    corpus: &PreparedCorpus,
+    baseline: &RetrievalOutcome,
+) -> Option<RetrievalOutcome> {
+    let (weekday, environment, window) = literal_overlap_window(&baseline.query)?;
+    let mut activities: Vec<_> = corpus
+        .activities
+        .iter()
+        .filter_map(|activity| {
+            let schedule = activity.schedule.as_ref()?;
+            let time = schedule.value.time;
+            (schedule.value.weekdays.contains(&weekday)
+                && time.start_minutes < window.end_minutes
+                && window.start_minutes < time.end_minutes)
+                .then_some((activity, schedule))
+        })
+        .collect();
+    activities.sort_by_key(|(activity, _)| {
+        baseline
+            .candidates
+            .iter()
+            .position(|candidate| candidate.key.source_id == activity.id)
+            .unwrap_or(usize::MAX)
+    });
+
+    // Reserve the original seeds before adding supplemental evidence. An overlapping
+    // schedule may inform a follow-up question, but does not prove participation.
+    let mut tokens: usize = baseline
+        .hits
+        .iter()
+        .filter(|hit| hit.inclusion == Inclusion::Seed)
+        .map(|hit| estimate_section_tokens(&hit.section))
+        .sum();
+    let limit = baseline.config.context_token_limit;
+    let mut outcome = baseline.clone();
+    outcome.hits.clear();
+    let mut delivered = BTreeSet::new();
+    for (activity, schedule) in activities {
+        let sections: Vec<_> = corpus
+            .sections
+            .iter()
+            .filter(|section| section.source_id == activity.id)
+            .collect();
+        let (venue, venue_evidence) = intake_venue(&sections);
+        if venue != Some(environment)
+            || !sections
+                .iter()
+                .any(|section| place(&section.heading.to_lowercase()))
+        {
+            continue;
+        }
+        let bundle: Vec<_> = sections
+            .into_iter()
+            .filter(|section| {
+                schedule
+                    .evidence
+                    .iter()
+                    .any(|fact| fact.section_id == section.id)
+                    || place(&section.heading.to_lowercase())
+                    || venue_evidence.iter().any(|proof| proof.id == section.id)
+            })
+            .collect();
+        let added: usize = bundle
+            .iter()
+            .filter(|section| !baseline.seeds.contains(&SectionKey::from(**section)))
+            .map(|section| estimate_section_tokens(section))
+            .sum();
+        if tokens + added > limit {
+            continue;
+        }
+        tokens += added;
+        for section in bundle {
+            if delivered.insert(SectionKey::from(section)) {
+                outcome.hits.push(ranked_evidence_hit(baseline, section));
+            }
+        }
+    }
+    if outcome.hits.is_empty() {
+        return None;
+    }
+    for hit in &baseline.hits {
+        let key = SectionKey::from(&hit.section);
+        if delivered.contains(&key) {
+            continue;
+        }
+        let extra = if hit.inclusion == Inclusion::Seed {
+            0
+        } else {
+            estimate_section_tokens(&hit.section)
+        };
+        if tokens + extra > limit {
+            outcome.omitted.push(ContextOmission {
+                key,
+                reason: "Whole ranked section exceeds the remaining context budget".into(),
+            });
+        } else {
+            tokens += extra;
+            delivered.insert(key);
+            outcome.hits.push(hit.clone());
+        }
+    }
+    outcome
+        .omitted
+        .retain(|omission| !delivered.contains(&omission.key));
+    outcome.estimated_context_tokens = tokens;
+    update_delivered_seeds(&mut outcome);
+    Some(outcome)
+}
+
+fn update_delivered_seeds(outcome: &mut RetrievalOutcome) {
+    outcome.seeds = outcome
+        .hits
+        .iter()
+        .filter(|hit| hit.inclusion == Inclusion::Seed)
+        .map(|hit| SectionKey::from(&hit.section))
+        .collect();
+}
+
 pub(crate) fn apply_intake_policy(
     corpus: &PreparedCorpus,
     baseline: &RetrievalOutcome,
 ) -> (RetrievalOutcome, IntakeDecision) {
     let Some(intake) = read_intake(corpus, &baseline.query) else {
-        return (baseline.clone(), IntakeDecision::default());
+        return (
+            overlap_fallback(corpus, baseline).unwrap_or_else(|| baseline.clone()),
+            IntakeDecision::default(),
+        );
     };
     let mut decision = IntakeDecision {
         applied: true,
@@ -1223,30 +1456,14 @@ pub(crate) fn apply_intake_policy(
             continue;
         }
         outcome.estimated_context_tokens += size;
-        outcome.hits.extend(bundle.into_iter().map(|section| {
-            let key = SectionKey::from(section);
-            RetrievalHit {
-                section: section.clone(),
-                scores: baseline
-                    .candidates
-                    .iter()
-                    .find(|candidate| candidate.key == key)
-                    .map(|candidate| candidate.scores.clone()),
-                inclusion: if baseline.seeds.contains(&key) {
-                    Inclusion::Seed
-                } else {
-                    Inclusion::ActivityExpansion
-                },
-            }
-        }));
+        outcome.hits.extend(
+            bundle
+                .into_iter()
+                .map(|section| ranked_evidence_hit(baseline, section)),
+        );
     }
     // Keep seed order aligned with the delivered hit order after constrained selection.
-    outcome.seeds = outcome
-        .hits
-        .iter()
-        .filter(|hit| hit.inclusion == Inclusion::Seed)
-        .map(|hit| SectionKey::from(&hit.section))
-        .collect();
+    update_delivered_seeds(&mut outcome);
     decision.exhaustive = intake.all
         && has_requested_evidence
         && decision.unknown.is_empty()
@@ -1716,6 +1933,107 @@ mod tests {
         assert!(decision.applied && decision.exhaustive, "{decision:?}");
         assert_eq!(decision.matches.len(), 2);
         assert_eq!(outcome.hits.len(), 4);
+    }
+
+    #[test]
+    fn clock_interval_fallback_prioritizes_whole_source_evidence_without_claiming_matches() {
+        let corpus = corpus();
+        let (mut baseline, _) = search(&corpus, "Schaken", 1200);
+        assert!(!baseline.hits.is_empty());
+        assert!(
+            baseline
+                .hits
+                .iter()
+                .all(|hit| hit.section.source_title != "Parkonderhoud")
+        );
+        for query in [
+            "Which activities are outdoors on Friday between 11:20 and 11:35?",
+            "Wat is er buiten op vrijdag tussen 11.20 uur en 11.35 uur?",
+        ] {
+            baseline.query = query.to_owned();
+            let (outcome, decision) = apply_intake_policy(&corpus, &baseline);
+            assert!(
+                !decision.applied && !decision.exhaustive,
+                "{query}: {decision:?}"
+            );
+            assert!(decision.matches.is_empty() && decision.unknown.is_empty());
+            let first_titles: Vec<_> = outcome
+                .hits
+                .iter()
+                .take(2)
+                .map(|hit| (hit.section.source_title.as_str(), hit.section.id.as_str()))
+                .collect();
+            assert_eq!(
+                first_titles,
+                [("Parkonderhoud", "S2"), ("Parkonderhoud", "S3")],
+                "{query}"
+            );
+            let kept_ranked_hits: Vec<_> = outcome
+                .hits
+                .iter()
+                .filter(|hit| hit.section.source_title != "Parkonderhoud")
+                .map(serde_json::to_value)
+                .collect::<Result<_, _>>()
+                .unwrap();
+            assert_eq!(
+                serde_json::to_value(kept_ranked_hits).unwrap(),
+                serde_json::to_value(&baseline.hits).unwrap()
+            );
+            let hit_keys: BTreeSet<_> = outcome
+                .hits
+                .iter()
+                .map(|hit| SectionKey::from(&hit.section))
+                .collect();
+            assert_eq!(hit_keys.len(), outcome.hits.len());
+            assert_eq!(outcome.seeds, baseline.seeds);
+            assert_eq!(
+                outcome.estimated_context_tokens,
+                outcome
+                    .hits
+                    .iter()
+                    .map(|hit| estimate_section_tokens(&hit.section))
+                    .sum::<usize>()
+            );
+            assert!(outcome.estimated_context_tokens <= outcome.config.context_token_limit);
+        }
+    }
+
+    #[test]
+    fn overlap_fallback_cannot_take_a_partial_activity_bundle_or_use_ambiguous_ranges() {
+        let corpus = corpus();
+        let (mut baseline, _) = search(&corpus, "Schaken", 1200);
+        for query in [
+            "Which activities are outdoors on Friday between 12:00 and 12:20?",
+            "Which activities are outdoors on Monday between 11:20 and 11:35?",
+            "Which activities are outdoors on Monday between 15:20 and 15:35?",
+            "Which activities are not outdoors on Friday between 11:20 and 11:35?",
+            "Geen buitenactiviteiten op vrijdag tussen 11.20 en 11.35. Welke opties blijven er over?",
+            "Which activities are outdoors on Friday or Thursday between 11:20 and 11:35?",
+            "Which activities are indoors or outdoors on Friday between 11:20 and 11:35?",
+            "Which activities are outdoors on Friday between 11:35 and 11:20?",
+            "Which activities are outdoors on Friday between 11:20 and 11:35 pm?",
+            "Which activities are outdoors on Friday between 11:20? And 11:35?",
+        ] {
+            baseline.query = query.to_owned();
+            let (outcome, decision) = apply_intake_policy(&corpus, &baseline);
+            assert!(
+                !decision.applied && !decision.exhaustive,
+                "{query}: {decision:?}"
+            );
+            assert_eq!(
+                serde_json::to_value(outcome).unwrap(),
+                serde_json::to_value(&baseline).unwrap(),
+                "{query}"
+            );
+        }
+
+        let (mut capped, _) = search(&corpus, "Schaken", 200);
+        capped.query = "Which activities are outdoors on Friday between 11:20 and 11:35?".into();
+        let (outcome, _) = apply_intake_policy(&corpus, &capped);
+        assert_eq!(
+            serde_json::to_value(outcome).unwrap(),
+            serde_json::to_value(capped).unwrap()
+        );
     }
 
     #[test]

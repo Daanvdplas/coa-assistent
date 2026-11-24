@@ -24,7 +24,7 @@ const topK = 3;
 const contextLimit = 1200;
 
 type Method = typeof methods[number];
-type Mode = "standalone" | "extension" | "final";
+type Mode = "standalone" | "extension" | "final" | "fallback";
 type Classification = {
   matches: string[];
   unknown: string[];
@@ -77,6 +77,21 @@ type Row = {
   error?: string;
 };
 
+const guidedPolicies = {
+  standalone: "guided-rag-v1",
+  extension: "guided-rag-v2",
+  final: "guided-rag-v3",
+  fallback: "guided-rag-v4",
+};
+
+export function requireGuidedPolicy(policy: string | undefined, mode: Mode) {
+  assert.equal(policy, guidedPolicies[mode], "Guided policy version");
+}
+
+function usesFinalCohort(mode: Mode): boolean {
+  return mode === "final" || mode === "fallback";
+}
+
 export function earliestComplete(alternatives: string[][], attempts: string[][]): number | null {
   const delivered = new Set<string>();
   for (const [index, ids] of attempts.entries()) {
@@ -87,13 +102,14 @@ export function earliestComplete(alternatives: string[][], attempts: string[][])
 }
 
 export function passesSourceCoverage(firstCompletions: (number | null)[], mode: Mode): boolean {
-  const expectedCount = { standalone: holdoutCount, extension: priorCount, final: priorCount + finalConfirmationCount }[mode];
-  const requiredFirst = { standalone: 10, extension: 15, final: 19 }[mode];
+  const cohort = mode === "fallback" ? "final" : mode;
+  const expectedCount = { standalone: holdoutCount, extension: priorCount, final: priorCount + finalConfirmationCount }[cohort];
+  const requiredFirst = { standalone: 10, extension: 15, final: 19 }[cohort];
   const countFirst = (attempts: (number | null)[]) => attempts.filter(attempt => attempt === 1).length;
   return firstCompletions.length === expectedCount && firstCompletions.every(attempt => attempt !== null) &&
     countFirst(firstCompletions) >= requiredFirst &&
-    (mode === "standalone" || countFirst(firstCompletions.slice(holdoutCount, priorCount)) >= 5) &&
-    (mode !== "final" || countFirst(firstCompletions.slice(priorCount)) >= 3);
+    (cohort === "standalone" || countFirst(firstCompletions.slice(holdoutCount, priorCount)) >= 5) &&
+    (cohort !== "final" || countFirst(firstCompletions.slice(priorCount)) >= 3);
 }
 
 export function passesSelector(expected: ExpectedSelector, observed: ObservedSelector | null): boolean {
@@ -124,7 +140,7 @@ function loadDataset(mode: Mode) {
     assert.equal(supplement.cases.length, confirmationCount);
     definition.cases.push(...supplement.cases);
   }
-  if (mode === "final") {
+  if (usesFinalCohort(mode)) {
     const supplement = readFrozen<FinalConfirmation>(finalConfirmation, finalConfirmationSha256);
     assert.equal(supplement.schema, "guided-demo-between-confirmation-v3");
     assert.equal(supplement.baseSha256, frozenSha256);
@@ -174,7 +190,7 @@ function loadDataset(mode: Mode) {
       ...scenario.firstGuided.matches, ...scenario.firstGuided.unknown,
     ].every(id => fingerprints.some(source => source.id === id)), scenario.id);
   }
-  const guidedPolicy = { standalone: "guided-rag-v1", extension: "guided-rag-v2", final: "guided-rag-v3" }[mode];
+  const guidedPolicy = guidedPolicies[mode];
   return { definition, sections, fingerprints, mode, guidedPolicy };
 }
 
@@ -191,7 +207,7 @@ function emittedTokens(result: SearchResult): number {
 }
 
 function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
-  const { definition, sections, fingerprints, mode, guidedPolicy } = corpus;
+  const { definition, sections, fingerprints, mode } = corpus;
   const planned = planRows(definition);
   assert.equal(rows.length, planned.length, "all planned rows captured");
   const technicalErrors: string[] = [];
@@ -221,7 +237,7 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
       if (method === "guided") {
         const selection = result.guided_selection;
         assert(selection, "missing Guided selection");
-        assert.equal(result.retrieval_policy, guidedPolicy, "Guided policy version");
+        requireGuidedPolicy(result.retrieval_policy, mode);
         assert.equal(result.requested_top_k, topK);
         assert.equal(selection.estimated_context_tokens, emittedTokens(result));
         assert(selection.estimated_context_tokens <= contextLimit, "context limit exceeded");
@@ -295,7 +311,8 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
     rows: rows.length,
     summary: summarize(cases),
     confirmationSummary: mode !== "standalone" ? summarize(cases.slice(holdoutCount, priorCount)) : undefined,
-    finalConfirmationSummary: mode === "final" ? summarize(cases.slice(priorCount)) : undefined,
+    finalConfirmationSummary: usesFinalCohort(mode) ? summarize(cases.slice(priorCount)) : undefined,
+    fallbackConfirmation: mode === "fallback" || undefined,
     selectorChecks: mode !== "standalone" ? selectorChecks : undefined,
     cases,
     typedFailures,
@@ -306,7 +323,7 @@ function assess(corpus: ReturnType<typeof loadDataset>, rows: Row[]) {
 
 function renderReport(assessment: ReturnType<typeof assess>): string {
   return [
-    "# Guided demo holdout",
+    assessment.fallbackConfirmation ? "# Guided demo fallback regression check" : "# Guided demo holdout",
     "",
     `**${assessment.verdict}** with ${assessment.rows} planned retrieval rows.`,
     "",
@@ -325,7 +342,7 @@ function renderReport(assessment: ReturnType<typeof assess>): string {
     ] : []),
     ...(assessment.finalConfirmationSummary ? [
       "",
-      "| Fresh named-scope confirmation cases | Complete on first search | Complete after planned searches |",
+      "| " + (assessment.fallbackConfirmation ? "Named-scope regression cases" : "Fresh named-scope confirmation cases") + " | Complete on first search | Complete after planned searches |",
       "| --- | ---: | ---: |",
       ...assessment.finalConfirmationSummary.map(row =>
         `| ${row.method} | ${row.first}/${finalConfirmationCount} | ${row.final}/${finalConfirmationCount} |`,
@@ -402,7 +419,7 @@ function run(binary: string, out: string, mode: Mode) {
     cacheRevision,
     datasetSha256: frozenSha256,
     ...(mode !== "standalone" ? { confirmationSha256 } : {}),
-    ...(mode === "final" ? { finalConfirmationSha256 } : {}),
+    ...(usesFinalCohort(mode) ? { finalConfirmationSha256 } : {}),
     guidedPolicy: corpus.guidedPolicy,
     corpusSha256: corpus.definition.corpusSha256,
     rawSha256: sha256(readFileSync(raw)),
@@ -423,9 +440,9 @@ function replay(out: string, mode: Mode) {
   const provenance = JSON.parse(readFileSync(join(out, "provenance.json"), "utf8"));
   assert.equal(provenance.datasetSha256, frozenSha256);
   assert.equal(provenance.confirmationSha256, mode !== "standalone" ? confirmationSha256 : undefined);
-  assert.equal(provenance.finalConfirmationSha256, mode === "final" ? finalConfirmationSha256 : undefined);
+  assert.equal(provenance.finalConfirmationSha256, usesFinalCohort(mode) ? finalConfirmationSha256 : undefined);
   const capturedPolicy = mode === "standalone" ? provenance.guidedPolicy ?? "guided-rag-v1" : provenance.guidedPolicy;
-  assert.equal(capturedPolicy, corpus.guidedPolicy);
+  requireGuidedPolicy(capturedPolicy, mode);
   assert.equal(provenance.corpusSha256, corpus.definition.corpusSha256);
   assert.equal(provenance.rawSha256, sha256(raw));
   assert.equal(provenance.planSha256, sha256(JSON.stringify(planRows(corpus.definition))));
@@ -440,10 +457,13 @@ if (process.argv[1] && resolve(process.argv[1]) === script) {
     replay: { type: "string" },
     extension: { type: "boolean", default: false },
     "final-confirmation": { type: "boolean", default: false },
+    "fallback-confirmation": { type: "boolean", default: false },
   } });
-  assert(!(values.extension && values["final-confirmation"]), "Select only one confirmation mode");
-  const mode = values["final-confirmation"] ? "final" : values.extension ? "extension" : "standalone";
+  const selected = [values.extension, values["final-confirmation"], values["fallback-confirmation"]].filter(Boolean);
+  assert(selected.length <= 1, "Select only one confirmation mode");
+  const mode = values["fallback-confirmation"] ? "fallback" :
+    values["final-confirmation"] ? "final" : values.extension ? "extension" : "standalone";
   if (values.replay && !values.binary && !values.out) replay(resolve(values.replay), mode);
   else if (values.binary && values.out && !values.replay) run(resolve(values.binary), resolve(values.out), mode);
-  else throw new Error("Use --binary BINARY --out NEW_FOLDER or --replay EXISTING_FOLDER, optionally with --extension or --final-confirmation");
+  else throw new Error("Use --binary BINARY --out NEW_FOLDER or --replay EXISTING_FOLDER, optionally with --extension, --final-confirmation or --fallback-confirmation");
 }

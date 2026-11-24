@@ -22,6 +22,10 @@ The first eighteen cases are regression checks for the final policy. The separat
 
 The final gate requires 22 complete cases after their planned searches, including at least 19 on the first search, at least five of six in the previous confirmation cohort, and at least three of four in the new cohort. Since every v2 case was eventually complete, requiring complete coverage of all 22 cases preserves that result. All earlier selector checks still apply, alongside the two new exact selectors and the interval abstention check. A loss against either comparator, a source or technical error, a Guided result above 1,200 estimated section tokens or an unexpected policy identity fails the gate. Final mode requires `guided-rag-v3` in every Guided response.
 
+## Fallback regression check for the v4 policy
+
+The v4 check reuses exactly the v3 plan, including the three frozen case files, 22 questions, 54 literal searches per method, 162 retrieval rows and unchanged release gate. The previously measured interval is a known development regression. This run checks whether the fallback repair preserves coverage and selector behaviour on the recorded cases. It requires `guided-rag-v4` in each Guided response and in the capture provenance.
+
 ## Run and review
 
 Build the reviewed local commit with `cargo build --locked`, and prepare the cached MiniLM artifacts according to the [local setup](../../../docs/LOCAL_SETUP.md). Choose a new output directory.
@@ -53,4 +57,12 @@ Run the cumulative v3 plan in final confirmation mode. Pass the same flag for a 
 node evals/rag/scripts/guided_demo_holdout.ts --final-confirmation \
   --binary target/debug/meedoen-retrieval \
   --out evals/rag/results/local/guided-demo-between-confirmation-20261123
+```
+
+Run the v4 regression check in fallback confirmation mode. Replay the capture with the same flag. Earlier captures still use their own policy modes.
+
+```bash
+node evals/rag/scripts/guided_demo_holdout.ts --fallback-confirmation \
+  --binary target/debug/meedoen-retrieval \
+  --out evals/rag/results/local/guided-demo-fallback-confirmation-20261123
 ```
