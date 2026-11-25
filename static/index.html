@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="nl">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title data-i18n="pageTitle">COA Assistent · Vind een activiteit die past</title>
+    <title>COA Assistent Demo</title>
     <style>
       small { font-size:.8125rem; color:var(--muted); }
       button,textarea { font:inherit; color:inherit; }
@@ -72,53 +72,53 @@
     </style>
 
   <link rel="stylesheet" href="/assets/site.css?v=20261124-guided-only">
-<script src="/assets/language.js?v=20261124-guided-only" defer></script>
+<script src="/assets/language.js?v=20261125-english-default" defer></script>
 <script src="/assets/demo.js?v=20261124-guided-only" defer></script>
 </head>
-  <body><nav class="site-nav demo-nav" aria-label="Hoofdnavigatie"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">Hoe het werkt</a><details class="language-switch" aria-label="Taal"><summary id="language-trigger" class="language-trigger" aria-label="Taal kiezen: Nederlands" title="Taal kiezen: Nederlands" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇳🇱</span></summary><div id="language-options" class="language-options" role="group" aria-label="Taal"><button type="button" data-language="nl" lang="nl" aria-pressed="true"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="false"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
+  <body><nav class="site-nav demo-nav" aria-label="Main navigation"><span class="demo-name"><img class="coa-symbol" src="/assets/coa-symbol.svg" width="40" height="40" alt="" aria-hidden="true"><span data-i18n="brand">COA Assistent</span></span><a href="/" aria-current="page" data-i18n="demo">Demo</a><a href="/techniek/" data-i18n="technical">How it works</a><details class="language-switch" aria-label="Language"><summary id="language-trigger" class="language-trigger" aria-label="Choose language: English" title="Choose language: English" aria-expanded="false" aria-controls="language-options"><span id="current-language-flag" aria-hidden="true">🇬🇧</span></summary><div id="language-options" class="language-options" role="group" aria-label="Language"><button type="button" data-language="nl" lang="nl" aria-pressed="false"><span aria-hidden="true">🇳🇱</span> Nederlands</button><button type="button" data-language="en" lang="en" aria-pressed="true"><span aria-hidden="true">🇬🇧</span> English</button></div></details></nav>
     <main class="demo-main app-main">
-      <h1 data-i18n="questionTitle">Vind een activiteit die past</h1>
+      <h1 data-i18n="questionTitle">Find an activity that fits</h1>
       <section id="source" aria-labelledby="source-heading">
-        <h2 id="source-heading" data-i18n="activities">Activiteiten</h2>
+        <h2 id="source-heading" data-i18n="activities">Activities</h2>
         <div id="source-sections"></div>
         <section id="activity-document" class="activity-document" aria-labelledby="activity-document-title" hidden></section>
       </section>
       <form id="form">
-        <label for="question" data-i18n="questionLabel">Stel de COA assistent een vraag</label>
-        <p id="question-privacy" class="site-caption" data-i18n="questionPrivacy">Gebruik geen persoonsgegevens. OpenAI verwerkt je vraag en bronpassages. De publieke demo gebruikt Cloudflare en bewaart vragen, antwoorden en zoekstappen totdat de beheerder ze laat verwijderen.</p>
-        <textarea id="question" class="run-control" aria-describedby="question-privacy" maxlength="1000" required placeholder="Welke activiteiten zijn er op dinsdag?"></textarea>
+        <label for="question" data-i18n="questionLabel">Ask the COA assistant a question</label>
+        <p id="question-privacy" class="site-caption" data-i18n="questionPrivacy">Do not enter personal data. OpenAI processes your question and source passages. The public demo uses Cloudflare and keeps questions, answers and search steps until the operator authorizes deletion.</p>
+        <textarea id="question" class="run-control" aria-describedby="question-privacy" maxlength="1000" required placeholder="Which activities are there on Tuesday?"></textarea>
         <div class="example-questions" role="group" aria-labelledby="example-heading">
-          <span id="example-heading" class="sr-only" data-i18n="exampleHeading">Probeer een voorbeeld</span>
-          <button class="example-question run-control" type="button" data-example="exampleLookupQuestion" data-i18n="exampleLookupLabel">Waar en wanneer kan ik tuinieren?</button>
-          <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Welke buitenactiviteit eindigt vóór 11.00 uur?</button>
-          <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Binnen om 14.00 uur: gratis en materiaal aanwezig</button>
+          <span id="example-heading" class="sr-only" data-i18n="exampleHeading">Try an example</span>
+          <button class="example-question run-control" type="button" data-example="exampleLookupQuestion" data-i18n="exampleLookupLabel">Where and when can I garden?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCompareQuestion" data-i18n="exampleCompareLabel">Which outdoor activity finishes before 11:00?</button>
+          <button class="example-question run-control" type="button" data-example="exampleCombineQuestion" data-i18n="exampleCombineLabel">Indoors at 14:00: free, materials provided</button>
         </div>
         <div class="toolbar">
-          <button class="primary run-control" type="submit" data-i18n="submit">Zoek een antwoord</button>
+          <button class="primary run-control" type="submit" data-i18n="submit">Find an answer</button>
         </div>
       </form>
       <p id="status" role="status"></p>
-      <section id="result" hidden aria-label="Uitvoering en antwoord">
-        <h2 id="result-title" data-i18n="answer">Het antwoord</h2>
+      <section id="result" hidden aria-label="Run and answer">
+        <h2 id="result-title" data-i18n="answer">The answer</h2>
         <div class="answer-panel"><p id="answer" class="answer"></p></div>
         <section id="answer-sources" class="result-section" aria-labelledby="answer-sources-heading" hidden>
           <div class="result-heading">
-            <h2 id="answer-sources-heading" data-i18n="answerSources">Gebruikte bronnen</h2>
-            <button type="button" class="info-trigger" popovertarget="answer-sources-info" aria-controls="answer-sources-info" aria-expanded="false" aria-label="Uitleg over gebruikte bronnen" data-info-label="answerSourcesInfoLabel"><span aria-hidden="true">i</span></button>
+            <h2 id="answer-sources-heading" data-i18n="answerSources">Sources used</h2>
+            <button type="button" class="info-trigger" popovertarget="answer-sources-info" aria-controls="answer-sources-info" aria-expanded="false" aria-label="About sources used" data-info-label="answerSourcesInfoLabel"><span aria-hidden="true">i</span></button>
           </div>
-          <p id="answer-sources-info" class="info-popover" popover="auto" data-i18n="answerSourcesInfo">Deze bronpassages heeft de assistent bij zijn antwoord aangehaald.</p>
+          <p id="answer-sources-info" class="info-popover" popover="auto" data-i18n="answerSourcesInfo">These are the source passages the assistant cited for its answer.</p>
           <div id="citations"></div>
         </section>
         <section id="tool-details" class="result-section" aria-labelledby="search-actions-heading" hidden>
           <div class="result-heading">
-            <h2 id="search-actions-heading">Zoekacties</h2>
-            <button type="button" class="info-trigger" popovertarget="search-actions-info" aria-controls="search-actions-info" aria-expanded="false" aria-label="Uitleg over zoekacties" data-info-label="searchActionsInfoLabel"><span aria-hidden="true">i</span></button>
+            <h2 id="search-actions-heading">Searches</h2>
+            <button type="button" class="info-trigger" popovertarget="search-actions-info" aria-controls="search-actions-info" aria-expanded="false" aria-label="About searches" data-info-label="searchActionsInfoLabel"><span aria-hidden="true">i</span></button>
           </div>
-          <p id="search-actions-info" class="info-popover" popover="auto" data-i18n="searchActionsInfo">Dit zijn de zoekvragen en de bronstukken die terugkwamen. Een gevonden bronstuk hoeft niet in het antwoord te zijn aangehaald.</p>
+          <p id="search-actions-info" class="info-popover" popover="auto" data-i18n="searchActionsInfo">These are the search queries and the source passages they returned. A retrieved passage is not necessarily cited in the answer.</p>
           <ol id="tools" class="search-actions"></ol>
         </section>
       </section>
     </main>
 
-  <footer class="site-footer"><span data-i18n="projectNotice">Eigen leerproject, geen intern COA-plan. Alle gegevens zijn verzonnen. Meedoen is vrijwillig; een medewerker bespreekt opties met de bewoner. De demo wijzigt geen dossiers, verstuurt geen berichten en meldt niemand aan.</span> <a href="https://github.com/Daanvdplas/coa-assistent" data-i18n="code">Bekijk de code</a>.</footer></body>
+  <footer class="site-footer"><span data-i18n="projectNotice">An independent learning project, not an internal COA plan. All data is fictional. Participation is voluntary; a staff member discusses options with the resident. The demo does not change records, send messages or register anyone.</span> <a href="https://github.com/Daanvdplas/coa-assistent" data-i18n="code">View the code</a>.</footer></body>
 </html>

@@ -3,7 +3,7 @@
     navigation: ["Hoofdnavigatie", "Main navigation"],
     language: ["Taal", "Language"],
     chooseLanguage: ["Taal kiezen: {language}", "Choose language: {language}"],
-    brand: ["COA Assistent", "COA Assistant"],
+    brand: ["COA Assistent", "COA Assistent"],
     demo: ["Demo", "Demo"],
     technical: ["Hoe het werkt", "How it works"],
     code: ["Bekijk de code", "View the code"],
@@ -19,9 +19,8 @@
       "Eigen leerproject, geïnspireerd door de COA-use case. Alle activiteiten zijn verzonnen.",
       "An independent learning project inspired by the COA use case. All activities are fictional."
     ],
-    pageTitle: ["COA Assistent · Vind een activiteit die past", "COA Assistant · Find an activity that fits"],
-    technicalPageTitle: ["Hoe het werkt · COA Assistent", "How it works · COA Assistant"],
-    resultsPageTitle: ["Tests en resultaten · COA Assistent", "Tests and results · COA Assistant"],
+    technicalPageTitle: ["Hoe het werkt · COA Assistent", "How it works · COA Assistent"],
+    resultsPageTitle: ["Tests en resultaten · COA Assistent", "Tests and results · COA Assistent"],
     activities: ["Activiteiten", "Activities"],
     closeDocument: ["Sluiten", "Close"],
     exampleHeading: ["Probeer een voorbeeld", "Try an example"],
@@ -118,8 +117,8 @@
     "Wat doen we?": "what", "Wanneer?": "when", "Waar?": "where", "Taal en hulp": "support",
     "Wat neem je mee?": "bring", "Kosten en materiaal": "costs", "Beschikbaarheid": "availability",
   };
-  let language = "nl";
-  try { if (localStorage.getItem("coa-demo-language") === "en") language = "en"; } catch {}
+  let language = "en";
+  try { if (localStorage.getItem("coa-demo-language") === "nl") language = "nl"; } catch {}
   function t(key, values = {}) {
     const template = messages[key]?.[language === "en" ? 1 : 0] || key;
     return template.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
@@ -138,7 +137,6 @@
       document.getElementById("current-language-flag").textContent = language === "nl" ? "🇳🇱" : "🇬🇧";
       document.getElementById("language-options").setAttribute("aria-label", t("language"));
     }
-    if (document.querySelector("#form")) document.title = t("pageTitle");
   }
   function select(next) {
     if (!["nl", "en"].includes(next) || next === language) return;
