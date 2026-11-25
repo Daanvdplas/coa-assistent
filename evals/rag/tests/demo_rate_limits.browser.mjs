@@ -14,11 +14,14 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-async function submitQuestion(t, code, retrySeconds, retryHeader) {
+async function submitQuestion(t, code, retrySeconds, retryHeader, savedLanguage = "nl") {
   const page = await browser.newPage();
   t.after(() => page.close());
   page.setDefaultTimeout(5000);
   await page.clock.setFixedTime(start);
+  if (savedLanguage !== null) {
+    await page.addInitScript(language => localStorage.setItem("coa-demo-language", language), savedLanguage);
+  }
   await page.route("**/*", route => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/") return route.fulfill({ path: new URL("index.html", site).pathname });
@@ -41,8 +44,11 @@ async function submitQuestion(t, code, retrySeconds, retryHeader) {
     return route.abort();
   });
   await page.goto("http://coa.test/");
+  const submission = page.waitForRequest(request =>
+    request.method() === "POST" && new URL(request.url()).pathname === "/api/runs");
   await page.locator("#question").fill("Welke activiteit past bij mij?");
-  await page.getByRole("button", { name: "Zoek een antwoord" }).click();
+  await page.locator('#form button[type="submit"]').click();
+  assert.equal((await submission).postDataJSON().answer_language, savedLanguage ?? "en");
   await page.locator("#status.error").waitFor({ state: "visible" });
   return page;
 }
@@ -51,6 +57,13 @@ async function selectEnglish(page) {
   await page.locator("#language-trigger").click();
   await page.getByRole("button", { name: "English" }).click();
 }
+
+test("a new visitor sees COA Assistent Demo in English and requests an English answer", async t => {
+  const page = await submitQuestion(t, "demo_rate_limit", 30, undefined, null);
+  assert.equal(await page.locator("html").getAttribute("lang"), "en");
+  assert.equal(await page.title(), "COA Assistent Demo");
+  assert.equal(await page.getByRole("heading", { level: 1 }).textContent(), "Find an activity that fits");
+});
 
 test("the demo accepts a question without offering a choice of search method", async t => {
   const page = await submitQuestion(t, "demo_rate_limit", 30);
