@@ -19,7 +19,8 @@ From the repository, explicitly remove inherited provider and budget configurati
 
 ```sh
 env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DEMO_BUDGET_FILE \
-  -u COA_OPENAI_ENFORCED_PROJECT_ID -u COA_RESPONSES_TEST_URL \
+  -u COA_OPENAI_ENFORCED_PROJECT_ID -u COA_DEMO_MONTHLY_BUDGET_FILE \
+  -u COA_RESPONSES_TEST_URL \
   -u COA_RESPONSES_TEST_TIMEOUT_MS -u COA_TRACE_DB \
   COA_DISABLE_DOTENV=1 cargo run --locked
 ```
@@ -84,7 +85,8 @@ With `.env` filled in, start from the project root and select the approved budge
 
 ```sh
 env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DISABLE_DOTENV \
-  -u COA_OPENAI_ENFORCED_PROJECT_ID -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
+  -u COA_OPENAI_ENFORCED_PROJECT_ID -u COA_DEMO_MONTHLY_BUDGET_FILE \
+  -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
   COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" \
   cargo run --locked
 ```
@@ -92,7 +94,7 @@ env -u OPENAI_API_KEY -u COA_OPENAI_API_KEY_FILE -u COA_DISABLE_DOTENV \
 For the alternative external key file, use this command instead. Substitute the approved external paths if they differ:
 
 ```sh
-env -u OPENAI_API_KEY -u COA_OPENAI_ENFORCED_PROJECT_ID \
+env -u OPENAI_API_KEY -u COA_OPENAI_ENFORCED_PROJECT_ID -u COA_DEMO_MONTHLY_BUDGET_FILE \
   -u COA_RESPONSES_TEST_URL -u COA_RESPONSES_TEST_TIMEOUT_MS \
   COA_OPENAI_API_KEY_FILE="$HOME/.config/coa/openai-api-key" \
   COA_DEMO_BUDGET_FILE="$HOME/.config/coa/demo-budget/attempts-v2.json" \
@@ -120,6 +122,7 @@ Historical price check: the [Standard pricing page](https://developers.openai.co
 | `COA_DISABLE_DOTENV` | Set to `1` to skip `.env`, including for a credential-free preview. |
 | `COA_DEMO_BUDGET_FILE` | Persistent approved schema-2 budget for local answering and benchmark jobs. |
 | `COA_OPENAI_ENFORCED_PROJECT_ID` | Dedicated OpenAI project with an enforced monthly spend limit for the [hosted deployment](public-deployment.md#switch-the-hosted-demo-to-an-enforced-openai-project-budget). Leave unset for this setup. |
+| `COA_DEMO_MONTHLY_BUDGET_FILE` | Private allowance for the [hosted local monthly budget](public-deployment.md#switch-the-hosted-demo-to-a-local-monthly-budget). Leave unset for this setup. |
 | `COA_TRACE_DB` | Optional private trace database outside the checkout; unset disables recording. See [local traces](traces.md). |
 | `COA_TRUSTED_PROXY_IP` | Exact trusted proxy peer; unset for direct local use. See [deployment](public-deployment.md). |
 

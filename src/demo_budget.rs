@@ -1,5 +1,5 @@
 //! Persistent allowance for physical API attempts, not a dollar or token ledger.
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
     fs::{File, OpenOptions},
     io::{self, Read, Seek, SeekFrom, Write},
@@ -32,18 +32,7 @@ pub(crate) struct AttemptBudget(Mutex<LockedState>);
 
 impl AttemptBudget {
     pub(crate) fn open(path: &Path) -> io::Result<Self> {
-        private_parent(path)?;
-        let mut file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-            .open(path)?;
-        check_identity(&file, path)?;
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            return Err(io::Error::last_os_error());
-        }
-        // Keep this descriptor for the runner's lifetime; a second server must
-        // not own an independent in-memory counter for the same allowance.
+        let mut file = lock_private_file(path)?;
         let state = read_state(&mut file)?;
         Ok(Self(Mutex::new(LockedState {
             file,
@@ -71,18 +60,8 @@ impl AttemptBudget {
             return Err("budget: Het gebruiksbudget van deze demo is bereikt.");
         }
         locked.state.attempts += 1;
-        // Persist an empty record before overwriting: a short write must not
-        // combine new digits with an old JSON tail and reopen spent slots.
-        // Failed writes stop this runner; incomplete records block restart.
-        let result = (|| -> io::Result<()> {
-            let bytes = serde_json::to_vec(&locked.state)?;
-            locked.file.set_len(0)?;
-            locked.file.sync_all()?;
-            locked.file.seek(SeekFrom::Start(0))?;
-            locked.file.write_all(&bytes)?;
-            locked.file.sync_all()
-        })();
-        if result.is_err() {
+        let LockedState { file, state, .. } = &mut *locked;
+        if write_json_state(file, state).is_err() {
             locked.failed = true;
             return Err("budget: Het gebruiksbudget kan niet worden opgeslagen.");
         }
@@ -91,12 +70,8 @@ impl AttemptBudget {
 }
 
 fn read_state(file: &mut File) -> io::Result<State> {
-    file.seek(SeekFrom::Start(0))?;
-    let mut bytes = Vec::new();
-    file.take(4097).read_to_end(&mut bytes)?;
-    let state: State = serde_json::from_slice(&bytes)?;
-    if bytes.len() > 4096
-        || state.schema_version != POLICY_VERSION
+    let state: State = read_json_state(file)?;
+    if state.schema_version != POLICY_VERSION
         || state.max_attempts == 0
         || state.attempts > state.max_attempts
     {
@@ -105,7 +80,47 @@ fn read_state(file: &mut File) -> io::Result<State> {
     Ok(state)
 }
 
-fn check_identity(file: &File, path: &Path) -> io::Result<()> {
+pub(crate) fn open_private_file(path: &Path, writable: bool) -> io::Result<File> {
+    private_parent(path)?;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(writable)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+        .open(path)?;
+    check_identity(&file, path)?;
+    Ok(file)
+}
+
+pub(crate) fn lock_private_file(path: &Path) -> io::Result<File> {
+    let file = open_private_file(path, true)?;
+    // Hold the descriptor for the lifetime of the allowance.
+    if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(file)
+}
+
+pub(crate) fn read_json_state<T: DeserializeOwned>(file: &mut File) -> io::Result<T> {
+    file.seek(SeekFrom::Start(0))?;
+    let mut bytes = Vec::new();
+    file.take(4097).read_to_end(&mut bytes)?;
+    if bytes.len() > 4096 {
+        return Err(io::Error::other("Invalid budget state"));
+    }
+    Ok(serde_json::from_slice(&bytes)?)
+}
+
+pub(crate) fn write_json_state(file: &mut File, state: &impl Serialize) -> io::Result<()> {
+    let bytes = serde_json::to_vec(state)?;
+    // Persist an empty record before overwriting so a short write fails closed.
+    file.set_len(0)?;
+    file.sync_all()?;
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(&bytes)?;
+    file.sync_all()
+}
+
+pub(crate) fn check_identity(file: &File, path: &Path) -> io::Result<()> {
     private_parent(path)?;
     let metadata = file.metadata()?;
     let named = path.symlink_metadata()?;
@@ -153,7 +168,19 @@ pub fn cli(args: &[String]) -> io::Result<()> {
             "Usage: demo-budget init PATH --max-attempts POSITIVE_INTEGER",
         ));
     }
-    let path = Path::new(path);
+    create_json_state(Path::new(path), |_| {
+        Ok(State {
+            schema_version: POLICY_VERSION,
+            max_attempts: maximum.unwrap(),
+            attempts: 0,
+        })
+    })
+}
+
+pub(crate) fn create_json_state<T: Serialize>(
+    path: &Path,
+    state: impl FnOnce(&File) -> io::Result<T>,
+) -> io::Result<()> {
     let parent = private_parent(path)?;
     let mut file = OpenOptions::new()
         .write(true)
@@ -161,11 +188,7 @@ pub fn cli(args: &[String]) -> io::Result<()> {
         .mode(0o600)
         .custom_flags(libc::O_NOFOLLOW)
         .open(path)?;
-    let bytes = serde_json::to_vec(&State {
-        schema_version: POLICY_VERSION,
-        max_attempts: maximum.unwrap(),
-        attempts: 0,
-    })?;
+    let bytes = serde_json::to_vec(&state(&file)?)?;
     file.write_all(&bytes)?;
     file.sync_all()?;
     File::open(parent)?.sync_all()?;

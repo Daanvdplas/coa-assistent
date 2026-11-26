@@ -42,6 +42,8 @@ impl Setup {
             "OPENAI_API_KEY",
             "COA_OPENAI_API_KEY_FILE",
             "COA_DEMO_BUDGET_FILE",
+            "COA_DEMO_MONTHLY_BUDGET_FILE",
+            "COA_OPENAI_ENFORCED_PROJECT_ID",
             "COA_RESPONSES_TEST_URL",
             "COA_RESPONSES_TEST_TIMEOUT_MS",
             "COA_DISABLE_DOTENV",

@@ -47,9 +47,9 @@ These checks establish provenance. They do not prove that every sentence is corr
 
 The current runtime allows ten questions concurrently and one active question per visitor network across all its sessions. A further question receives a capacity or rate-limit response. Address and session limits also constrain repeated use.
 
-A question has at most four sequential searches, five model attempts and a 120-second deadline. Each attempt allows at most 4096 output tokens. Before generation, the [transport](../src/responses/transport.rs) reserves an attempt in the persistent budget and asks OpenAI to count the full input, including instructions, tools, schema and accumulated context. An unknown, invalid or greater-than-300,000-token count blocks generation. The accepted generation payload is then sent unchanged. Automatic HTTP retries are disabled.
+A question has at most four sequential searches, five model attempts and a 120-second deadline. Each attempt allows at most 4096 output tokens. Before generation, the [transport](../src/responses/transport.rs) asks OpenAI to count the full input, including instructions, tools, schema and accumulated context. An unknown, invalid or greater-than-300,000-token count blocks generation. The accepted generation payload is sent unchanged after the applicable budget check. Automatic HTTP retries are disabled.
 
-OpenAI's [complete-input counting endpoint](https://help.openai.com/en/articles/4936856-understanding-and-counting-tokens) is free; generation is billed separately. The help article was updated approximately **5 November 2026** and checked **18 November 2026**. Five attempts can therefore mean up to five counting requests plus five generation requests. A failed count or provider error still consumes the reserved attempt.
+OpenAI's [complete-input counting endpoint](https://help.openai.com/en/articles/4936856-understanding-and-counting-tokens) is free; generation is billed separately. The help article was updated approximately **5 November 2026** and checked **18 November 2026**. Five attempts can therefore mean up to five counting requests plus five generation requests. In attempt-ledger mode the app reserves an attempt before counting. A failed count or provider error consumes that reservation.
 
 The public launch configured **50 attempts in total**, preserved across restarts in a schema-2 budget file outside the release directory. At the [Standard Sol prices](https://developers.openai.com/api/docs/pricing) checked **18 November 2026** (HTTP Last-Modified **18 November 2026**), the conservative upper rates applicable here are $5 per million input tokens including a 30-minute cache write, and $15 per million output tokens:
 
@@ -61,6 +61,8 @@ Including one 20% planning margin: $93.6864
 This conditional calculation concerns this application's configured release. It is not a provider-side $100 spending cap, an account-wide billing guarantee, or a statement of remaining quota. Different prices, models, cache settings or other key usage require a new calculation. Stopping prevents new requests but cannot undo work already accepted by the provider.
 
 ## What persists, and who receives the text
+
+The post-launch release also supports an explicitly authorized [local monthly budget](public-deployment.md#switch-the-hosted-demo-to-a-local-monthly-budget). It uses the exact count to reserve the maximum cost before generation and only returns unused funds after verified usage. The [enforced hosted project mode](public-deployment.md#switch-the-hosted-demo-to-an-enforced-openai-project-budget) is another explicit deployment option.
 
 The API key is outside the repository, readable only by the application account (`0600`); the budget directory is private (`0700`). Missing, damaged, replaced or concurrently opened budget state blocks new paid work. Restarting does not issue a new allowance. The [budget](../src/demo_budget.rs) stores counters and policy information, not questions or answers.
 

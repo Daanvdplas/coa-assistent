@@ -88,6 +88,27 @@ test("packaged Linux runtime warms MiniLM and requires an explicit spending poli
     const inherited = { ...projectOnly, OPENAI_API_KEY: "sk-another-project-test-key" };
     assert.equal((await source(inherited)).runtime_ready, false, "an inherited key must not override the project key file");
     assert.deepEqual(await readFile(budget), original, "selecting the project policy preserves the audit ledger");
+    const monthly = join(directory, "budget/monthly.json");
+    const monthlyOnly: NodeJS.ProcessEnv = { ...environment, COA_DEMO_MONTHLY_BUDGET_FILE: monthly };
+    delete monthlyOnly.COA_DEMO_BUDGET_FILE;
+    assert.equal((await source(monthlyOnly)).runtime_ready, false, "a missing monthly ledger must disable paid requests");
+    const initMonthly = spawnSync(binary, [
+      "demo-monthly-budget", "init", monthly, "--utc-month", new Date().toISOString().slice(0, 7),
+      "--max-usd-cents", "10000", "--opening-usd-cents", "13",
+    ], { cwd: directory, env: monthlyOnly, encoding: "utf8" });
+    assert.equal(initMonthly.status, 0, "test-only monthly allowance initialization must work");
+    const initialMonthly = await readFile(monthly);
+    const monthlyReady = await source(monthlyOnly);
+    assert.equal(monthlyReady.runtime_ready, true, "a valid standalone monthly ledger enables the service");
+    assert.equal(monthlyReady.model_configuration.spend_control, "monthly_budget");
+    for (const guard of ["budget_policy_version", "max_input_tokens_per_request", "max_input_token_preflights", "max_provider_requests", "max_output_tokens_per_request"]) {
+      assert.equal(monthlyReady.model_configuration[guard], available.model_configuration[guard]);
+    }
+    for (const conflict of [{ COA_DEMO_BUDGET_FILE: budget }, { COA_OPENAI_ENFORCED_PROJECT_ID: "proj_test_only" }]) {
+      assert.equal((await source({ ...monthlyOnly, ...conflict })).runtime_ready, false, "monthly mode excludes both alternate policies");
+    }
+    assert.deepEqual(await readFile(monthly), initialMonthly, "starting monthly mode cannot spend or reset the allowance");
+    assert.deepEqual(await readFile(budget), original, "selecting monthly mode preserves the retired audit ledger");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

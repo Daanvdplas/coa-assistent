@@ -100,7 +100,9 @@ impl BoundedTransport {
                 return Err(self
                     .failure("budget: Stel eerst het gebruiksbudget voor de antwoordservice in."));
             }
-            SpendControl::OpenAiProject(_) | SpendControl::Unconfigured => {}
+            SpendControl::MonthlyBudget(_)
+            | SpendControl::OpenAiProject(_)
+            | SpendControl::Unconfigured => {}
         }
         let (parts, body) = request.into_parts();
         let mut count_endpoint = self.endpoint.clone();
@@ -128,6 +130,17 @@ impl BoundedTransport {
         {
             return Err(self.failure("budget: De modelinvoer is te groot of niet controleerbaar."));
         }
+        let reservation = if let SpendControl::MonthlyBudget(budget) = &self.spend_control {
+            let maximum = cost_observation::maximum_30m_charge(counted.input_tokens)
+                .ok_or_else(|| self.failure("budget: Het gebruiksbudget is niet beschikbaar."))?;
+            Some(
+                budget
+                    .reserve(maximum)
+                    .map_err(|error| self.failure(error))?,
+            )
+        } else {
+            None
+        };
         if let Some(observation) = observation.as_deref_mut() {
             *observation = Some(json!({"pricing_status":"generation_usage_unknown"}));
         }
@@ -142,8 +155,28 @@ impl BoundedTransport {
         let raw: Value = serde_json::from_slice(&bytes).map_err(|_| {
             self.failure("output: De antwoordservice heeft ongeldige uitvoer geleverd.")
         })?;
-        if let Some(observation) = observation {
-            *observation = Some(cost_observation::observe(&raw, self.offline));
+        if observation.is_some() || reservation.is_some() {
+            let cost = cost_observation::observe(&raw, self.offline);
+            let actual =
+                cost_observation::trustworthy_30m_charge(&raw, &cost, counted.input_tokens);
+            if let Some(observation) = observation {
+                *observation = Some(cost);
+            }
+            if let Some(reservation) = reservation {
+                if cost_observation::contradicts_30m_policy(&raw, counted.input_tokens) {
+                    reservation
+                        .flag_policy_mismatch()
+                        .map_err(|error| self.failure(error))?;
+                    return Err(
+                        self.failure("budget: Het gebruiksbudget kan niet worden gecontroleerd.")
+                    );
+                }
+                if let Some(actual) = actual {
+                    reservation
+                        .settle(actual)
+                        .map_err(|error| self.failure(error))?;
+                }
+            }
         }
         let checked = {
             let mut state = self.state.lock().map_err(|_| {

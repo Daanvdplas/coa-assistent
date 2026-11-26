@@ -1,5 +1,5 @@
-//! Read-only estimates for the private trace. Serving never consults these numbers.
-use super::MODEL;
+//! Fixed Standard token pricing shared by observation and the local monthly budget.
+use super::{MAX_OUTPUT_TOKENS, MODEL};
 use serde_json::{Value, json};
 
 pub(crate) const PRICE_TABLE: &str = "gpt-6.1-sol-standard-2026-11-26";
@@ -73,6 +73,53 @@ pub(super) fn observe(response: &Value, offline: bool) -> Value {
     })
 }
 
+pub(super) fn maximum_30m_charge(input: u64) -> Option<u64> {
+    estimate_nanodollars(input, MAX_OUTPUT_TOKENS as u64, 0, input, input, 0)
+}
+
+pub(super) fn trustworthy_30m_charge(
+    response: &Value,
+    observation: &Value,
+    counted_input: u64,
+) -> Option<u64> {
+    let output = observation["output_tokens"].as_u64()?;
+    let total = response["usage"]["total_tokens"].as_u64()?;
+    let reasoning = response["usage"]["output_tokens_details"]["reasoning_tokens"].as_u64()?;
+    if response["object"] != "response"
+        || !matches!(
+            response["status"].as_str(),
+            Some("completed" | "incomplete")
+        )
+        || observation["input_tokens"].as_u64() != Some(counted_input)
+        || output > MAX_OUTPUT_TOKENS as u64
+        || reasoning > output
+        || counted_input.checked_add(output) != Some(total)
+        || observation["cache_write_12h_tokens"].as_u64() != Some(0)
+    {
+        return None;
+    }
+    observation["estimated_usd_nanodollars"].as_u64()
+}
+
+pub(super) fn contradicts_30m_policy(response: &Value, counted_input: u64) -> bool {
+    let usage = &response["usage"];
+    response["model"]
+        .as_str()
+        .is_some_and(|model| model != MODEL)
+        || response["service_tier"]
+            .as_str()
+            .is_some_and(|tier| tier != "default")
+        || usage["input_tokens"]
+            .as_u64()
+            .is_some_and(|input| input > counted_input)
+        || usage["output_tokens"]
+            .as_u64()
+            .is_some_and(|output| output > MAX_OUTPUT_TOKENS as u64)
+        || usage["input_tokens_details"]["cache_write_tokens_details"]["ttl_12h_tokens"]
+            .as_u64()
+            .is_some_and(|write| write > 0)
+}
+
 fn estimate_nanodollars(
     input: u64,
     output: u64,
@@ -101,15 +148,58 @@ mod tests {
 
     fn response(input: u64) -> Value {
         json!({
-            "model":MODEL, "service_tier":"default",
+            "object":"response", "status":"completed", "model":MODEL, "service_tier":"default",
             "usage":{
-                "input_tokens":input, "output_tokens":25,
+                "input_tokens":input, "output_tokens":25, "total_tokens":input+25,
+                "output_tokens_details":{"reasoning_tokens":5},
                 "input_tokens_details":{
                     "cached_tokens":20, "cache_write_tokens":15,
                     "cache_write_tokens_details":{"ttl_30m_tokens":10,"ttl_12h_tokens":5}
                 }
             }
         })
+    }
+
+    #[test]
+    fn reservation_prices_the_full_input_as_30m_writes_and_full_output() {
+        assert_eq!(maximum_30m_charge(272_000), Some(720_960_000));
+        assert_eq!(maximum_30m_charge(272_001), Some(1_421_445_000));
+        assert_eq!(maximum_30m_charge(300_000), Some(1_561_440_000));
+    }
+
+    #[test]
+    fn only_terminal_complete_standard_30m_usage_can_credit_a_reservation() {
+        let mut good = response(100);
+        good["usage"]["input_tokens_details"]["cache_write_tokens_details"] =
+            json!({"ttl_30m_tokens":15,"ttl_12h_tokens":0});
+        assert_eq!(
+            trustworthy_30m_charge(&good, &observe(&good, false), 100),
+            Some(419_500)
+        );
+        let mut incomplete = good.clone();
+        incomplete["status"] = json!("incomplete");
+        assert_eq!(
+            trustworthy_30m_charge(&incomplete, &observe(&incomplete, false), 100),
+            Some(419_500)
+        );
+        for (key, value) in [
+            ("status", json!("in_progress")),
+            ("service_tier", json!("fast")),
+            ("usage", Value::Null),
+        ] {
+            let mut uncertain = good.clone();
+            uncertain[key] = value;
+            assert_eq!(
+                trustworthy_30m_charge(&uncertain, &observe(&uncertain, false), 100),
+                None
+            );
+        }
+        assert_eq!(
+            trustworthy_30m_charge(&good, &observe(&good, false), 101),
+            None
+        );
+        assert!(contradicts_30m_policy(&good, 99));
+        assert!(contradicts_30m_policy(&response(100), 100));
     }
 
     #[test]

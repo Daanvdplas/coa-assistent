@@ -2,7 +2,7 @@
 
 This is an operator procedure, not authorization to deploy. The [runtime report](runtime-report.md) records the **17 November 2026** public launch; this document does not recheck the current host, URL, allowance or service state. The launch used the temporary Cloudflare route below. New deployment or paid verification requires approval of the exact release, URL, separate project key and spending policy. Use fictional information only.
 
-The original owner approved $100 and fifty schema-2 model attempts under **policy 2**. Before each attempt, the official free endpoint counts the exact complete input, at most 300,000 tokens; output is at most 4096 tokens. At the Sol/Standard/30m price assumptions recorded **17 November 2026**, fifty attempts give a conservative $78.072, or $93.6864 with one total 20% planning margin. This is not an account-wide billing guarantee or a default allowance for another installation. Recalculate before changing model, tier, cache policy, token ceilings, prices or issuance. Keep keys and real resident data out of Git, commands, issues and logs.
+The original release used an approved $100 and fifty schema-2 model attempts under **policy 2**. Before each attempt, the official free endpoint counts the exact complete input, at most 300,000 tokens; output is at most 4096 tokens. At the Sol/Standard/30m price assumptions recorded **17 November 2026**, fifty attempts give a conservative $78.072, or $93.6864 with one total 20% planning margin. This is not an account-wide billing guarantee or a default allowance for another installation. Recalculate before changing model, tier, cache policy, token ceilings, prices or issuance. Keep keys and real resident data out of Git, commands, issues and logs.
 
 ## Host and route history
 
@@ -21,7 +21,7 @@ The package contains:
 - `release.json` and `SHA256SUMS`: source commit, toolchain, lockfile hash and checksums.
 - `config/`: packaged proxy/service configuration from repository [deploy/](../deploy/); `DEPLOYMENT.md`: this procedure.
 
-The binary embeds sources, UI and selected saved reports. The website service needs no Node, npm, Codex, Git, personal caches or full checkout. Verify system libraries with `ldd`. The workflow tests proxy behavior, checksums, CLI, systemd parsing and real MiniLM warmup with an unusable test key and no answer calls. It checks that the default mode requires a durable attempt ledger and that project mode needs explicit configuration. This is not a VPS capacity guarantee.
+The binary embeds sources, UI and selected saved reports. The website service needs no Node, npm, Codex, Git, personal caches or full checkout. Verify system libraries with `ldd`. The workflow tests proxy behavior, checksums, CLI, systemd parsing and real MiniLM warmup with an unusable test key and no answer calls. It checks that the default mode requires a durable attempt ledger and that the hosted alternatives need explicit, mutually exclusive configuration. This is not a VPS capacity guarantee.
 
 Verify the downloaded archive's outer `.sha256`, extract into a new directory, then run `sha256sum --check SHA256SUMS` there. Retain source commit and workflow-run identity. Install root-owned under `/opt/coa-demo/releases/APPROVED_COMMIT`; switch `current` only when activating that verified release. Never overwrite an active release.
 
@@ -36,6 +36,38 @@ These are operator actions **after approval**, never automatic startup/restart s
 Preserve the ledger across repairs, restarts and updates. In attempt-ledger mode, missing, invalid or inaccessible state blocks provider attempts. The service initializes nothing and has no default cap. Network-address limits count traffic in RAM.
 
 Historical migration: an earlier private preparation had an unused schema-1 allowance of fifteen. Only its explicitly verified zero-use state authorized a one-time transition: stop service, preserve the old file unchanged as audit evidence, remove service access (`root:root`, `0400`) and initialize a **new** v2 path with the new binary. Never change the old cap/counter. Any use requires a new combined remaining-budget decision. Older binaries refuse v2; never roll back to an old unit plus the unused v1 budget, which would open a second allowance. This history does not authorize a new migration.
+
+## Switch the hosted demo to a local monthly budget
+
+Use one dedicated key for this demo and keep other spending separate. Get the owner's approval of the monthly USD cap before enabling this mode. Reconcile charges already incurred during that month and conservatively account for pending or uncertain requests under the previous policy. Document the opening charge and round it up to whole USD cents.
+
+1. Close public admission and stop the app. Preserve the existing schema-2 attempt ledger, including its identity and contents. Keep the service key and private budget directory described above.
+2. Initialize the separate monthly ledger once as `coa-demo`. For a $100 cap, pass `10000` cents. Substitute the actual current UTC month and the reconciled opening charge in cents. Neither placeholder is accepted by the CLI.
+
+   ```sh
+   meedoen-retrieval demo-monthly-budget init /var/lib/coa-demo/budget/monthly.json \
+     --utc-month YYYY-MM --max-usd-cents 10000 --opening-usd-cents APPROVED_CENTS
+   meedoen-retrieval demo-monthly-budget status /var/lib/coa-demo/budget/monthly.json
+   ```
+
+3. Install a systemd drop-in with the settings below. Carry over any additional installed startup checks except the retired attempt-ledger check. The service must keep using `COA_OPENAI_API_KEY_FILE` for the dedicated key.
+
+   ```ini
+   [Service]
+   Environment=COA_DEMO_MONTHLY_BUDGET_FILE=/var/lib/coa-demo/budget/monthly.json
+   UnsetEnvironment=COA_DEMO_BUDGET_FILE COA_OPENAI_ENFORCED_PROJECT_ID OPENAI_API_KEY
+   ExecStartPre=
+   ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/openai-api-key
+   ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/budget/monthly.json
+   ```
+
+4. Reload systemd and start privately. Check that `/api/source` shows `runtime_ready: true`, `model_configuration.spend_control: "monthly_budget"` and the unchanged request and token limits. Run the read-only status command as `coa-demo` to check the UTC month, approved cap and reconciled opening charge, remaining amount and `requires_review: false`. Verify both ledgers before reopening admission. Starting, restarting and reading status never create a ledger or reset its usage. Keep the original monthly file in place at the filesystem level. A replacement copy, even with identical contents, fails its identity check.
+
+The app uses the exact input-token count to durably reserve the most expensive permitted input charge (30-minute cache writes) and the full output ceiling before generation. It returns unused funds only for verified terminal usage. Unknown outcomes retain the full reservation. A provider response that contradicts the fixed billing policy halts new generation pending operator review. Missing, invalid or inaccessible ledger state closes paid admission. The budget belongs to the UTC month of the local reservation. A later month starts with the same cap and no opening charge. Provider billing time and charges from elsewhere can differ.
+
+The budget uses GPT-6.1 Sol Standard rates introduced **29 September 2026** and checked **26 November 2026**. The maximum per million tokens is $2.50 for 30-minute cache writes and $10 for output. Above 272,000 input tokens, the entire request doubles the input and cache rates and uses 1.5× output pricing. With 300,000 input tokens and 4096 output tokens, the largest reservation is $1.56144. The demo still admits at most 100 questions per rolling hour and 10 per network. Keep the model, tier and cache settings fixed. [OpenAI model rates](https://developers.openai.com/api/docs/models/gpt-6.1-sol) · [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
+
+If the key's scope, billing assumptions or ledger state become uncertain, stop paid admission. Keep both ledgers for accounting and obtain approval of any policy change or rollback. Roll back only to a release that can enforce the active monthly allowance unless the owner separately approves a different remaining allowance.
 
 ## Switch the hosted demo to an enforced OpenAI project budget
 
@@ -119,7 +151,7 @@ Optional execution traces are operator-only. Read JSON through `traces list` and
 
 Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
-Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the currently approved spending policy. If the release cannot enforce the approved project mode, follow the separate rollback in [the project budget procedure](#switch-the-hosted-demo-to-an-enforced-openai-project-budget). An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
+Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the currently approved spending policy. If the release cannot enforce the approved spending mode, follow the rollback guidance in the [local monthly budget procedure](#switch-the-hosted-demo-to-a-local-monthly-budget) or [project budget procedure](#switch-the-hosted-demo-to-an-enforced-openai-project-budget). Leave service stopped if the approved policy cannot be enforced. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
 
 If the rollback release prunes traces, unset `COA_TRACE_DB` for that release before restarting. Keep the private trace database and its sidecar files intact for inspection and for the next release that retains traces until owner-approved deletion.
 
