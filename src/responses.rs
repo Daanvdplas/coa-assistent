@@ -1,5 +1,6 @@
 //! The web demo's Rig agent, with a bounded, stateless Responses API transport.
 //! CLI and experiment entry points continue to use the separate Codex runner.
+pub(crate) mod cost_observation;
 mod rig_runtime;
 mod transport;
 use crate::{
@@ -447,6 +448,10 @@ mod tests {
             json!([{"type":"reasoning","id":"private","summary":[],"encrypted_content":"PRIVATE-REPLAY-CANARY"},call("one","tuinieren")]),
         );
         first["usage"]["unknown_field"] = json!("PRIVATE-USAGE-CANARY");
+        first["service_tier"] = json!("default");
+        first["usage"]["input_tokens_details"]["cache_write_tokens"] = json!(11);
+        first["usage"]["input_tokens_details"]["cache_write_tokens_details"] =
+            json!({"ttl_30m_tokens": 11, "ttl_12h_tokens": 0, "private": "PRIVATE-CACHE-CANARY"});
         let (url, seen, task) = mock(vec![first, envelope(json!([final_answer()]))]).await;
         let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
         let result = runner
@@ -488,9 +493,21 @@ mod tests {
                 .iter()
                 .any(|e| e.kind == "tool.completed" && e.data["result"]["hits"].is_array())
         );
+        let observation = &events
+            .iter()
+            .find(|event| event.kind == "model.completed")
+            .unwrap()
+            .data["cost_observation"];
+        assert_eq!(observation["cache_write_tokens"], 11);
+        assert_eq!(observation["cache_write_30m_tokens"], 11);
+        assert_eq!(observation["cache_write_12h_tokens"], 0);
+        assert_eq!(observation["estimated_usd_nanodollars"], Value::Null);
+        assert_eq!(observation["pricing_status"], "offline_mock");
+        assert!(result.as_ref().unwrap().get("cost_observation").is_none());
         let export = serde_json::to_string(&thread).unwrap();
         assert!(!export.contains("PRIVATE-REPLAY-CANARY"));
         assert!(!export.contains("PRIVATE-USAGE-CANARY"));
+        assert!(!export.contains("PRIVATE-CACHE-CANARY"));
         assert!(!export.contains(MOCK_KEY));
         assert_eq!(seen.lock().unwrap().len(), 2);
         task.abort();
@@ -571,7 +588,9 @@ mod tests {
             thread.traces[0]
                 .events
                 .iter()
-                .any(|event| event.kind == "model.failed")
+                .any(|event| event.kind == "model.failed"
+                    && event.data["cost_observation"]["pricing_status"]
+                        == "generation_not_started")
         );
         assert!(
             thread.traces[1]

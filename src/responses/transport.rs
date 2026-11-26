@@ -4,7 +4,7 @@
 //! this transport preserves our endpoint, byte budgets and safe error boundary.
 use super::{
     MAX_COUNT_BYTES, MAX_HISTORY_BYTES, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, MAX_PROVIDER_REQUESTS,
-    MAX_RESPONSE_BYTES, MODEL, SpendControl,
+    MAX_RESPONSE_BYTES, MODEL, SpendControl, cost_observation,
     rig_runtime::{BoundaryError, RunState, check_response},
 };
 use rig::http_client::{
@@ -36,7 +36,10 @@ impl BoundedTransport {
             let input: Value = serde_json::from_slice(request.body()).unwrap_or(Value::Null);
             trace.event("model.started", None, json!({"model":MODEL,"instructions":input["instructions"].as_str(),"input":public_items(&input["input"]),"includes_input_token_preflight":true})).map_err(|_|self.failure("runtime: De uitvoeringstrace kon niet worden opgeslagen."))?;
         }
-        let result = self.request_inner(request).await;
+        let mut observation = None;
+        let result = self
+            .request_inner(request, trace.as_ref().map(|_| &mut observation))
+            .await;
         if let Some(trace) = &trace {
             let data = match &result {
                 Ok(bytes) => {
@@ -48,7 +51,7 @@ impl BoundedTransport {
                 }
             };
             trace
-                .event(
+                .model_event(
                     if result.is_ok() {
                         "model.completed"
                     } else {
@@ -56,6 +59,8 @@ impl BoundedTransport {
                     },
                     Some(started.elapsed().as_millis() as u64),
                     data,
+                    observation
+                        .unwrap_or_else(|| json!({"pricing_status":"generation_not_started"})),
                 )
                 .map_err(|_| {
                     self.failure("runtime: De uitvoeringstrace kon niet worden opgeslagen.")
@@ -64,7 +69,11 @@ impl BoundedTransport {
         result
     }
 
-    async fn request_inner(&self, request: Request<Bytes>) -> Result<Vec<u8>, Error> {
+    async fn request_inner(
+        &self,
+        request: Request<Bytes>,
+        mut observation: Option<&mut Option<Value>>,
+    ) -> Result<Vec<u8>, Error> {
         if request.method() != reqwest::Method::POST || request.uri() != self.endpoint.as_str() {
             return Err(self.failure("runtime: API-adres is niet toegestaan."));
         }
@@ -119,6 +128,9 @@ impl BoundedTransport {
         {
             return Err(self.failure("budget: De modelinvoer is te groot of niet controleerbaar."));
         }
+        if let Some(observation) = observation.as_deref_mut() {
+            *observation = Some(json!({"pricing_status":"generation_usage_unknown"}));
+        }
         let bytes = self
             .post(
                 self.endpoint.clone(),
@@ -130,6 +142,9 @@ impl BoundedTransport {
         let raw: Value = serde_json::from_slice(&bytes).map_err(|_| {
             self.failure("output: De antwoordservice heeft ongeldige uitvoer geleverd.")
         })?;
+        if let Some(observation) = observation {
+            *observation = Some(cost_observation::observe(&raw, self.offline));
+        }
         let checked = {
             let mut state = self.state.lock().map_err(|_| {
                 Error::instance(BoundaryError("runtime: De uitvoering is niet beschikbaar."))

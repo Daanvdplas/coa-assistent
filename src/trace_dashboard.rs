@@ -13,8 +13,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-const USAGE: &str =
-    "Usage: traces [list --db PATH | export --db PATH --thread ID | serve --db PATH [--port 8767]]";
+const USAGE: &str = "Usage: traces [list --db PATH | export --db PATH --thread ID | cost --db PATH --day YYYY-MM-DD | serve --db PATH [--port 8767]]";
 type SharedReader = Arc<Mutex<TraceReader>>;
 type ApiError = (StatusCode, Json<Value>);
 
@@ -22,16 +21,17 @@ type ApiError = (StatusCode, Json<Value>);
 enum Action {
     List,
     Export(String),
+    Cost(String),
     Serve(u16),
 }
 
 fn parse_args(args: &[String]) -> Result<(PathBuf, Action), String> {
     let mut args = args.iter();
     let command = args.next().map(String::as_str).ok_or(USAGE)?;
-    if !matches!(command, "list" | "export" | "serve") {
+    if !matches!(command, "list" | "export" | "cost" | "serve") {
         return Err(USAGE.into());
     }
-    let (mut database, mut port, mut thread) = (None, None, None);
+    let (mut database, mut port, mut thread, mut day) = (None, None, None, None);
     while let Some(option) = args.next() {
         let value = args.next().ok_or(USAGE)?;
         match option.as_str() {
@@ -50,12 +50,14 @@ fn parse_args(args: &[String]) -> Result<(PathBuf, Action), String> {
             "--thread" if command == "export" && thread.is_none() && !value.is_empty() => {
                 thread = Some(value.clone());
             }
+            "--day" if command == "cost" && day.is_none() => day = Some(value.clone()),
             _ => return Err(USAGE.into()),
         }
     }
     let action = match command {
         "list" => Action::List,
         "export" => Action::Export(thread.ok_or(USAGE)?),
+        "cost" => Action::Cost(day.ok_or(USAGE)?),
         _ => Action::Serve(port.unwrap_or(8767)),
     };
     Ok((database.ok_or(USAGE)?, action))
@@ -73,6 +75,7 @@ pub async fn cli(args: &[String]) -> Result<(), String> {
                 .ok_or("Thread not found.")?;
             print_json(&thread)
         }
+        Action::Cost(day) => print_json(&reader.cost_summary(&day)?),
         Action::Serve(port) => {
             let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port))
                 .await
@@ -290,6 +293,37 @@ mod tests {
         app.oneshot(request.body(Body::empty()).unwrap())
             .await
             .unwrap()
+    }
+
+    #[test]
+    fn cost_report_cli_requires_a_database_and_utc_day() {
+        let args = |parts: &[&str]| {
+            parts
+                .iter()
+                .map(|part| part.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert!(
+            parse_args(&args(&[
+                "cost",
+                "--db",
+                "private.sqlite",
+                "--day",
+                "2026-11-26"
+            ]))
+            .is_ok()
+        );
+        assert!(parse_args(&args(&["cost", "--db", "private.sqlite"])).is_err());
+        assert!(
+            parse_args(&args(&[
+                "list",
+                "--db",
+                "private.sqlite",
+                "--day",
+                "2026-11-26"
+            ]))
+            .is_err()
+        );
     }
 
     #[test]
