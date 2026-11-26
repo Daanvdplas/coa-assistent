@@ -31,6 +31,18 @@ cargo run --locked -- traces export --db "$HOME/.config/coa/traces/traces.sqlite
 
 The application writes only JSON to stdout on success. Failures use stderr and a nonzero exit code; an unknown thread or missing database produces no JSON or new database. These commands open the existing database read-only, start no server and load no API key, activity index or answer service. They need no model calls. Use the built binary directly when scripting to avoid Cargo's build messages on stderr.
 
+## Compare observed model cost
+
+Use the read-only operator command for one UTC day in a trace database associated with the demo's OpenAI project. Substitute the private database path and the day being compared.
+
+```sh
+cargo run --locked -- traces cost --db "$HOME/.config/coa/traces/traces.sqlite" --day 2026-11-26
+```
+
+The report groups model attempts by their recorded start time. It returns the USD subtotal for priced responses, how many attempts had usable prices, how many stopped before generation, and why the remaining attempts were unpriced. It also counts observations with incomplete cache token fields. A local timeout, cancellation, interrupted trace or historical trace without cost data stays visible as unpriced. A null estimate means there were no priced responses. A failed app run can have priced provider usage when the provider returned complete token counts before the answer was rejected.
+
+The estimate uses the GPT-6.1 Sol Standard prices OpenAI introduced on **29 September 2026**, checked **26 November 2026**. Per million tokens these are $2 ordinary input, $0.10 cache reads, $2.50 30-minute cache writes, $5 12-hour cache writes and $10 output. Above 272,000 input tokens, the model prices the full request at double the input and cache rates and 1.5× output. The cache buckets are disjoint and their counts come from the provider response. Compare against actual OpenAI Costs for the same organization, project, API key and UTC day. The first observation day can be partial. Billing time, delayed provider data or incomplete traces can affect the comparison. The estimate plays no role in admission or budget enforcement. [Model rates](https://developers.openai.com/api/docs/models/gpt-6.1-sol) · [Cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching) · [Pricing](https://developers.openai.com/api/docs/pricing) · [OpenAI Costs filters](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/costs)
+
 ## Open the optional dashboard
 
 In a second terminal, from the project root:
