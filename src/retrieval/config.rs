@@ -16,6 +16,8 @@ pub enum SearchMethod {
 pub enum SelectionMode {
     Sections,
     ActivityExpansion,
+    /// One seed per activity, followed by balanced expansion within the same budget.
+    ActivityBalanced,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

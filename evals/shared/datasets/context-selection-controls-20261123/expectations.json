@@ -1,0 +1,2709 @@
+{
+  "schema_version": 1,
+  "dataset_id": "context-selection-controls-20261123-v1",
+  "assessment_only": true,
+  "evaluation_only_canary": "context-selection-controls-20261123-assessment-only",
+  "existing_case_policy": "Resolve each existing case through its manifest assessment_ref; preserve all original criteria and coherent alternatives.",
+  "plan_semantics": "AND within a plan; OR between alternative complete plans. Match actual delivered canonical section text, not IDs or inspection text alone.",
+  "metric_scope": "Required source evidence coverage only. Activity eligibility and condition states are audited explanation metadata, not predictions produced or scored by the retriever. No precision is defined from these incomplete relevance labels.",
+  "cases": [
+    {
+      "case_id": "CTX26-01",
+      "title": "Exact om 14.30 beginnen",
+      "kind": "exact_start_1430",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-TAAL-003"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "The language cafe alone starts at 14.30 in this counterfactual corpus. The bicycle activity starts at 14.00 and must not be substituted for the exact time. Full language support plus the bicycle schedule is scored; the other exclusions were audited but are not mandatory retrieval goals.",
+      "evidence": [
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-start-1430.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-start-1430.md",
+          "quote": "Iedere woensdag van 14.30 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-start-1430.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-start-1430.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "exclusion"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.30 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-02",
+      "title": "Om 14.00 bezig zijn",
+      "kind": "active_at_1400",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-NAAI-012",
+        "ACT-TAAL-003"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "all",
+      "scope_activity_ids": [
+        "ACT-NAAI-012",
+        "ACT-TAAL-003"
+      ],
+      "source_plan_rationale": "The named sewing cafe runs 13.00–15.00 and the named language cafe runs 14.00–15.30. Both include 14.00. Starting exactly at 14.00 is not required. The question is explicitly bounded to these two activities; other corpus activities are not claimed unsuitable.",
+      "evidence": [
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S1",
+          "source_date": "2026-11-13",
+          "source_path": "fixtures/demo-12-20261113/activity-012.md",
+          "quote": "We oefenen met naaien en repareren eenvoudige kledingstukken, bijvoorbeeld een losse knoop of een kleine scheur. Je kunt ook op oefenstof werken. Naaiervaring is niet nodig. Dit is een vrijwillige activiteit, geen betaalde baan.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S2",
+          "source_date": "2026-11-13",
+          "source_path": "fixtures/demo-12-20261113/activity-012.md",
+          "quote": "Iedere donderdag van 13.00 tot 15.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S3",
+          "source_date": "2026-11-13",
+          "source_path": "fixtures/demo-12-20261113/activity-012.md",
+          "quote": "Wijkatelier De Draad, aan de fictieve Wilgenstraat 12 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "section_id": "S5",
+          "source_date": "2026-11-13",
+          "source_path": "fixtures/demo-12-20261113/activity-012.md",
+          "quote": "Deelname is gratis. Oefenstof, naalden, garen en naaimachines zijn aanwezig. Je mag een eigen kledingstuk meenemen om samen te bekijken of een kleine reparatie mogelijk is, maar dat hoeft niet.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "support"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-03",
+      "title": "Binnen of buiten onbekend",
+      "kind": "unknown_indoor",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002"
+      ],
+      "expected_uncertain_activity_ids": [
+        "ACT-TAAL-003"
+      ],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Bicycle repair is confirmed. The language cafe meets the known time, free and material conditions, but its indoor/outdoor status is explicitly unknown; it cannot be confirmed as an indoor match. Retrieve its absence statement as well as its other condition sections.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-indoor-unknown.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-indoor-unknown.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-indoor-unknown.md",
+          "quote": "De locatie is niet vastgelegd. Of de activiteit binnen of buiten plaatsvindt, is niet beschreven.",
+          "role": "unknown"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-indoor-unknown.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "support"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "unknown",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "unknown",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-04",
+      "title": "Kosten onbekend",
+      "kind": "unknown_cost",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002"
+      ],
+      "expected_uncertain_activity_ids": [
+        "ACT-TAAL-003"
+      ],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Bicycle repair is confirmed. The language cafe meets time, indoor and material conditions, but free participation is not documented. Unknown costs must not be equated with free participation. This is an assessment rationale, not a scored answer assertion.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-cost-unknown.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-cost-unknown.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-cost-unknown.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-cost-unknown.md",
+          "quote": "De kosten van deelname zijn niet vastgelegd. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "unknown"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "unknown",
+            "materials_available": "true"
+          },
+          "eligibility": "unknown",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-05",
+      "title": "Materiaal zelf meenemen",
+      "kind": "own_material",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Bicycle repair is confirmed. The language cafe starts at the correct time, is inside and free, but explicitly requires participants to bring the materials themselves. Its S5 is necessary negative evidence.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-own-material.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-own-material.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-own-material.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-own-material.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn niet aanwezig. Je moet deze materialen zelf meenemen.",
+          "role": "exclusion"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "false"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-06",
+      "title": "14.30 is geen 14.00",
+      "kind": "exact_start_1400",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Bicycle repair alone starts exactly at 14.00 in this counterfactual corpus. The language cafe now starts at 14.30 and is excluded. Full bicycle support plus the language cafe schedule is scored.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "evals/shared/datasets/context-selection-controls-20261123/corpora/taal-start-1430.md",
+          "quote": "Iedere woensdag van 14.30 tot 15.30 uur.",
+          "role": "exclusion"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.30 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-07",
+      "title": "Eén passende optie",
+      "kind": "one_option",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          }
+        ],
+        [
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002",
+        "ACT-TAAL-003"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "one",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Either a complete bicycle option or a complete language cafe option is sufficient. Do not require their union, and do not combine partial evidence from different alternatives.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "support"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    },
+    {
+      "case_id": "CTX26-08",
+      "title": "Alle passende opties",
+      "kind": "all_options",
+      "expected_source_plans": [
+        [
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S5"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S1"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S3"
+          },
+          {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S5"
+          }
+        ]
+      ],
+      "expected_matching_activity_ids": [
+        "ACT-FIETS-002",
+        "ACT-TAAL-003"
+      ],
+      "expected_uncertain_activity_ids": [],
+      "quantity": "all",
+      "scope_activity_ids": null,
+      "source_plan_rationale": "Both matching options are requested. All four sections for both bicycle repair and language cafe are required, eight unique sections in one AND plan.",
+      "evidence": [
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S1",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "We knappen samen oude fietsen op in de werkplaats. Je helpt met banden plakken, fietsen schoonmaken en eenvoudige reparaties. Dit is een vrijwillige activiteit, geen betaalde baan. Je hoeft geen ervaring met fietsreparatie te hebben.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S2",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Iedere dinsdag van 14.00 tot 16.00 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S3",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Werkplaats De Werkbank, in het fictieve wijkgebouw aan de Esdoornstraat 8 in het fictieve Lindedorp. We werken binnen.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "section_id": "S5",
+          "source_date": "2026-10-18",
+          "source_path": "fixtures/bicycle-workshop.md",
+          "quote": "Deelname is gratis en vrijwillig. Gereedschap en reparatiemateriaal zijn aanwezig. Trek kleding aan die vies mag worden.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S1",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "We oefenen Nederlands door samen te praten over dagelijkse onderwerpen en korte taalspelletjes te doen. Dit is een vrijwillige activiteit, geen betaalde baan. Je mag meedoen als je nog weinig Nederlands spreekt.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S2",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Iedere woensdag van 14.00 tot 15.30 uur.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S3",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Leeszaal Het Woordhuis, aan de fictieve Kastanjelaan 4 in het fictieve Lindedorp. We zitten binnen aan een grote tafel.",
+          "role": "support"
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "section_id": "S5",
+          "source_date": "2026-10-19",
+          "source_path": "fixtures/language-cafe.md",
+          "quote": "Deelname is gratis. Kaartjes, papier en pennen zijn aanwezig. Je hoeft zelf niets mee te nemen.",
+          "role": "support"
+        }
+      ],
+      "activity_audit": [
+        {
+          "source_id": "ACT-TUIN-001",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-TUIN-001",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S1",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-FIETS-002",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-FIETS-002",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 14.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-TAAL-003",
+          "conditions": {
+            "time": "true",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "true",
+          "schedule": {
+            "source_id": "ACT-TAAL-003",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 14.00 tot 15.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-KOKEN-004",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-KOKEN-004",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 11.00 tot 13.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-WANDEL-005",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "unknown"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-WANDEL-005",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 9.30 tot 10.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MAAK-006",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MAAK-006",
+            "section_id": "S2",
+            "quote": "Iedere dinsdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-PARK-007",
+          "conditions": {
+            "time": "false",
+            "indoor": "false",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-PARK-007",
+            "section_id": "S2",
+            "quote": "Iedere vrijdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-BIEB-008",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-BIEB-008",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 10.00 tot 12.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-MUZIEK-009",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-MUZIEK-009",
+            "section_id": "S2",
+            "quote": "Iedere zaterdag van 10.00 tot 11.30 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-DIGI-010",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-DIGI-010",
+            "section_id": "S2",
+            "quote": "Iedere maandag van 15.00 tot 16.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-SCHAAK-011",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-SCHAAK-011",
+            "section_id": "S2",
+            "quote": "Iedere woensdag van 16.00 tot 17.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        },
+        {
+          "source_id": "ACT-NAAI-012",
+          "conditions": {
+            "time": "false",
+            "indoor": "true",
+            "free": "true",
+            "materials_available": "true"
+          },
+          "eligibility": "false",
+          "schedule": {
+            "source_id": "ACT-NAAI-012",
+            "section_id": "S2",
+            "quote": "Iedere donderdag van 13.00 tot 15.00 uur."
+          },
+          "condition_sections": {
+            "time": "S2",
+            "indoor": "S3",
+            "free": "S5",
+            "materials_available": "S5"
+          }
+        }
+      ],
+      "relevance_labels_complete": false,
+      "human_labels": [],
+      "answer_quality": "not_assessed"
+    }
+  ]
+}
