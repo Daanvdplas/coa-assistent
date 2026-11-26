@@ -79,21 +79,51 @@ New run metadata identifies `provider: openai`, `transport: responses_api`, `run
 
 ## Corpus and retrieval contracts
 
-[`CorpusId::DemoTwelve`](../src/corpus.rs) selects twelve documents, six sections each, with reference date **13 November 2026**. The first ten preserve `ExpandedTen` bytes; Schaken and Naaicafé have their own source IDs/dates. CLI `search`/`ask` defaults and legacy evaluations still use the original five documents unless a corpus is selected explicitly:
+The demo uses Guided search in two steps. It ranks passages by meaning and exact words, then checks whether the question contains conditions it can apply directly to activity records. For a recognized list question, that second step can inspect all twelve activities and replace the ranked passages.
+
+### Follow an afternoon question
+
+Use “Welke activiteiten zijn in de middag?” to see the difference. On the website, Rust fixes the method to Guided. The answer model supplies the query text to [`search_document`](../src/responses/rig_runtime.rs#L129), so its search calls may differ from what the visitor typed. The [source-only CLI](../src/main.rs#L120) passes the supplied query directly to the same retrieval code and prints the search result as JSON.
 
 ```sh
-cargo run --locked -- search --corpus demo-twelve 'Wanneer kan ik schaken?'
+cargo run --locked -- search --corpus demo-twelve --method guided 'Welke activiteiten zijn in de middag?'
 ```
 
-The parser accepts at most twelve documents and rejects missing/duplicate IDs, invalid dates, empty headings/sections and duplicate section IDs within a document. Each passage retains document ID, section ID, title, heading and source date. Source dates are distinct from observations of available places; a schedule never proves current capacity.
+This runs local MiniLM retrieval and requires no answer model, provider key or spending budget. See [local setup](LOCAL_SETUP.md) for the embedding cache. CLI `search` defaults to Dense when no method is supplied. `search` and `ask` default to the original five sources when no corpus is supplied. Guided requires `demo-twelve`.
 
-The local quantized multilingual MiniLM model uses fastembed 7.1.2, 384 dimensions and a 512-token input ceiling. Original MiniLM input is title, newline, heading, newline and exact section text, without prefixes. The index keeps document vectors in memory. Manifests record source/corpus hashes, exact embedding inputs, vector hashes and model/encoding identity. Mutable upstream model downloads and platform differences prevent a promise of bit-identical future embeddings.
+### Prepare sections and activity records
 
-`dense` ranks by cosine similarity. BM25 uses title, heading and full section text, Unicode words, k1=1.2, b=0.75 and no stemming. A BM25 query does not embed its text; the shared website index still loads MiniLM on startup to retain the established index identity. Dense hits expose `similarity`, BM25 hits `bm25_score`; neither is a probability or calibrated no-match threshold. The runner rejects mixed or unexpected methods and publishes the actual method only after validation.
+[`CorpusId::DemoTwelve`](../src/corpus.rs) selects twelve fictional documents with six sections each and a reference date of **13 November 2026**. The first ten preserve `ExpandedTen` bytes. Schaken and Naaicafé have their own source IDs and dates. The [parser](../src/source.rs#L50) accepts at most twelve documents and rejects missing or duplicate IDs, invalid dates, empty headings or sections, and duplicate section IDs within a document. Each passage retains its document ID, section ID, title, heading and source date.
 
-Guided search combines MiniLM and BM25 with a vector weight of 0.7. It ranks with a candidate limit of 30 and up to three starting sections, then expands within activities. Supported constraints can select whole source passages across the corpus. Each search uses a ceiling of 1,200 estimated section tokens. The policy version is checked against each completed Guided search before storing its run.
+[`Index::load_for_corpus`](../src/lib.rs#L138) keeps the sections and their vectors in memory. The local quantized multilingual MiniLM encoder uses fastembed 7.1.2, produces 384 numbers per passage and has a 512-token input ceiling. Its passage input joins the activity title, heading and exact text with newlines, without prefixes. The manifest records hashes for the corpus, embedding inputs and vectors, plus the model and encoding identity. Model download revisions and platform differences can affect the vectors.
 
-The retrieval lab additionally offers RRF/weighted hybrid methods and document/SQLite profiles. Both stores feed the same canonical sections and exact f32 vectors to the same Rust scorer; SQLite is a storage/cache comparison, not a separate SQL vector or FTS ranker. Activity expansion adds whole related sections under a context ceiling. Typed user filters cannot come from expectations or case IDs; unknown source fields remain unknown. [Retrieval procedures and metrics](../evals/rag/docs/retrieval-lab.md) give the full contract.
+On the first Guided search, [`PreparedCorpus`](../src/retrieval/mod.rs#L100) groups the sections by activity, and [`activity_records`](../src/retrieval/metadata.rs#L66) reads explicitly stated schedules and venues. In [Tuinieren](../fixtures/document.md#L12), “Iedere dinsdag van 10.00 tot 12.00 uur.” becomes Tuesday with a start and end in minutes since midnight. Each parsed value stays linked to its source text. Missing or conflicting values remain unknown. A published schedule gives the activity hours. Available places require separate evidence.
+
+### Word scores, vector scores and starting passages
+
+[`retrieve`](../src/retrieval/engine.rs#L112) computes two scores per section. **BM25** lowercases the title, heading and text and looks for exact Unicode word matches. Terms that occur in fewer sections count more. Repeated words also affect the score, with diminishing returns and an adjustment for section length (`k1=1.2`, `b=0.75`). The tokenizer uses whole words without stemming. **Dense search** embeds the query with MiniLM and compares its vector to each section vector using cosine similarity. This helps related wording rank even when the exact query word is absent.
+
+Guided takes up to 30 candidates from each ranking, with positive scores required for the BM25 list, and joins the two lists. It puts cosine on a 0–1 scale using `(cosine + 1) / 2`. It divides each BM25 score by the best positive BM25 score, or uses zero when there is no such score. The final score is **70% scaled cosine plus 30% scaled BM25**. These are ranking scores. Pure Dense and BM25 expose `similarity` and `bm25_score` respectively. BM25 does not embed the query, although the shared website index loads MiniLM at startup.
+
+The [Guided configuration](../src/lib.rs#L280) caps the initial selection at three sections, called *seeds*. Activity expansion adds whole sections from those activities as space permits. The **1,200 estimated section-token** limit counts the characters of each section’s JSON, divided by four and rounded up. That is a search-side estimate per call. The provider’s exact input count covers the full model request.
+
+### Check the conditions in the query
+
+After ranking, [`read_intake`](../src/retrieval/intake.rs#L470) lowercases the query, splits it into words and looks for supported Dutch and English word patterns. “Welke activiteiten” requests a list. “Middag” supplies the afternoon time window. In `dinsdagmiddag`, the [weekday rule](../src/retrieval/intake.rs#L515) uses `strip_prefix` to recognize `dinsdag` followed by the allowed suffix `middag`. The [separate time rule](../src/retrieval/intake.rs#L431) uses `ends_with("middag")` to set the afternoon condition. The two conditions then apply together. Other supported wording can specify a start time, an activity already underway, indoors or outdoors, an address, free participation, supplied materials or a comparison between named activities.
+
+[`check_time`](../src/retrieval/intake.rs#L1049) tests for overlap with 12:00–18:00 using `start < 18 * 60 && end > 12 * 60`. [Samen koken](../fixtures/community-cooking.md#L10) runs from 11:00 to 13:00 and overlaps the afternoon. Tuinieren ends at 12:00 and has no overlap. Asking for `dinsdagmiddag` also requires Tuesday, so Samen koken on Friday falls out and [Fietsen opknappen](../fixtures/bicycle-workshop.md#L10) on Tuesday from 14:00 to 16:00 qualifies.
+
+For the afternoon list, [`apply_intake_policy`](../src/retrieval/intake.rs#L1494) checks every activity against the recognized conditions. A named comparison can restrict that loop to the named activities. A known mismatch excludes an activity. With no known mismatch, an unresolved condition leaves it unknown. Guided assembles whole bundles of original sections for the relevant details, such as `S2` for the schedule and `S3` for the location. The afternoon query can return seven schedule passages even though the baseline started with at most three seeds. For single-option requests, Guided can instead use the ranking to choose among matches.
+
+### Read the result and its limits
+
+The [search result](../src/lib.rs#L315) contains original `hits` and a `guided_selection` report. `applied` indicates whether Guided used the structured selection. `matches` lists matched activity IDs with delivered evidence. `unknown` records unresolved activities. `exhaustive` requires a list request or a recognized named comparison, satisfied evidence requirements for the applied conditions, no unresolved activities and room for the required bundles. The current policy version is checked against each completed Guided search before the web run is stored.
+
+Morning and afternoon have explicit time rules. For “Welke activiteiten zijn in de avond?”, there is no evening condition, so Guided returns ranked passages with `applied: false`. A query such as “Welke activiteiten zijn op dinsdag in de avond?” can still activate the Tuesday condition alone. Completeness applies to the conditions the code recognized. Ordinary excluded activities also usually contribute no passages, although named comparisons and exact-start near misses can supply exclusion evidence. An empty list can therefore lack the source passages needed to support a claim that nothing fits.
+
+The [Guided source-only checks](../evals/rag/docs/guided_demo_holdout.md) send fixed queries and measure which original passages arrive. The [language-pair procedure](../evals/rag/docs/guided_language_pairs.md#guided-v5-candidate-regression) includes the v5 route. [Selector tests](../src/retrieval/intake.rs#L1666) check list matches and requested sections. Other cases check [unknown venues](../src/retrieval/intake.rs#L2179) and [required bundles left out under a smaller budget](../src/retrieval/intake.rs#L2543). These checks establish source delivery and selector behavior for the tested inputs. The final answer and the model’s choice of follow-up searches require separate evaluation.
+
+The retrieval lab also offers reciprocal rank fusion, weighted hybrid methods and document or SQLite profiles. Both stores feed the same canonical sections and vectors to the same Rust scorer. The lab accepts explicit typed filters in its requests and preserves unknown source fields. Expected sources and case IDs stay on the evaluation side. See [retrieval procedures and metrics](../evals/rag/docs/retrieval-lab.md) for the lab settings.
 
 ## Sessions, concurrency and network limits
 
