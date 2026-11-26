@@ -15,3 +15,13 @@ node evals/rag/scripts/guided_dayparts.ts \
 ```
 
 The result file contains the raw retrieval responses, expected and missing passages, and corpus, dataset and binary hashes. Exit code 1 with a saved result indicates a failed source or classification check. This evaluation uses local retrieval and assesses no generated answer or follow-up searches.
+
+## Guided v5 result on 26 November 2026
+
+| Daypart | Expected activities | Schedule passages returned | Complete |
+| --- | --- | --- | --- |
+| Evening | None | 3/12 | No |
+| Afternoon | Fietsen opknappen, Taalcafé, Samen koken, Creatief atelier, Digitale hulp, Schaken, Naaicafé | 7/7 | Yes |
+| Morning | Tuinieren, Samen koken, Wandelen, Parkonderhoud, Buurtbibliotheek, Muziekgroep | 6/6 | Yes |
+
+Guided recognizes the morning and afternoon predicates and marks both lists exhaustive. It falls back to general ranking for “avond” and returns the schedules of Fietsen opknappen, Samen koken and Schaken. Those three passages provide insufficient evidence for an empty evening list across the corpus.
