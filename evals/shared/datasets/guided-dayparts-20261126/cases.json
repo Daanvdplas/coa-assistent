@@ -1,0 +1,36 @@
+{
+  "schema": "guided-dayparts-v1",
+  "corpusSha256": "bf42d9d5138d9042fe9dfa2c482a12e4fdb037ca9ed40ae4d639d13dbd933257",
+  "cases": [
+    {
+      "id": "GUIDED-DAYPART-AVOND",
+      "question": "Welke activiteiten zijn in de avond?",
+      "expectedActivities": []
+    },
+    {
+      "id": "GUIDED-DAYPART-MIDDAG",
+      "question": "Welke activiteiten zijn in de middag?",
+      "expectedActivities": [
+        "ACT-FIETS-002",
+        "ACT-TAAL-003",
+        "ACT-KOKEN-004",
+        "ACT-MAAK-006",
+        "ACT-DIGI-010",
+        "ACT-SCHAAK-011",
+        "ACT-NAAI-012"
+      ]
+    },
+    {
+      "id": "GUIDED-DAYPART-OCHTEND",
+      "question": "Welke activiteiten zijn in de ochtend?",
+      "expectedActivities": [
+        "ACT-TUIN-001",
+        "ACT-KOKEN-004",
+        "ACT-WANDEL-005",
+        "ACT-PARK-007",
+        "ACT-BIEB-008",
+        "ACT-MUZIEK-009"
+      ]
+    }
+  ]
+}
