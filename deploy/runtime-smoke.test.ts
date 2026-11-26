@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable budget", { timeout: 300_000 }, async () => {
+test("packaged Linux runtime warms MiniLM and requires an explicit spending policy", { timeout: 300_000 }, async () => {
   assert(process.env.COA_RELEASE_DIR, "Set COA_RELEASE_DIR to the freshly packaged Linux release");
   const release = resolve(process.env.COA_RELEASE_DIR);
   const binary = join(release, "bin/meedoen-retrieval");
@@ -21,7 +21,7 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
   Object.assign(environment, {
     LD_LIBRARY_PATH: join(release, "lib"),
     COA_OPENAI_API_KEY_FILE: key, COA_DEMO_BUDGET_FILE: budget,
-    COA_BUNDLED_EVALUATIONS: "1",
+    COA_BUNDLED_EVALUATIONS: "1", COA_BENCHMARK_DIR: join(directory, "benchmarks"),
   });
   const probe = createServer();
   probe.listen(0, "127.0.0.1");
@@ -31,8 +31,8 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
   const port = address.port;
   await new Promise<void>((resolve) => probe.close(() => resolve()));
   environment.COA_PORT = String(port);
-  async function source() {
-    const child = spawn(binary, ["serve"], { cwd: directory, env: environment, stdio: "ignore" });
+  async function source(env = environment) {
+    const child = spawn(binary, ["serve"], { cwd: directory, env, stdio: "ignore" });
     try {
       const deadline = Date.now() + 120_000;
       while (Date.now() < deadline) {
@@ -71,6 +71,23 @@ test("packaged Linux runtime warms MiniLM and requires a durable, non-resettable
     assert.equal(available.model_configuration.max_provider_requests, 5);
     assert.equal(available.model_configuration.max_output_tokens_per_request, 4096);
     assert.deepEqual(await readFile(budget), original, "starting the service cannot spend or reset a reservation");
+    const project = { ...environment, COA_OPENAI_ENFORCED_PROJECT_ID: "proj_test_only" };
+    assert.equal((await source(project)).runtime_ready, false, "dual spend policies must fail closed");
+    const projectOnly: NodeJS.ProcessEnv = { ...project };
+    delete projectOnly.COA_DEMO_BUDGET_FILE;
+    const provider = await source(projectOnly);
+    assert.equal(provider.runtime_ready, true, "an explicit project policy can replace the active ledger");
+    assert.equal(provider.model_configuration.spend_control, "openai_project");
+    assert.equal(provider.model_configuration.budget_policy_version, 2);
+    assert(!JSON.stringify(provider.model_configuration).includes(project.COA_OPENAI_ENFORCED_PROJECT_ID));
+    const missingKey = { ...projectOnly };
+    delete missingKey.COA_OPENAI_API_KEY_FILE;
+    assert.equal((await source(missingKey)).runtime_ready, false, "project mode must require a private key file");
+    const invalid = { ...projectOnly, COA_OPENAI_ENFORCED_PROJECT_ID: "bad-project" };
+    assert.equal((await source(invalid)).runtime_ready, false, "bad project IDs must fail closed");
+    const inherited = { ...projectOnly, OPENAI_API_KEY: "sk-another-project-test-key" };
+    assert.equal((await source(inherited)).runtime_ready, false, "an inherited key must not override the project key file");
+    assert.deepEqual(await readFile(budget), original, "selecting the project policy preserves the audit ledger");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

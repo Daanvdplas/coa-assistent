@@ -52,6 +52,7 @@
     failedStatus: ["Er is geen antwoord beschikbaar. Je kunt de vraag opnieuw indienen.", "No answer is available. You can submit the question again."],
     toolFailure: ["De bronzoekfunctie is niet goed afgerond. Er is geen antwoord beschikbaar.", "The source search did not complete successfully. No answer is available."],
     outputFailure: ["Het antwoord kon niet aan de gevonden bronpassages worden gekoppeld. Er is geen antwoord beschikbaar.", "The answer could not be linked to the retrieved source passages. No answer is available."],
+    projectBudgetFailure: ["De demo kan tijdelijk geen vragen beantwoorden. Je kunt de activiteiten wel bekijken.", "The demo is temporarily unable to answer questions. You can still browse the activities."],
     runtimeFailure: ["De antwoordservice kon de vraag niet afronden. Probeer het later opnieuw.", "The answer service could not complete the question. Please try again later."],
     runtimeUnavailable: ["De antwoordservice is nog niet ingesteld. Je kunt de activiteiten wel bekijken.", "The answer service has not been configured yet. You can still browse the activities."],
     requestFailed: ["Het verzoek is mislukt. Probeer opnieuw.", "The request failed. Please try again."],

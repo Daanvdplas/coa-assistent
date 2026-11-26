@@ -618,7 +618,11 @@ pub async fn serve(index: Index) -> Result<(), Box<dyn std::error::Error>> {
             "Antwoordservice niet ingesteld: zet OPENAI_API_KEY in .env of gebruik een externe sleutel; stel ook het gebruiksbudget in."
         );
     }
-    let benchmarks = Arc::new(benchmarks::Benchmarks::with_runner(app.runner.clone()));
+    let benchmark_runner = app
+        .runner
+        .clone()
+        .filter(ResponsesRunner::supports_local_benchmarks);
+    let benchmarks = Arc::new(benchmarks::Benchmarks::with_runner(benchmark_runner));
     axum::serve(
         listener,
         router_with_benchmarks(app, benchmarks.clone())

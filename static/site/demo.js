@@ -84,6 +84,7 @@
   }
   function sourceDate(date) { return t("sourceDate", { date }); }
   function failureKey(error) {
+    if (error === "budget: De uitgavenlimiet van de demo is bereikt.") return "projectBudgetFailure";
     if (error?.startsWith("tool:")) return "toolFailure";
     if (error?.startsWith("output:")) return "outputFailure";
     return "runtimeFailure";
@@ -241,7 +242,8 @@
         if (version !== pollVersion) return;
       }
       showRun(run);
-      message(run.status === "failed" ? "failedStatus" : null, run.status === "failed");
+      const retryableFailure = run.status === "failed" && failureKey(run.error) !== "projectBudgetFailure";
+      message(retryableFailure ? "failedStatus" : null, retryableFailure);
     } catch (error) { message(error.code || "requestFailed", true, { retryAt: error.retryAt }); }
     finally { if (version === pollVersion) setBusy(false); }
   }

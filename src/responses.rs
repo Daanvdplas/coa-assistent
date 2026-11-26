@@ -14,7 +14,7 @@ use reqwest::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::{io::Read, path::Path, sync::Arc, time::Duration};
+use std::{ffi::OsStr, io::Read, path::Path, sync::Arc, time::Duration};
 
 const ENDPOINT: &str = "https://api.openai.com/v1/responses";
 const MODEL: &str = "gpt-6.1-sol";
@@ -28,6 +28,7 @@ const MAX_OUTPUT_TOKENS: usize = 4096;
 const MAX_INPUT_TOKENS: u64 = 300_000;
 const MAX_COUNT_BYTES: usize = 16 * 1024;
 const MOCK_KEY: &str = "coa-local-test-key";
+const PROJECT_SPEND_ENV: &str = "COA_OPENAI_ENFORCED_PROJECT_ID";
 pub type Search = Arc<dyn Fn(&str, usize, DemoSearchMethod) -> Result<Value, String> + Send + Sync>;
 
 #[derive(Clone)]
@@ -38,7 +39,24 @@ pub struct ResponsesRunner {
     search: Search,
     timeout: Duration,
     offline: bool,
-    budget: Option<Arc<crate::demo_budget::AttemptBudget>>,
+    spend_control: SpendControl,
+}
+
+#[derive(Clone)]
+enum SpendControl {
+    Unconfigured,
+    AttemptLedger(Arc<crate::demo_budget::AttemptBudget>),
+    OpenAiProject(HeaderValue),
+}
+
+impl SpendControl {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Unconfigured => "unconfigured",
+            Self::AttemptLedger(_) => "attempt_ledger",
+            Self::OpenAiProject(_) => "openai_project",
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -89,16 +107,20 @@ impl ResponsesRunner {
             search,
             timeout: TIMEOUT,
             offline,
-            budget: None,
+            spend_control: SpendControl::Unconfigured,
         })
     }
     pub fn from_env(search: Search) -> Result<Self, String> {
+        let project = std::env::var_os(PROJECT_SPEND_ENV);
         if let Ok(url) = std::env::var("COA_RESPONSES_TEST_URL") {
             if !cfg!(debug_assertions) || !url.starts_with("http://") {
                 return Err(
                     "runtime: Testconfiguratie is alleen lokaal in een debugbuild toegestaan."
                         .into(),
                 );
+            }
+            if project.is_some() {
+                return Err("budget: Een lokale test gebruikt geen OpenAI-projectbudget.".into());
             }
             // Never read a user's real API key in offline test mode.
             let mut runner = Self::new(MOCK_KEY.into(), &url, search)?;
@@ -113,7 +135,19 @@ impl ResponsesRunner {
                     .ok_or("runtime: Ongeldige testdeadline.")?;
                 runner.timeout = Duration::from_millis(milliseconds);
             }
-            runner.budget = configured_budget(false)?;
+            runner.spend_control = configured_attempt_ledger(false)?;
+            return Ok(runner);
+        }
+        if let Some(project) = project {
+            if std::env::var_os("COA_DEMO_BUDGET_FILE").is_some() {
+                return Err("budget: Kies één gebruiksbudget voor de antwoordservice.".into());
+            }
+            let project = project_header(&project)?;
+            let key_file = std::env::var_os("COA_OPENAI_API_KEY_FILE")
+                .filter(|_| std::env::var_os("OPENAI_API_KEY").is_none())
+                .ok_or("budget: Het OpenAI-projectbudget vereist een eigen API-sleutelbestand.")?;
+            let mut runner = Self::new(read_key(Path::new(&key_file))?, ENDPOINT, search)?;
+            runner.spend_control = SpendControl::OpenAiProject(project);
             return Ok(runner);
         }
         let key = match std::env::var("OPENAI_API_KEY")
@@ -127,11 +161,14 @@ impl ResponsesRunner {
             },
         };
         let mut runner = Self::new(key, ENDPOINT, search)?;
-        runner.budget = configured_budget(true)?;
+        runner.spend_control = configured_attempt_ledger(true)?;
         Ok(runner)
     }
+    pub fn supports_local_benchmarks(&self) -> bool {
+        !matches!(self.spend_control, SpendControl::OpenAiProject(_))
+    }
     pub fn configuration(&self) -> Value {
-        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v4","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
+        json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v4","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"spend_control":self.spend_control.name(),"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
     }
     pub async fn run(
         &self,
@@ -187,19 +224,32 @@ fn dotenv_key() -> Result<Option<String>, String> {
     Ok(key)
 }
 
-fn configured_budget(
-    required: bool,
-) -> Result<Option<Arc<crate::demo_budget::AttemptBudget>>, String> {
+fn configured_attempt_ledger(required: bool) -> Result<SpendControl, String> {
     let Some(path) = std::env::var_os("COA_DEMO_BUDGET_FILE") else {
         return if required {
             Err("budget: Stel eerst het gebruiksbudget voor de antwoordservice in.".into())
         } else {
-            Ok(None)
+            Ok(SpendControl::Unconfigured)
         };
     };
     crate::demo_budget::AttemptBudget::open(Path::new(&path))
-        .map(|budget| Some(Arc::new(budget)))
+        .map(|budget| SpendControl::AttemptLedger(Arc::new(budget)))
         .map_err(|_| "budget: Het gebruiksbudget is niet beschikbaar of al in gebruik.".into())
+}
+
+fn project_header(value: &OsStr) -> Result<HeaderValue, String> {
+    let invalid = "budget: Ongeldig OpenAI-project voor het gebruiksbudget.";
+    let project = value.to_str().ok_or(invalid)?;
+    let id = project.strip_prefix("proj_").ok_or(invalid)?;
+    if id.is_empty()
+        || id.len() > 128
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(invalid.into());
+    }
+    HeaderValue::from_str(project).map_err(|_| invalid.into())
 }
 
 fn validate_key(key: String) -> Result<String, String> {
@@ -692,7 +742,7 @@ mod tests {
         ])
         .unwrap();
         runner.offline = true;
-        runner.budget = Some(Arc::new(
+        runner.spend_control = SpendControl::AttemptLedger(Arc::new(
             crate::demo_budget::AttemptBudget::open(&path).unwrap(),
         ));
         assert!(run(&runner).await.unwrap_err().starts_with("budget:"));
@@ -1143,6 +1193,59 @@ mod tests {
             task.abort();
         }
     }
+    #[tokio::test]
+    async fn provider_spend_limits_stop_at_either_request_without_disclosing_details() {
+        use axum::http::StatusCode;
+        for block_preflight in [false, true] {
+            for error_code in [
+                "project_spend_limit_exceeded",
+                "organization_spend_limit_exceeded",
+                "rate_limit_exceeded",
+            ] {
+                let calls = Arc::new(AtomicUsize::new(0));
+                let seen = calls.clone();
+                let rejection =
+                    json!({"error":{"code":error_code,"message":"private billing diagnostic"}});
+                let generation = rejection.clone();
+                let app = Router::new()
+                    .route(
+                        "/v1/responses",
+                        post(move || {
+                            let generation = generation.clone();
+                            seen.fetch_add(1, Ordering::SeqCst);
+                            async move { (StatusCode::TOO_MANY_REQUESTS, Json(generation)) }
+                        }),
+                    )
+                    .route(
+                        "/v1/responses/input_tokens",
+                        post(move || {
+                            let rejection = rejection.clone();
+                            async move {
+                                if block_preflight {
+                                    (StatusCode::TOO_MANY_REQUESTS, Json(rejection))
+                                } else {
+                                    (StatusCode::OK, Json(json!({"object":"response.input_tokens","input_tokens":1})))
+                                }
+                            }
+                        }),
+                    );
+                let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+                let url = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+                let task = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+                let runner = ResponsesRunner::new(MOCK_KEY.into(), &url, search()).unwrap();
+                let error = run(&runner).await.unwrap_err();
+                if error_code == "rate_limit_exceeded" {
+                    assert!(error.starts_with("runtime:"), "{error}");
+                } else {
+                    assert_eq!(error, "budget: De uitgavenlimiet van de demo is bereikt.");
+                }
+                assert!(!error.contains("private billing diagnostic"));
+                assert_eq!(calls.load(Ordering::SeqCst), usize::from(!block_preflight));
+                task.abort();
+            }
+        }
+    }
+
     #[tokio::test]
     async fn provider_error_details_cannot_escape() {
         use axum::{http::StatusCode, response::IntoResponse};

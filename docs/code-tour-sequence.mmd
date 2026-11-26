@@ -8,7 +8,7 @@ sequenceDiagram
   W->>W: Check session and limits; begin pending run
   W-->>B: Run ID
   loop At most 5 model attempts / 4 searches
-    R->>R: Reserve persistent attempt
+    R->>R: Reserve a local attempt or bind the approved project
     R->>O: Count complete input
     O-->>R: Input count (must be 1..300,000)
     R->>O: Generate with original payload

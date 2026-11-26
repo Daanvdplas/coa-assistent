@@ -14,7 +14,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-async function submitQuestion(t, code, retrySeconds, retryHeader) {
+async function submitQuestion(t, code, retrySeconds, retryHeader, completionError) {
   const page = await browser.newPage();
   t.after(() => page.close());
   page.setDefaultTimeout(5000);
@@ -31,7 +31,11 @@ async function submitQuestion(t, code, retrySeconds, retryHeader) {
     if (path === "/api/session") {
       return route.fulfill({ json: { session_id: "local-test", summary: { runs: [] } } });
     }
+    if (path === "/api/runs/r-1-1" && completionError) {
+      return route.fulfill({ json: { id: "r-1-1", status: "failed", error: completionError } });
+    }
     if (path === "/api/runs") {
+      if (completionError) return route.fulfill({ json: { id: "r-1-1", status: "pending" } });
       return route.fulfill({
         status: 429,
         headers: retryHeader === undefined ? {} : { "Retry-After": retryHeader },
@@ -43,7 +47,7 @@ async function submitQuestion(t, code, retrySeconds, retryHeader) {
   await page.goto("http://coa.test/");
   await page.locator("#question").fill("Welke activiteit past bij mij?");
   await page.getByRole("button", { name: "Zoek een antwoord" }).click();
-  await page.locator("#status.error").waitFor({ state: "visible" });
+  await page.locator(completionError ? "#answer.error" : "#status.error").waitFor({ state: "visible" });
   return page;
 }
 
@@ -86,4 +90,19 @@ test("demo limit with no usable wait asks the visitor to try again shortly", asy
 test("legacy hourly rejections keep their existing message", async t => {
   const page = await submitQuestion(t, "rate_limit", 60, "60");
   assert.equal(await page.getByRole("status").textContent(), "Je hebt de limiet voor vragen bereikt. Wacht even en probeer het later opnieuw.");
+});
+
+test("enforced project spending stops show a specific bilingual message without promising a retry", async t => {
+  const page = await submitQuestion(t, undefined, undefined, undefined, "budget: De uitgavenlimiet van de demo is bereikt.");
+  assert.equal(await page.locator("#answer").textContent(), "De demo kan tijdelijk geen vragen beantwoorden. Je kunt de activiteiten wel bekijken.");
+  assert.equal(await page.locator("#status").textContent(), "");
+  await selectEnglish(page);
+  assert.equal(await page.locator("#answer").textContent(), "The demo is temporarily unable to answer questions. You can still browse the activities.");
+  assert.equal(await page.locator("#status").textContent(), "");
+});
+
+test("other provider failures keep the existing general retry message", async t => {
+  const page = await submitQuestion(t, undefined, undefined, undefined, "runtime: De antwoordservice heeft tijdelijk geen capaciteit of tegoed.");
+  assert.equal(await page.locator("#answer").textContent(), "De antwoordservice kon de vraag niet afronden. Probeer het later opnieuw.");
+  assert.equal(await page.getByRole("status").textContent(), "Er is geen antwoord beschikbaar. Je kunt de vraag opnieuw indienen.");
 });
