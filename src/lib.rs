@@ -2,6 +2,7 @@ pub mod codex;
 pub mod corpus;
 pub mod demo_budget;
 pub mod demo_limits;
+pub mod demo_monthly_budget;
 #[path = "../evals/coa-assistent/src/mod.rs"]
 pub mod experiment;
 pub mod manifest;

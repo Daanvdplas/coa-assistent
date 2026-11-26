@@ -30,6 +30,7 @@ const MAX_INPUT_TOKENS: u64 = 300_000;
 const MAX_COUNT_BYTES: usize = 16 * 1024;
 const MOCK_KEY: &str = "coa-local-test-key";
 const PROJECT_SPEND_ENV: &str = "COA_OPENAI_ENFORCED_PROJECT_ID";
+const MONTHLY_SPEND_ENV: &str = "COA_DEMO_MONTHLY_BUDGET_FILE";
 pub type Search = Arc<dyn Fn(&str, usize, DemoSearchMethod) -> Result<Value, String> + Send + Sync>;
 
 #[derive(Clone)]
@@ -47,6 +48,7 @@ pub struct ResponsesRunner {
 enum SpendControl {
     Unconfigured,
     AttemptLedger(Arc<crate::demo_budget::AttemptBudget>),
+    MonthlyBudget(Arc<crate::demo_monthly_budget::MonthlyBudget>),
     OpenAiProject(HeaderValue),
 }
 
@@ -55,6 +57,7 @@ impl SpendControl {
         match self {
             Self::Unconfigured => "unconfigured",
             Self::AttemptLedger(_) => "attempt_ledger",
+            Self::MonthlyBudget(_) => "monthly_budget",
             Self::OpenAiProject(_) => "openai_project",
         }
     }
@@ -113,6 +116,12 @@ impl ResponsesRunner {
     }
     pub fn from_env(search: Search) -> Result<Self, String> {
         let project = std::env::var_os(PROJECT_SPEND_ENV);
+        let monthly_budget = std::env::var_os(MONTHLY_SPEND_ENV);
+        if monthly_budget.is_some()
+            && (project.is_some() || std::env::var_os("COA_DEMO_BUDGET_FILE").is_some())
+        {
+            return Err("budget: Kies één gebruiksbudget voor de antwoordservice.".into());
+        }
         if let Ok(url) = std::env::var("COA_RESPONSES_TEST_URL") {
             if !cfg!(debug_assertions) || !url.starts_with("http://") {
                 return Err(
@@ -120,8 +129,11 @@ impl ResponsesRunner {
                         .into(),
                 );
             }
-            if project.is_some() {
-                return Err("budget: Een lokale test gebruikt geen OpenAI-projectbudget.".into());
+            if project.is_some() || monthly_budget.is_some() {
+                return Err(
+                    "budget: Een lokale test gebruikt geen gebruiksbudget voor de publieke demo."
+                        .into(),
+                );
             }
             // Never read a user's real API key in offline test mode.
             let mut runner = Self::new(MOCK_KEY.into(), &url, search)?;
@@ -137,6 +149,16 @@ impl ResponsesRunner {
                 runner.timeout = Duration::from_millis(milliseconds);
             }
             runner.spend_control = configured_attempt_ledger(false)?;
+            return Ok(runner);
+        }
+        if let Some(path) = monthly_budget {
+            let key_file = std::env::var_os("COA_OPENAI_API_KEY_FILE")
+                .filter(|_| std::env::var_os("OPENAI_API_KEY").is_none())
+                .ok_or("budget: Het maandbudget vereist een eigen API-sleutelbestand.")?;
+            let budget = crate::demo_monthly_budget::MonthlyBudget::open(Path::new(&path))
+                .map_err(|_| "budget: Het gebruiksbudget is niet beschikbaar of al in gebruik.")?;
+            let mut runner = Self::new(read_key(Path::new(&key_file))?, ENDPOINT, search)?;
+            runner.spend_control = SpendControl::MonthlyBudget(Arc::new(budget));
             return Ok(runner);
         }
         if let Some(project) = project {
@@ -166,7 +188,10 @@ impl ResponsesRunner {
         Ok(runner)
     }
     pub fn supports_local_benchmarks(&self) -> bool {
-        !matches!(self.spend_control, SpendControl::OpenAiProject(_))
+        !matches!(
+            self.spend_control,
+            SpendControl::OpenAiProject(_) | SpendControl::MonthlyBudget(_)
+        )
     }
     pub fn configuration(&self) -> Value {
         json!({"provider":"openai","transport":"responses_api","runtime":RUNTIME_VERSION,"model":MODEL,"reasoning_effort":"low","store":false,"prompt_version":"responses-activity-v4","max_searches":MAX_SEARCHES,"max_provider_requests":MAX_PROVIDER_REQUESTS,"max_input_token_preflights":MAX_PROVIDER_REQUESTS,"max_input_tokens_per_request":MAX_INPUT_TOKENS,"budget_policy_version":crate::demo_budget::POLICY_VERSION,"spend_control":self.spend_control.name(),"max_output_tokens_per_request":MAX_OUTPUT_TOKENS,"timeout_ms":self.timeout.as_millis(),"offline_mock":self.offline})
@@ -659,6 +684,106 @@ mod tests {
         assert_eq!(requests[0]["max_output_tokens"], 4096);
         assert_eq!(requests[0]["prompt_cache_options"]["ttl"], "30m");
         task.abort();
+    }
+
+    #[tokio::test]
+    async fn monthly_budget_charges_before_generation_and_settles_terminal_usage_without_traces() {
+        use std::{fs, os::unix::fs::DirBuilderExt, process::Command};
+
+        let directory =
+            std::env::temp_dir().join(crate::traces::anonymous_id("coa-monthly").unwrap());
+        fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&directory)
+            .unwrap();
+        let path = directory.join("budget.json");
+        let date = Command::new("date")
+            .args(["-u", "+%Y-%m"])
+            .output()
+            .unwrap();
+        assert!(date.status.success());
+        let month = String::from_utf8(date.stdout).unwrap();
+        crate::demo_monthly_budget::cli(&[
+            "init".into(),
+            path.to_str().unwrap().into(),
+            "--utc-month".into(),
+            month.trim().into(),
+            "--max-usd-cents".into(),
+            "18".into(),
+            "--opening-usd-cents".into(),
+            "13".into(),
+        ])
+        .unwrap();
+
+        fn charged(path: &Path) -> u64 {
+            serde_json::from_slice::<Value>(&fs::read(path).unwrap()).unwrap()
+                ["charged_usd_nanodollars"]
+                .as_u64()
+                .unwrap()
+        }
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/v1/responses", listener.local_addr().unwrap());
+        let app = Router::new()
+            .route(
+                "/v1/responses/input_tokens",
+                post({
+                    let seen = seen.clone();
+                    let path = path.clone();
+                    move || async move {
+                        let mut steps = seen.lock().unwrap();
+                        let input_tokens = if steps.is_empty() { 100 } else { 4_000 };
+                        steps.push(charged(&path));
+                        Json(json!({"object":"response.input_tokens","input_tokens":input_tokens}))
+                    }
+                }),
+            )
+            .route(
+                "/v1/responses",
+                post({
+                    let seen = seen.clone();
+                    let path = path.clone();
+                    move || async move {
+                        seen.lock().unwrap().push(charged(&path));
+                        let mut receipt = envelope(json!([]));
+                        receipt["status"] = json!("incomplete");
+                        receipt["service_tier"] = json!("default");
+                        receipt["usage"]["total_tokens"] = json!(125);
+                        receipt["usage"]["input_tokens_details"]["cache_write_tokens"] = json!(15);
+                        receipt["usage"]["input_tokens_details"]["cache_write_tokens_details"] =
+                            json!({"ttl_30m_tokens":15, "ttl_12h_tokens":0});
+                        Json(receipt)
+                    }
+                }),
+            );
+        let task = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let mut runner = ResponsesRunner::new(MOCK_KEY.into(), &endpoint, search()).unwrap();
+        assert!(runner.offline, "the fixture must use a loopback endpoint");
+        // Treat the loopback receipt as paid while keeping credentials and traffic synthetic.
+        runner.offline = false;
+        runner.spend_control = SpendControl::MonthlyBudget(Arc::new(
+            crate::demo_monthly_budget::MonthlyBudget::open(&path).unwrap(),
+        ));
+        assert!(!runner.supports_local_benchmarks());
+        let result = run(&runner).await;
+        let blocked = run(&runner).await;
+        let checkpoints = seen.lock().unwrap().clone();
+        let settled = charged(&path);
+        task.abort();
+        drop(runner);
+        fs::remove_dir_all(directory).unwrap();
+
+        assert!(result.unwrap_err().starts_with("output:"));
+        assert_eq!(
+            blocked.unwrap_err(),
+            "budget: De uitgavenlimiet van de demo is bereikt."
+        );
+        assert_eq!(checkpoints, vec![130_000_000, 171_210_000, 130_419_500]);
+        assert_eq!(settled, 130_419_500);
     }
 
     #[tokio::test]

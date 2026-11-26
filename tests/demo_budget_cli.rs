@@ -159,6 +159,8 @@ async fn failed_provider_attempts_remain_spent_after_crash_and_exhaustion_blocks
             .env_remove("COA_RESPONSES_TEST_TIMEOUT_MS")
             .env_remove("OPENAI_API_KEY")
             .env_remove("COA_OPENAI_API_KEY_FILE")
+            .env_remove("COA_DEMO_MONTHLY_BUDGET_FILE")
+            .env_remove("COA_OPENAI_ENFORCED_PROJECT_ID")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true)
@@ -310,6 +312,8 @@ async fn a_partial_write_cannot_reopen_the_allowance_after_restart() {
                 .env_remove("COA_RESPONSES_TEST_TIMEOUT_MS")
                 .env_remove("OPENAI_API_KEY")
                 .env_remove("COA_OPENAI_API_KEY_FILE")
+                .env_remove("COA_DEMO_MONTHLY_BUDGET_FILE")
+                .env_remove("COA_OPENAI_ENFORCED_PROJECT_ID")
                 .kill_on_drop(true)
                 .output(),
         )

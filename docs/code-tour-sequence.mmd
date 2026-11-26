@@ -11,8 +11,14 @@ sequenceDiagram
     R->>R: Reserve a local attempt or bind the approved project
     R->>O: Count complete input
     O-->>R: Input count (must be 1..300,000)
+    opt Hosted local monthly budget
+      R->>R: Durably reserve maximum charge from exact count
+    end
     R->>O: Generate with original payload
     O-->>R: Search request or final structured answer
+    opt Hosted local monthly budget and verified usage
+      R->>R: Settle reserved charge
+    end
     opt Model requests a search
       R->>I: Direct callback (query, top_k, fixed method)
       I-->>R: Exact sections, source IDs and dates

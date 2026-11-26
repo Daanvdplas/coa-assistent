@@ -25,6 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             meedoen_retrieval::demo_budget::cli(&args)?;
             return Ok(());
         }
+        "demo-monthly-budget" => {
+            meedoen_retrieval::demo_monthly_budget::cli(&args)?;
+            return Ok(());
+        }
         "lock-exec" => {
             std::process::exit(operator_lock::run(&args)?);
         }
