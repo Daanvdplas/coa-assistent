@@ -242,7 +242,7 @@ pub(super) async fn run(
         client: runner.client.clone(),
         endpoint: runner.endpoint.clone(),
         state: state.clone(),
-        budget: runner.budget.clone(),
+        spend_control: runner.spend_control.clone(),
         offline: runner.offline,
     };
     let model = rig::Model::new(

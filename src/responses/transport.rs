@@ -4,7 +4,7 @@
 //! this transport preserves our endpoint, byte budgets and safe error boundary.
 use super::{
     MAX_COUNT_BYTES, MAX_HISTORY_BYTES, MAX_INPUT_TOKENS, MAX_OUTPUT_TOKENS, MAX_PROVIDER_REQUESTS,
-    MAX_RESPONSE_BYTES, MODEL,
+    MAX_RESPONSE_BYTES, MODEL, SpendControl,
     rig_runtime::{BoundaryError, RunState, check_response},
 };
 use rig::http_client::{
@@ -18,7 +18,7 @@ pub(super) struct BoundedTransport {
     pub client: reqwest::Client,
     pub endpoint: reqwest::Url,
     pub state: Arc<Mutex<RunState>>,
-    pub budget: Option<Arc<crate::demo_budget::AttemptBudget>>,
+    pub spend_control: SpendControl,
     pub offline: bool,
 }
 impl BoundedTransport {
@@ -83,13 +83,15 @@ impl BoundedTransport {
             }
             state.requests += 1;
         }
-        match &self.budget {
-            Some(budget) => budget.reserve().map_err(|error| self.failure(error))?,
-            None if !self.offline => {
+        match &self.spend_control {
+            SpendControl::AttemptLedger(budget) => {
+                budget.reserve().map_err(|error| self.failure(error))?
+            }
+            SpendControl::Unconfigured if !self.offline => {
                 return Err(self
                     .failure("budget: Stel eerst het gebruiksbudget voor de antwoordservice in."));
             }
-            None => {}
+            SpendControl::OpenAiProject(_) | SpendControl::Unconfigured => {}
         }
         let (parts, body) = request.into_parts();
         let mut count_endpoint = self.endpoint.clone();
@@ -148,6 +150,9 @@ impl BoundedTransport {
         // The count projection has a different length from the generation.
         headers.remove(reqwest::header::CONTENT_LENGTH);
         headers.remove(reqwest::header::TRANSFER_ENCODING);
+        if let SpendControl::OpenAiProject(project) = &self.spend_control {
+            headers.insert("openai-project", project.clone());
+        }
         let mut response = self
             .client
             .post(endpoint)
@@ -161,25 +166,52 @@ impl BoundedTransport {
         if !response.status().is_success() {
             return Err(self.failure(match response.status().as_u16() {
                 401 | 403 => "runtime: De antwoordservice is niet juist ingesteld.",
+                429 if spend_limit_reached(&mut response).await => {
+                    "budget: De uitgavenlimiet van de demo is bereikt."
+                }
                 402 | 429 => {
                     "runtime: De antwoordservice heeft tijdelijk geen capaciteit of tegoed."
                 }
                 _ => "runtime: De antwoordservice is tijdelijk niet beschikbaar.",
             }));
         }
-        let mut bytes = Vec::new();
-        while let Some(chunk) = response
-            .chunk()
+        bounded_body(&mut response, limit)
             .await
-            .map_err(|_| self.failure("runtime: Het antwoord kon niet worden ontvangen."))?
-        {
-            if bytes.len() + chunk.len() > limit {
-                return Err(self.failure("output: Het antwoord bevat te veel gegevens."));
-            }
-            bytes.extend_from_slice(&chunk);
-        }
-        Ok(bytes)
+            .map_err(|error| self.failure(error))
     }
+}
+
+// The provider error body stays inside this boundary. Only known codes determine
+// the public error category, and the preflight and generation use the same rule.
+async fn spend_limit_reached(response: &mut reqwest::Response) -> bool {
+    let Ok(bytes) = bounded_body(response, MAX_COUNT_BYTES).await else {
+        return false;
+    };
+    let Ok(body) = serde_json::from_slice::<Value>(&bytes) else {
+        return false;
+    };
+    matches!(
+        body["error"]["code"].as_str(),
+        Some("project_spend_limit_exceeded" | "organization_spend_limit_exceeded")
+    )
+}
+
+async fn bounded_body(
+    response: &mut reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, &'static str> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "runtime: Het antwoord kon niet worden ontvangen.")?
+    {
+        if chunk.len() > limit - bytes.len() {
+            return Err("output: Het antwoord bevat te veel gegevens.");
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 /// An explicit projection, never a dump of Rig's private replay or HTTP data.
@@ -322,14 +354,17 @@ mod tests {
     use serde_json::json;
 
     #[tokio::test]
-    async fn preflight_preserves_generation_bytes_and_rejects_inputs_outside_the_cost_policy() {
+    async fn project_preflight_preserves_generation_bytes_and_the_cost_policy() {
         let counted = Arc::new(Mutex::new(Vec::<Value>::new()));
         let generated = Arc::new(Mutex::new(Vec::<Bytes>::new()));
+        let project_headers = Arc::new(Mutex::new(Vec::new()));
         let seen_counts = counted.clone();
         let seen_generations = generated.clone();
+        let seen_count_projects = project_headers.clone();
+        let seen_generation_projects = project_headers.clone();
         let app = Router::new()
-            .route("/v1/responses/input_tokens", post(move |Json(body): Json<Value>| { let seen = seen_counts.clone(); async move {seen.lock().unwrap().push(body); Json(json!({"object":"response.input_tokens","input_tokens":1}))} }))
-            .route("/v1/responses", post(move |body: Bytes| { let seen = seen_generations.clone(); async move {seen.lock().unwrap().push(body); Json(json!({"status":"completed","output":[{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":"Hallo","top_k":3,"search_goal":"Begintijden opzoeken"}).to_string()}]}))} }));
+            .route("/v1/responses/input_tokens", post(move |headers: axum::http::HeaderMap, Json(body): Json<Value>| { let seen = seen_counts.clone(); let projects = seen_count_projects.clone(); async move {seen.lock().unwrap().push(body); projects.lock().unwrap().push(headers.get("openai-project").cloned()); Json(json!({"object":"response.input_tokens","input_tokens":1}))} }))
+            .route("/v1/responses", post(move |headers: axum::http::HeaderMap, body: Bytes| { let seen = seen_generations.clone(); let projects = seen_generation_projects.clone(); async move {seen.lock().unwrap().push(body); projects.lock().unwrap().push(headers.get("openai-project").cloned()); Json(json!({"status":"completed","output":[{"type":"function_call","call_id":"one","name":"search_document","arguments":json!({"query":"Hallo","top_k":3,"search_goal":"Begintijden opzoeken"}).to_string()}]}))} }));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let endpoint: reqwest::Url =
             format!("http://{}/v1/responses", listener.local_addr().unwrap())
@@ -344,8 +379,10 @@ mod tests {
                 .unwrap(),
             endpoint: endpoint.clone(),
             state: Arc::new(Mutex::new(RunState::default())),
-            budget: None,
-            offline: true,
+            spend_control: SpendControl::OpenAiProject(reqwest::header::HeaderValue::from_static(
+                "proj_contract_test",
+            )),
+            offline: false,
         };
         let policy = json!({"model":MODEL,"input":[{"role":"user","content":"Hallo"}],"instructions":"Synthetic instructions","tools":[{"type":"function","name":"search_document","parameters":{}}],"text":{"format":{"type":"json_schema","name":"test","schema":{"type":"object"}}},"reasoning":{"effort":"low"},"parallel_tool_calls":false,"tool_choice":"required","store":false,"service_tier":"default","max_output_tokens":MAX_OUTPUT_TOKENS,"prompt_cache_options":{"ttl":"30m"}});
         let bytes = Bytes::from(format!(
@@ -356,6 +393,7 @@ mod tests {
             .method("POST")
             .uri(endpoint.as_str())
             .header("content-type", "application/json")
+            .header("openai-project", "proj_mismatched_test_fixture")
             .header("content-length", bytes.len())
             .body(bytes.clone())
             .unwrap();
@@ -368,6 +406,16 @@ mod tests {
         .unwrap();
         assert_eq!(*generated.lock().unwrap(), vec![bytes]);
         assert_eq!(counted.lock().unwrap()[0]["text"], policy["text"]);
+        assert_eq!(
+            *project_headers.lock().unwrap(),
+            vec![
+                Some(reqwest::header::HeaderValue::from_static(
+                    "proj_contract_test"
+                ));
+                2
+            ],
+            "both requests must use the configured project"
+        );
 
         for (key, value) in [
             ("unknown_input_option", json!(true)),

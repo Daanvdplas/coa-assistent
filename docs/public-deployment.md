@@ -1,6 +1,6 @@
 # Public demo: release, verify and stop
 
-This is an operator procedure, not authorization to deploy. The [runtime report](runtime-report.md) records the **17 November 2026** public launch; this document does not recheck the current host, URL, allowance or service state. The launch used the temporary Cloudflare route below. New deployment or paid verification requires approval of the exact release, URL, separate project key and total allowance. Use fictional information only.
+This is an operator procedure, not authorization to deploy. The [runtime report](runtime-report.md) records the **17 November 2026** public launch; this document does not recheck the current host, URL, allowance or service state. The launch used the temporary Cloudflare route below. New deployment or paid verification requires approval of the exact release, URL, separate project key and spending policy. Use fictional information only.
 
 The original owner approved $100 and fifty schema-2 model attempts under **policy 2**. Before each attempt, the official free endpoint counts the exact complete input, at most 300,000 tokens; output is at most 4096 tokens. At the Sol/Standard/30m price assumptions recorded **17 November 2026**, fifty attempts give a conservative $78.072, or $93.6864 with one total 20% planning margin. This is not an account-wide billing guarantee or a default allowance for another installation. Recalculate before changing model, tier, cache policy, token ceilings, prices or issuance. Keep keys and real resident data out of Git, commands, issues and logs.
 
@@ -21,7 +21,7 @@ The package contains:
 - `release.json` and `SHA256SUMS`: source commit, toolchain, lockfile hash and checksums.
 - `config/`: packaged proxy/service configuration from repository [deploy/](../deploy/); `DEPLOYMENT.md`: this procedure.
 
-The binary embeds sources, UI and selected saved reports. The website service needs no Node, npm, Codex, Git, personal caches or full checkout. Verify system libraries with `ldd`. The workflow tests proxy behavior, checksums, CLI, systemd parsing and real MiniLM warmup with an unusable test key and no answer calls. It rejects a binary without mandatory budget enforcement. This is not a VPS capacity guarantee.
+The binary embeds sources, UI and selected saved reports. The website service needs no Node, npm, Codex, Git, personal caches or full checkout. Verify system libraries with `ldd`. The workflow tests proxy behavior, checksums, CLI, systemd parsing and real MiniLM warmup with an unusable test key and no answer calls. It checks that the default mode requires a durable attempt ledger and that project mode needs explicit configuration. This is not a VPS capacity guarantee.
 
 Verify the downloaded archive's outer `.sha256`, extract into a new directory, then run `sha256sum --check SHA256SUMS` there. Retain source commit and workflow-run identity. Install root-owned under `/opt/coa-demo/releases/APPROVED_COMMIT`; switch `current` only when activating that verified release. Never overwrite an active release.
 
@@ -33,9 +33,30 @@ These are operator actions **after approval**, never automatic startup/restart s
 2. Store the separate project key in `/var/lib/coa-demo/openai-api-key`, owned by `coa-demo`, regular, mode `0600`, with no symlink/hardlink. Do not copy personal Codex authentication or put the value in arguments/environment files.
 3. Initialize once as `coa-demo`: `meedoen-retrieval demo-budget init /var/lib/coa-demo/budget/attempts-v2.json --max-attempts APPROVED_COUNT`. The placeholder is deliberately invalid; substitute only the approved count. Initialization must refuse an existing file. Keep state outside releases and across restart/rollback.
 
-Never delete/rewrite budget state to repair an error. Missing, invalid or inaccessible state must block provider attempts. The service initializes nothing and has no default cap. Network-address limits are additional RAM counters, not spending state.
+Preserve the ledger across repairs, restarts and updates. In attempt-ledger mode, missing, invalid or inaccessible state blocks provider attempts. The service initializes nothing and has no default cap. Network-address limits count traffic in RAM.
 
 Historical migration: an earlier private preparation had an unused schema-1 allowance of fifteen. Only its explicitly verified zero-use state authorized a one-time transition: stop service, preserve the old file unchanged as audit evidence, remove service access (`root:root`, `0400`) and initialize a **new** v2 path with the new binary. Never change the old cap/counter. Any use requires a new combined remaining-budget decision. Older binaries refuse v2; never roll back to an old unit plus the unused v1 budget, which would open a second allowance. This history does not authorize a new migration.
+
+## Switch the hosted demo to an enforced OpenAI project budget
+
+OpenAI introduced [enforced project and organization spend limits](https://developers.openai.com/api/docs/changelog) on **22 July 2026**. The dedicated project can stop requests once its tracked monthly spend reaches the approved limit. Enforcement can lag, allowing a small overshoot. See [OpenAI’s spend limit guide](https://developers.openai.com/api/docs/guides/spend-limits).
+
+1. Obtain the owner’s explicit approval of the monthly USD amount and the dedicated project ID. In that project's **Limits** settings, verify the amount and that **Enforce a hard limit** is on. A spend alert leaves requests running. Use the key file for that exact project. Keep the credential and any account administration access private.
+2. Stop the app with public admission closed. Preserve the original schema-2 ledger, including its existing limit, usage and identity. The ledger is audit evidence during project mode and can be reused only under a separately authorized rollback.
+3. Install a service drop-in containing the settings below. Replace the placeholder with the approved project ID. The example resets the packaged unit’s startup checks and retains its key check. If the installed service has additional startup checks, carry them over except the retired active ledger check.
+
+   ```ini
+   [Service]
+   Environment=COA_OPENAI_ENFORCED_PROJECT_ID=replace-with-approved-project-id
+   UnsetEnvironment=COA_DEMO_BUDGET_FILE OPENAI_API_KEY
+   ExecStartPre=
+   ExecStartPre=/usr/bin/test -s /var/lib/coa-demo/openai-api-key
+   ```
+
+4. Reload systemd, start privately and check `/api/source` for `runtime_ready: true`, `model_configuration.spend_control: "openai_project"` and the unchanged token and per-question ceilings. This check confirms the application configuration. The billing settings in step 1 establish provider enforcement. An absent key file, invalid project ID or simultaneous ledger configuration disables answer generation.
+5. Verify the same durable ledger identity and bytes before reopening admission. The input count and generation both use the dedicated project. A provider spend-limit rejection on either request stops the run and tells visitors that answers are temporarily unavailable. The demo continues to enforce 100 questions per rolling hour, 10 per network and the existing per-question guard. Local paid benchmarks keep their attempt-ledger policy.
+
+If project enforcement or its scope becomes uncertain, stop paid admission until the owner verifies it. To roll back the spending policy, close admission, remove the project drop-in and restore the original service settings and original schema-2 ledger only after approval of the remaining allowance. Preserve its accounting through the transition.
 
 ## Service and model warmup behind closed access
 
@@ -98,7 +119,7 @@ Optional execution traces are operator-only. Read JSON through `traces list` and
 
 Assign an owner and stop date at release. Stop with `systemctl stop coa-demo.service` on unexpected spending, abuse, misleading source/privacy presentation or unknown budget state. Verify new provider traffic cannot start and preserve the ledger. Keep unrelated SSH/Tailscale/services running.
 
-Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the same v2 budget. An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
+Use maintenance 503 while unavailable. Rollback only to an independently reviewed **policy-2 release with exact input counting**: stop Rust, verify checksums, switch `current`, restart with the currently approved spending policy. If the release cannot enforce the approved project mode, follow the separate rollback in [the project budget procedure](#switch-the-hosted-demo-to-an-enforced-openai-project-budget). An old attempt-only release is insufficient for the new issuance; leave service stopped. Preserve unrelated sites if Caddy's host-wide configuration has since changed.
 
 If the rollback release prunes traces, unset `COA_TRACE_DB` for that release before restarting. Keep the private trace database and its sidecar files intact for inspection and for the next release that retains traces until owner-approved deletion.
 
