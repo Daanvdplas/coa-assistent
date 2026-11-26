@@ -101,6 +101,16 @@ Cloudflare terminates TLS and processes traffic. The question form identifies Cl
 
 Before changes, privately record `tailscale serve status --json` and PID/start identities of existing private services; compare afterwards without publishing those details. Do not run `tailscale serve reset`, enable Funnel on an existing private port or change broad policies. Stop the tunnel with `systemctl stop coa-demo-tunnel.service`, without a quota reset or coupled app stop. Retain the original IP-route configuration for a separately reviewed permanent route.
 
+## Health checks for the named tunnel
+
+On the host serving `coa-assistent.app` through `coa-demo-named-tunnel.service`, the health timer checks the application, Caddy, the tunnel and public HTTPS each minute. Local probes use the application source endpoint, Caddy’s own response to a non-allowlisted path and the tunnel’s loopback readiness endpoint. The checks use read-only requests and discard response bodies. A public HTTPS failure is recorded in the journal for investigation.
+
+Three consecutive local failures during a single invocation can trigger a restart of that running unit. Each unit has a fifteen-minute cooldown. Recovery respects queued systemd jobs and only restarts a dependent unit while its dependencies are active. The watchdog has its own state directory and leaves the model budget and traces alone.
+
+Manage the health files separately from application version releases. From a reviewed checkout, install `deploy/coa-demo-health.sh` as `/usr/local/libexec/coa-demo-health` (`root:root`, `0755`), and install `deploy/coa-demo-health.service` and `deploy/coa-demo-health.timer` in `/etc/systemd/system` (`root:root`, `0644`). Run `systemd-analyze verify /etc/systemd/system/coa-demo-health.{service,timer}`, reload the systemd configuration, run `systemctl start coa-demo-health.service` once and inspect `journalctl -u coa-demo-health.service`. Then enable the timer with `systemctl enable --now coa-demo-health.timer`.
+
+For planned maintenance or rollback, pause checks with `systemctl stop coa-demo-health.timer coa-demo-health.service`. After confirming the public route is ready, resume with `systemctl start coa-demo-health.timer`. The timer runs on the demo host and shares its availability.
+
 ## Verify and release the exact version
 
 Require independent review of the built release and actual public route before sharing a new link:

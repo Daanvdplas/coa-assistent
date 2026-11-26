@@ -39,7 +39,7 @@ jobs:
       - name: Type checks and real proxy contracts
         run: |
           npm run typecheck
-          COA_CADDY_BIN="$RUNNER_TEMP/caddy" node --test deploy/public-proxy.test.ts deploy/package-release.test.ts deploy/quick-tunnel.test.ts
+          COA_CADDY_BIN="$RUNNER_TEMP/caddy" node --test deploy/public-proxy.test.ts deploy/package-release.test.ts deploy/quick-tunnel.test.ts deploy/coa-demo-health.test.ts
       - name: Build and package Linux release
         run: |
           cargo +1.97.1 build --release --locked --no-default-features

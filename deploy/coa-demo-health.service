@@ -1,0 +1,17 @@
+[Unit]
+Description=Check and recover the COA Assistent demo
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/coa-demo-health
+TimeoutStartSec=25s
+StateDirectory=coa-demo-health
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+InaccessiblePaths=-/var/lib/coa-demo -/var/lib/coa-tunnel -/var/lib/coa-named-tunnel -/etc/coa-demo-named-tunnel
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
