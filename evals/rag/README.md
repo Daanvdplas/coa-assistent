@@ -110,6 +110,7 @@ This creates a new promptfoo grading ID retaining original execution ID, time an
 - [Native retrieval procedures and metrics](docs/retrieval-lab.md), including storage parity and manual review.
 - [Predeclared quality protocol](docs/retrieval-lab-quality-v1.md), including AND/OR goals, filters and capacity limits.
 - [Iterative-search comparison](docs/agentic-search-comparison.md).
+- [Guided daypart evaluation](docs/guided_dayparts.md).
 - [Compact MCP audit and historical byte comparison](docs/compact-mcp.md).
 - [Saved ranking-role regression](fixtures/regressions/README.md).
 
