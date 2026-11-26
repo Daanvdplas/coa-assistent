@@ -1,0 +1,57 @@
+name: One-time COA public capacity check
+
+on:
+  push:
+    branches:
+      - qa/coa-live-10-20261126-01
+    paths:
+      - .github/workflows/coa-live-10-20261126.yml
+      - ops/coa-live-10.ts
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: coa-public-capacity-20261126-01
+  cancel-in-progress: false
+
+jobs:
+  client:
+    if: >-
+      ${{ github.repository_id == '1425707184' &&
+      github.ref == 'refs/heads/qa/coa-live-10-20261126-01' &&
+      github.event_name == 'push' && github.event.repository.private == false && github.event.created == true &&
+      github.event.deleted == false && github.event.forced == false &&
+      github.run_number == '1' && github.run_attempt == '1' }}
+    name: COA client ${{ matrix.client }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        client: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      COA_LIVE_CLIENT: ${{ matrix.client }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, repo pin
+        with:
+          node-version: '22.22.0'
+      - name: Prepare normal demo session
+        run: |
+          ulimit -c 0
+          node ops/coa-live-10.ts prepare
+      - name: Submit exactly one fictional question
+        env:
+          COA_LIVE_GITHUB_READ_TOKEN: ${{ github.token }}
+        run: |
+          ulimit -c 0
+          node ops/coa-live-10.ts submit
+      - name: Remove ephemeral session
+        if: always()
+        run: node ops/coa-live-10.ts cleanup
